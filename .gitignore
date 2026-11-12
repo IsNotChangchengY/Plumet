@@ -1,0 +1,12 @@
+node_modules/
+dist/
+release/
+*.local
+*.log
+pnpm-debug.log*
+
+AGENTS/
+AGENTS.md
+
+.DS_Store
+Thumbs.db
