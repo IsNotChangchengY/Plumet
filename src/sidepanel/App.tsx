@@ -7,6 +7,7 @@ import type { Settings } from '../storage/settings'
 import { loadSettings, patchSettings } from '../storage/settings'
 import { applyTheme } from '../ui/apply-theme'
 import { openLearning, openOptions } from '../ui/nav'
+import { extensionVersion } from '../ui/version'
 
 type Tab = 'translate' | 'history'
 
@@ -97,7 +98,7 @@ export default function App() {
           生词本
         </button>
         <span className="spacer" />
-        <span className="hint">v0.1.0</span>
+        <span className="hint">v{extensionVersion()}</span>
       </footer>
     </div>
   )

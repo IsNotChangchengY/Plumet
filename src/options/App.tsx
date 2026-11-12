@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { AiProviderConfig, Settings } from '../storage/settings'
 import { DEFAULT_SETTINGS, loadSettings, saveSettings } from '../storage/settings'
-import { listEngines } from '../core/providers/registry'
+import { listAiEngines, listEngines } from '../core/providers/registry'
 import { LANGUAGES } from '../core/lang'
 import { clearCache } from '../core/cache'
 import { clearHistory } from '../storage/history'
 import { applyTheme } from '../ui/apply-theme'
+import { extensionVersion } from '../ui/version'
 import { AiProvidersSection } from './AiProvidersSection'
 
 export default function App() {
@@ -31,6 +32,7 @@ export default function App() {
   }, [settings])
 
   const engines = useMemo(() => (settings ? listEngines(settings) : []), [settings])
+  const aiEngines = useMemo(() => (settings ? listAiEngines(settings) : []), [settings])
 
   if (!settings) {
     return <div className="container">正在加载设置…</div>
@@ -69,7 +71,7 @@ export default function App() {
       <header className="stack">
         <h1 className="page-title">羽译 · 设置</h1>
         <p className="page-subtitle">
-          翻译、语法检查、润色与生词学习一体的浏览器扩展。当前版本 v0.1.0，网页翻译与划词翻译在后续里程碑实现。
+          翻译、语法检查、润色与生词学习一体的浏览器扩展。当前版本 v{extensionVersion()}，网页翻译与划词翻译在后续里程碑实现。
         </p>
         <span className="hint">{savedText}</span>
       </header>
@@ -144,7 +146,7 @@ export default function App() {
       <section className="card section">
         <h2 className="section-title">翻译引擎</h2>
         <p className="hint">
-          翻译面板与网页翻译可以分别指定引擎。AI 引擎更懂语境，但会产生费用；免费通道适合长文与兜底。
+          翻译、语法检查、润色、网页翻译可以分别指定引擎。AI 更懂语境但会产生费用；免费通道适合长文与兜底。检查和润色只能用 AI。
         </p>
         <div className="grid-2">
           <label className="field">
@@ -175,6 +177,38 @@ export default function App() {
                 <option key={engine.id} value={engine.id}>
                   {engine.label}
                   {engine.configured ? '' : '（未配置）'}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span className="field-label">语法检查（只用 AI）</span>
+            <select
+              className="select"
+              style={{ width: '100%' }}
+              value={settings.checkEngine}
+              onChange={(event) => patch({ checkEngine: event.target.value })}
+            >
+              <option value="">自动：翻译引擎是 AI 就用它，否则用第一个 AI 服务</option>
+              {aiEngines.map((engine) => (
+                <option key={engine.id} value={engine.id}>
+                  {engine.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="field">
+            <span className="field-label">润色（只用 AI）</span>
+            <select
+              className="select"
+              style={{ width: '100%' }}
+              value={settings.polishEngine}
+              onChange={(event) => patch({ polishEngine: event.target.value })}
+            >
+              <option value="">自动：翻译引擎是 AI 就用它，否则用第一个 AI 服务</option>
+              {aiEngines.map((engine) => (
+                <option key={engine.id} value={engine.id}>
+                  {engine.label}
                 </option>
               ))}
             </select>
@@ -225,7 +259,7 @@ export default function App() {
       <section className="card section">
         <h2 className="section-title">关于</h2>
         <p className="hint">
-          羽译 v0.1.0 · 快捷键：Alt+T 翻译选中内容，Alt+P 翻译当前页面（可在浏览器扩展快捷键页修改）。
+          羽译 v{extensionVersion()} · 快捷键：Alt+T 翻译选中内容，Alt+P 翻译当前页面（可在浏览器扩展快捷键页修改）。
         </p>
       </section>
     </div>

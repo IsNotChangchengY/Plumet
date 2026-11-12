@@ -24,6 +24,8 @@ export type Settings = {
   sourceLang: string
   targetLang: string
   translateEngine: string
+  checkEngine: string
+  polishEngine: string
   pageEngine: string
   aiProviders: AiProviderConfig[]
   mtEnabled: Record<string, boolean>
@@ -34,6 +36,8 @@ export type Settings = {
   historyEnabled: boolean
   historyLimit: number
   glossary: GlossaryEntry[]
+  polishChips: string[]
+  polishDirection: string
 }
 
 export const SETTINGS_KEY = 'settings.v1'
@@ -43,6 +47,8 @@ export const DEFAULT_SETTINGS: Settings = {
   sourceLang: 'auto',
   targetLang: 'zh-CN',
   translateEngine: 'mt:google-free',
+  checkEngine: '',
+  polishEngine: '',
   pageEngine: 'mt:google-free',
   aiProviders: [],
   mtEnabled: { 'google-free': true, mymemory: true },
@@ -53,6 +59,8 @@ export const DEFAULT_SETTINGS: Settings = {
   historyEnabled: true,
   historyLimit: 200,
   glossary: [],
+  polishChips: [],
+  polishDirection: '',
 }
 
 export function normalizeSettings(raw: unknown): Settings {
@@ -65,6 +73,10 @@ export function normalizeSettings(raw: unknown): Settings {
     aiProviders: Array.isArray(stored.aiProviders) ? stored.aiProviders : [],
     mtEnabled: { ...DEFAULT_SETTINGS.mtEnabled, ...(stored.mtEnabled ?? {}) },
     glossary: Array.isArray(stored.glossary) ? stored.glossary : [],
+    polishChips: Array.isArray(stored.polishChips) ? stored.polishChips : [],
+    polishDirection: typeof stored.polishDirection === 'string' ? stored.polishDirection : '',
+    checkEngine: typeof stored.checkEngine === 'string' ? stored.checkEngine : '',
+    polishEngine: typeof stored.polishEngine === 'string' ? stored.polishEngine : '',
   }
 }
 

@@ -1,5 +1,7 @@
 # 服务商对接规范
 
+> 改动服务商层时，同步本文件与 `AGENTS.md`；维护与同步规则见 [README.md](README.md)。
+
 ## 1. 契约
 
 所有服务商实现 `src/core/providers/types.ts`：
@@ -79,7 +81,18 @@ MyMemory 细节：
 - 单次约 500 字节，适配器按 400 字符切片并在片段间停 150ms。
 - 匿名额度约 5000 字符/天，超了会返回 warning 字样，已映射成 `quota` 错误。
 
-## 6. 成本与限流
+## 6. 检查与润色的模型调用（M2）
+
+两条链路都只走 AI（免费机器翻译做不了这些）：
+
+- 检查：`/chat/completions`，`stream: false`，要求模型只返回
+  `{"issues":[{"quote":"原文片段","replacement":"改法","category":"...","severity":"...","explanation":"一句中文"}]}`。
+  解析顺序：`extractJsonObject()` 剥代码块 → `JSON.parse` → zod（未知 category/severity 用 `.catch()` 回退，不整条失败）→ 失败一次修复重试（把上次输出回灌给模型）→ 仍失败报 `parse`。
+- 润色：`/chat/completions`，`stream: true`，只要润色后的全文；diff 由前端算，不让模型描述改动。
+- 分段：检查按 1400 字符切段、串行调用，每段 emit 一次 `progress`；润色整段一次调用。
+- 额度：检查一段 ≈ 1 次调用；长文会按段数线性增加成本，UI 会显示段进度。
+
+## 7. 成本与限流
 
 - AI 长文翻译很贵：网页翻译默认走免费通道，切 AI 时面板会给提示。
 - 缓存键包含引擎、语言、上下文、原文，所以换引擎不会错误复用；重复的句子第二次不再花钱。

@@ -78,3 +78,60 @@ export function buildBatchMessages(input: {
     { role: 'user', content: sections.join('\n') },
   ]
 }
+
+const CHECK_SYSTEM_PROMPT = [
+  '你是一名严格的语法与用词检查器。',
+  '规则：',
+  '1. 只返回 JSON，不要解释、不要使用 Markdown 代码块、不要输出其它文字。',
+  '2. 返回格式固定为 {"issues":[{"quote":"原文片段","replacement":"修改后片段","category":"grammar|spelling|punctuation|word-choice|style|other","severity":"error|warning|info","explanation":"一句中文说明"}]}。',
+  '3. quote 必须是原文里逐字出现的连续片段，尽量短（3–20 字），不要带上下文。',
+  '4. replacement 是替换 quote 的文本；只删除时用空字符串。',
+  '5. 只报真正需要修改的问题，最多 40 条；没有问题就返回 {"issues":[]}。',
+  '6. 不要翻译原文，不要改写成另一种语言，不要整段重写。',
+  '7. 纯风格偏好不要报；明显影响可读性时才用 info。',
+].join('\n')
+
+export function buildCheckMessages(input: { text: string }): ChatMessage[] {
+  return [
+    { role: 'system', content: CHECK_SYSTEM_PROMPT },
+    { role: 'user', content: `【原文】\n${input.text}` },
+  ]
+}
+
+export function buildCheckRepairMessages(input: { text: string; previous: string }): ChatMessage[] {
+  return [
+    { role: 'system', content: CHECK_SYSTEM_PROMPT },
+    {
+      role: 'user',
+      content: [
+        '上一次的输出无法解析为 JSON。请重新检查并严格只输出 JSON 对象，不要任何多余文字。',
+        `【原文】\n${input.text}`,
+        `【上一次的错误输出（截断）】\n${input.previous.slice(0, 800)}`,
+      ].join('\n\n'),
+    },
+  ]
+}
+
+const POLISH_SYSTEM_PROMPT = [
+  '你是一名写作润色师。',
+  '规则：',
+  '1. 只输出润色后的全文，不要标题、不要解释、不要加引号、不要使用 Markdown 代码块。',
+  '2. 保留原文的事实与信息，不增加原文没有的内容；除非用户明确要求。',
+  '3. 保持原文的段落划分与换行。',
+  '4. 严格遵循【润色方向】里的全部要求。',
+  '5. 输出语言与原文一致：原文是中文就输出中文，原文是英文就输出英文。',
+].join('\n')
+
+export function buildPolishMessages(input: {
+  text: string
+  instruction: string
+}): ChatMessage[] {
+  const direction = input.instruction.trim() || '在不改变原意的前提下，让表达更自然、准确、流畅。'
+  return [
+    { role: 'system', content: POLISH_SYSTEM_PROMPT },
+    {
+      role: 'user',
+      content: `【润色方向】\n${direction}\n\n【原文】\n${input.text}`,
+    },
+  ]
+}
