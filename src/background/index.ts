@@ -64,7 +64,6 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   }
   if (info.menuItemId === 'yuyi-translate-selection' && tabId !== undefined) {
     void tellContent(tabId, 'yuyi:translate-selection')
-    if (windowId !== undefined) void openPanelForWindow(windowId)
     return
   }
   if (info.menuItemId === 'yuyi-translate-page' && tabId !== undefined) {

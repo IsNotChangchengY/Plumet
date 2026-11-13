@@ -144,6 +144,46 @@ export default function App() {
       </section>
 
       <section className="card section">
+        <h2 className="section-title">划词翻译</h2>
+        <div className="grid-2">
+          <label className="field">
+            <span className="field-label">触发方式</span>
+            <select
+              className="select"
+              style={{ width: '100%' }}
+              value={settings.selectionTrigger}
+              onChange={(event) =>
+                patch({ selectionTrigger: event.target.value as Settings['selectionTrigger'] })
+              }
+            >
+              <option value="icon">选中后显示小图标</option>
+              <option value="shortcut">只用快捷键 Alt+T / 右键菜单</option>
+              <option value="off">关闭划词翻译</option>
+            </select>
+          </label>
+          <label className="field">
+            <span className="field-label">上下文长度（前后各多少字符）</span>
+            <input
+              className="input"
+              type="number"
+              min={0}
+              max={2000}
+              step={100}
+              value={settings.selectionContextChars}
+              onChange={(event) =>
+                patch({
+                  selectionContextChars: Math.max(0, Math.min(2000, Number(event.target.value) || 0)),
+                })
+              }
+            />
+          </label>
+        </div>
+        <p className="hint">
+          划词翻译会把选中文字和它所在段落（作为语境）一起发给当前翻译引擎。关掉小图标后，仍可用右键菜单和 Alt+T。
+        </p>
+      </section>
+
+      <section className="card section">
         <h2 className="section-title">翻译引擎</h2>
         <p className="hint">
           翻译、语法检查、润色、网页翻译可以分别指定引擎。AI 更懂语境但会产生费用；免费通道适合长文与兜底。检查和润色只能用 AI。
