@@ -1,4 +1,6 @@
 import type { PageState } from '../../core/messaging'
+import type { ThemeMode } from '../../storage/settings'
+import { applyHostTheme, CONTENT_THEME_CSS } from '../theme'
 import { markUiHost } from '../ui-mark'
 
 export type PillHandlers = {
@@ -11,12 +13,15 @@ export type PillHandlers = {
 export type Pill = {
   element: HTMLElement
   render: (state: PageState) => void
+  setTheme: (theme: ThemeMode) => void
   show: () => void
   hide: () => void
   destroy: () => void
 }
 
 const STYLE = `
+  ${CONTENT_THEME_CSS}
+
   :host {
     all: initial;
     position: fixed;
@@ -24,9 +29,10 @@ const STYLE = `
     right: 16px;
     bottom: 16px;
     display: none;
-    font-family: system-ui, "Segoe UI", "Microsoft YaHei", "PingFang SC", sans-serif;
+    font-family: var(--font);
   }
   :host([data-open="1"]) { display: block; }
+
   .bar {
     display: flex;
     align-items: center;
@@ -34,43 +40,64 @@ const STYLE = `
     max-width: min(460px, calc(100vw - 32px));
     padding: 8px 10px;
     box-sizing: border-box;
-    border: 1px solid #e1e6f0;
-    border-radius: 12px;
-    background: #ffffff;
-    color: #1b2130;
-    box-shadow: 0 8px 24px rgba(16, 24, 40, 0.18);
-    font-size: 13px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-md);
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--shadow-md);
+    font-size: 12px;
     line-height: 1.4;
   }
   .dot {
     width: 7px;
     height: 7px;
-    border-radius: 50%;
-    background: #4c7dff;
     flex: none;
+    border-radius: 50%;
+    background: var(--brand);
   }
-  :host([data-state="done"]) .dot { background: #2f9e6a; }
-  :host([data-state="error"]) .dot { background: #d9534f; }
-  :host([data-state="cancelled"]) .dot { background: #98a2b3; }
-  .text { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  :host([data-state="done"]) .dot { background: var(--ok); }
+  :host([data-state="error"]) .dot { background: var(--danger); }
+  :host([data-state="cancelled"]) .dot { background: var(--text-faint); }
+  :host([data-state="running"]) .dot { animation: yy-pill-pulse 1.4s var(--ease) infinite; }
+
+  .text {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
   button {
     flex: none;
-    border: 1px solid #e1e6f0;
-    border-radius: 8px;
+    height: 24px;
+    padding: 0 9px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
     background: transparent;
-    color: #4c7dff;
-    font: inherit;
-    font-size: 12px;
-    padding: 3px 8px;
+    color: var(--text-muted);
+    font-family: inherit;
+    font-size: 11.5px;
+    white-space: nowrap;
     cursor: pointer;
+    transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
   }
-  button:hover { background: #eef3ff; }
-  button.close { border-color: transparent; color: #98a2b3; padding: 2px 6px; }
-  @media (prefers-color-scheme: dark) {
-    .bar { background: #1a1d25; color: #e8ebf2; border-color: #2f3542; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.55); }
-    button { border-color: #2f3542; color: #9db6ff; }
-    button:hover { background: #232732; }
-    .text { color: #cdd4e0; }
+  button:hover { background: var(--surface-2); color: var(--text); border-color: var(--brand); }
+  button.close {
+    padding: 0 6px;
+    border-color: transparent;
+    color: var(--text-faint);
+  }
+  button.close:hover { background: var(--surface-2); color: var(--text); border-color: transparent; }
+
+  @keyframes yy-pill-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.55; transform: scale(0.86); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    :host([data-state="running"]) .dot { animation: none; }
+    button { transition: none; }
   }
 `
 
@@ -147,5 +174,14 @@ export function createPill(handlers: PillHandlers): Pill {
     host.remove()
   }
 
-  return { element: host, render, show, hide, destroy }
+  return {
+    element: host,
+    render,
+    setTheme(theme: ThemeMode) {
+      applyHostTheme(host, theme)
+    },
+    show,
+    hide,
+    destroy,
+  }
 }

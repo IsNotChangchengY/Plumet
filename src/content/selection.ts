@@ -13,27 +13,36 @@ import {
   normalizeSelectionText,
 } from './context'
 import { requestSelectionTranslation } from './translate-client'
+import { applyHostTheme, CONTENT_THEME_CSS } from './theme'
 import { isYuyiNode, isYuyiPath, markUiHost } from './ui-mark'
 
-const ICON_SIZE = 26
+const ICON_SIZE = 28
 const ICON_STYLE = `
+  ${CONTENT_THEME_CSS}
   :host { all: initial; }
   .icon {
     width: ${ICON_SIZE}px;
     height: ${ICON_SIZE}px;
-    border-radius: 8px;
-    border: 1px solid #e1e6f0;
-    background: #ffffff;
-    color: #3560d8;
-    font: 600 13px system-ui, "Microsoft YaHei", sans-serif;
-    cursor: pointer;
-    box-shadow: 0 2px 8px rgba(16, 24, 40, 0.18);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    display: grid;
+    place-items: center;
     padding: 0;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--brand);
+    font: 700 13px/1 var(--font);
+    box-shadow: var(--shadow-md);
+    cursor: pointer;
+    transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
   }
-  .icon:hover { background: #eaf0ff; }
+  .icon:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 18px 30px -14px rgba(43, 60, 140, 0.4);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .icon { transition: none; }
+    .icon:hover { transform: none; }
+  }
 `
 
 export type SelectionInfo = {
@@ -57,6 +66,9 @@ async function refreshSettings(): Promise<void> {
   } catch {
     settings = null
   }
+  const theme = settings?.theme ?? 'auto'
+  if (iconHost) applyHostTheme(iconHost, theme)
+  bubble?.setTheme(theme)
   if (settings && settings.selectionTrigger !== 'icon') hideIcon()
 }
 
@@ -122,6 +134,7 @@ function ensureIcon(): HTMLElement {
   host.style.cssText = 'all: initial; position: fixed; z-index: 2147483645; display: none;'
   const shadow = host.attachShadow({ mode: 'open' })
   shadow.innerHTML = `<style>${ICON_STYLE}</style><button type="button" class="icon" title="翻译选中内容">译</button>`
+  applyHostTheme(host, settings?.theme ?? 'auto')
   const button = shadow.querySelector('button')
   button?.addEventListener('click', (event) => {
     event.preventDefault()
@@ -171,6 +184,7 @@ function ensureBubble(): Bubble {
       closeBubble()
     },
   })
+  bubble.setTheme(settings?.theme ?? 'auto')
   return bubble
 }
 

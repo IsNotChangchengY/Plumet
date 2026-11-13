@@ -6,6 +6,7 @@ import { toAppError } from '../core/errors'
 import { AI_PRESETS, findPreset, originPattern } from '../core/providers/ai/presets'
 import { isJobEvent, YUYI_PORT } from '../core/messaging'
 import type { JobEvent } from '../core/messaging'
+import { SectionTitle } from '../app/SectionTitle'
 
 type Props = {
   settings: Settings
@@ -126,7 +127,7 @@ export function AiProvidersSection({ settings, onChange }: Props) {
 
   return (
     <section className="card section">
-      <h2 className="section-title">AI 服务（OpenAI 兼容）</h2>
+      <SectionTitle icon="cpu">AI 服务（OpenAI 兼容）</SectionTitle>
       <p className="hint">
         填一个 OpenAI 兼容服务的 Base URL、模型名和 API Key。第一次连接某个服务地址时，点「授权并测试」让浏览器允许扩展访问它。
       </p>
@@ -237,7 +238,7 @@ export function AiProvidersSection({ settings, onChange }: Props) {
             </div>
 
             {result ? (
-              <div className={`banner ${result.status === 'ok' ? 'info' : 'error'}`}>{result.message}</div>
+              <div className={`banner ${result.status === 'ok' ? 'ok' : 'error'}`}>{result.message}</div>
             ) : null}
           </div>
         )

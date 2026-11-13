@@ -73,7 +73,7 @@ export function PageButton({ onStarted }: Props = {}) {
     <>
       <button
         type="button"
-        className="btn ghost small"
+        className="btn primary"
         disabled={disabled}
         title={disabled ? reason : '把当前网页的正文翻译成目标语言'}
         onClick={() => {

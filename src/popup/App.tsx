@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import type { CSSProperties } from 'react'
 import type { ExternalResult } from '../app/TranslatePanel'
 import { TranslatePanel } from '../app/TranslatePanel'
 import { HistoryList } from '../app/HistoryList'
@@ -49,6 +50,8 @@ export default function App() {
     )
   }
 
+  const tabStyle = { '--ti': tab === 'history' ? 1 : 0 } as CSSProperties
+
   return (
     <div className="popup">
       <header className="popup-header">
@@ -56,27 +59,34 @@ export default function App() {
           <span className="brand-mark">羽</span>
           <span>羽译</span>
         </div>
-        <div className="view-tabs">
+        <div className="tabs" style={tabStyle}>
+          <span className="tab-ind" aria-hidden="true" />
           <button
             type="button"
-            className={`view-tab${tab === 'translate' ? ' active' : ''}`}
+            className={`tab${tab === 'translate' ? ' active' : ''}`}
             onClick={() => switchTab('translate')}
           >
             翻译
           </button>
           <button
             type="button"
-            className={`view-tab${tab === 'history' ? ' active' : ''}`}
+            className={`tab${tab === 'history' ? ' active' : ''}`}
             onClick={() => switchTab('history')}
           >
             历史
           </button>
         </div>
-        <button type="button" className="btn ghost small" onClick={openLearning} title="打开生词本">
-          生词本
+        <button type="button" className="ibtn" onClick={openLearning} title="打开生词本" aria-label="打开生词本">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+          </svg>
         </button>
-        <button type="button" className="btn ghost small" onClick={openOptions} title="打开设置">
-          ⚙
+        <button type="button" className="ibtn" onClick={openOptions} title="打开设置" aria-label="打开设置">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+          </svg>
         </button>
       </header>
 
@@ -92,7 +102,6 @@ export default function App() {
 
       <footer className="popup-footer">
         <PageButton onStarted={() => window.close()} />
-        <span className="spacer" />
         <span className="hint">v{extensionVersion()}</span>
       </footer>
     </div>

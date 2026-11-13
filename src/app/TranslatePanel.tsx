@@ -112,29 +112,31 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
 
   return (
     <div className="stack">
-      <LangBar
-        sourceLang={settings.sourceLang}
-        targetLang={settings.targetLang}
-        onChangeSource={(code) => void onPatch({ sourceLang: code })}
-        onChangeTarget={(code) => void onPatch({ targetLang: code })}
-        onSwap={swap}
-      />
+      <div className="setbar">
+        <LangBar
+          sourceLang={settings.sourceLang}
+          targetLang={settings.targetLang}
+          onChangeSource={(code) => void onPatch({ sourceLang: code })}
+          onChangeTarget={(code) => void onPatch({ targetLang: code })}
+          onSwap={swap}
+        />
 
-      <div className="row">
-        <span className="field-label">引擎</span>
-        <select
-          className="select"
-          style={{ flex: 1 }}
-          value={settings.translateEngine}
-          onChange={(event) => void onPatch({ translateEngine: event.target.value })}
-        >
-          {engines.map((engine) => (
-            <option key={engine.id} value={engine.id}>
-              {engine.label}
-              {engine.configured ? '' : '（未配置）'}
-            </option>
-          ))}
-        </select>
+        <label className="sb-engine">
+          <span className="sb-elabel">引擎</span>
+          <select
+            className="sb-eval"
+            value={settings.translateEngine}
+            onChange={(event) => void onPatch({ translateEngine: event.target.value })}
+            aria-label="翻译引擎"
+          >
+            {engines.map((engine) => (
+              <option key={engine.id} value={engine.id}>
+                {engine.label}
+                {engine.configured ? '' : '（未配置）'}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       <div className="composer">
@@ -158,7 +160,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
           ) : null}
           <button
             type="button"
-            className="btn ghost small"
+            className="btn small"
             onClick={startCheck}
             disabled={running || !text.trim()}
             title="红黄荧光笔标出问题，绿底给出改法"
@@ -167,7 +169,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
           </button>
           <button
             type="button"
-            className="btn ghost small"
+            className="btn small"
             onClick={startPolish}
             disabled={running || !text.trim()}
             title="荧光笔 diff：划掉表示删除，绿底表示新增"
@@ -241,18 +243,6 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
                 ) : null}
               </>
             ) : null}
-
-            <span className="spacer" />
-            {translateText ? (
-              <button type="button" className="btn ghost small" onClick={() => copyText(translateText)}>
-                复制
-              </button>
-            ) : null}
-            {text || translateText ? (
-              <button type="button" className="btn ghost small" onClick={clear}>
-                清空
-              </button>
-            ) : null}
           </div>
 
           {state.status === 'running' && state.kind === 'check' ? (
@@ -294,10 +284,33 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
 
           {state.status === 'idle' && !manual ? (
             <div className="empty">
-              结果会显示在这里
-              <div className="hint" style={{ marginTop: 4 }}>
-                Shift+Enter 换行 · 检查标出错误 · 润色改写
-              </div>
+              <span className="re-icon" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 3v4" />
+                  <path d="M12 17v4" />
+                  <path d="M3 12h4" />
+                  <path d="M17 12h4" />
+                  <path d="m5.6 5.6 2.8 2.8" />
+                  <path d="m15.6 15.6 2.8 2.8" />
+                  <path d="m18.4 5.6-2.8 2.8" />
+                  <path d="m8.4 15.6-2.8 2.8" />
+                </svg>
+              </span>
+              <span className="re-title">结果会显示在这里</span>
+              <span className="re-hint">Shift+Enter 换行 · 检查标出错误 · 润色改写</span>
+            </div>
+          ) : null}
+
+          {translateText || text ? (
+            <div className="result-actions">
+              {translateText ? (
+                <button type="button" className="btn ghost small" onClick={() => copyText(translateText)}>
+                  复制
+                </button>
+              ) : null}
+              <button type="button" className="btn ghost small" onClick={clear}>
+                清空
+              </button>
             </div>
           ) : null}
         </div>

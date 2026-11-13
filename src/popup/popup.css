@@ -14,24 +14,30 @@ body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
-  background: var(--bg);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .popup-header {
+  flex: none;
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
+  gap: 8px;
+  padding: 8px 12px;
 }
 
 .popup-header .brand {
   margin-right: 2px;
 }
 
-.popup-header .view-tabs {
+.popup-header .tabs {
   margin-left: auto;
+}
+
+.popup-header .ibtn:last-child {
+  margin-right: -4px;
 }
 
 .popup-body {
@@ -39,12 +45,13 @@ body {
   min-height: 0;
   display: flex;
   flex-direction: column;
-  padding: 10px;
+  padding: 0 12px 12px;
 }
 
 .popup-body > .stack {
   flex: 1;
   min-height: 0;
+  gap: 8px;
 }
 
 .popup-scroll {
@@ -54,48 +61,212 @@ body {
 }
 
 .popup-footer {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px 12px;
+  border-top: 1px solid var(--border);
+}
+
+.popup-footer .btn.primary {
+  flex: 1;
+  height: 32px;
+  font-size: 13px;
+}
+
+.popup-footer .hint {
+  flex: none;
+  font-size: 11px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.setbar {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+}
+
+.sb-chip {
+  flex: 1;
+  min-width: 0;
+  height: 26px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--radius-md);
+  background: var(--raised);
+  box-shadow: var(--shadow-sm);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+  text-align-last: center;
+  appearance: none;
+  cursor: pointer;
+  transition:
+    color var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease);
+}
+
+.sb-chip:hover {
+  color: var(--brand);
+}
+
+.sb-swap {
+  width: 24px;
+  height: 24px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition:
+    color var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease),
+    transform 260ms var(--ease);
+}
+
+.sb-swap:hover:not(:disabled) {
+  color: var(--brand);
+  background: var(--surface);
+  transform: rotate(180deg);
+}
+
+.sb-swap:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.sb-engine {
   display: flex;
   align-items: center;
   gap: 6px;
-  flex-wrap: wrap;
-  padding: 7px 10px;
-  border-top: 1px solid var(--border);
+  height: 30px;
+  padding: 0 8px;
+  border-radius: var(--radius-md);
   background: var(--surface);
+  border: 1px solid var(--border);
+  transition:
+    border-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur-fast) var(--ease);
+}
+
+.sb-engine:hover {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-soft);
+}
+
+.sb-elabel {
+  flex: none;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.sb-eval {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 16px 0 0;
+  appearance: none;
+  border: 0;
+  background-color: var(--surface);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%238b93a5' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0 center;
+  color: var(--text);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+  outline: none;
 }
 
 .composer {
   position: relative;
+  flex: none;
   display: flex;
   flex-direction: column;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  transition:
+    border-color 180ms var(--ease),
+    box-shadow 180ms var(--ease);
+}
+
+.composer:focus-within {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 3px var(--brand-soft);
 }
 
 .composer-input {
-  min-height: 96px;
-  padding-bottom: 40px;
+  height: auto;
+  min-height: 46px;
+  max-height: 120px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 13px;
+  line-height: 1.55;
   resize: none;
+  outline: none;
+}
+
+.composer-input:focus {
+  border: 0;
+  box-shadow: none;
 }
 
 .composer-actions {
-  position: absolute;
-  right: 8px;
-  bottom: 8px;
   display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.composer-actions .btn.primary {
+  font-weight: 600;
+  padding: 0 14px;
 }
 
 .polish-config {
-  border: 1px solid var(--border);
+  flex: none;
+  border: 0;
   border-radius: var(--radius-sm);
-  background: var(--surface);
-  padding: 7px 10px;
+  background: var(--surface-2);
+  padding: 0;
 }
 
 .polish-config summary {
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
   font-size: 12px;
   color: var(--text-muted);
   list-style: none;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.polish-config summary:hover {
+  background: var(--surface-3);
+  color: var(--text);
 }
 
 .polish-config summary::-webkit-details-marker {
@@ -103,14 +274,33 @@ body {
 }
 
 .polish-config summary::before {
-  content: '▸';
-  display: inline-block;
-  margin-right: 6px;
-  transition: transform 0.15s ease;
+  content: "";
+  width: 10px;
+  height: 10px;
+  flex: none;
+  background-color: var(--text-faint);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 6 6 6-6 6'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 6 6 6-6 6'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  transition: transform var(--dur-fast) var(--ease);
 }
 
 .polish-config[open] summary::before {
   transform: rotate(90deg);
+}
+
+.polish-config[open] {
+  padding-bottom: 10px;
+}
+
+.polish-config .stack {
+  padding: 0 10px;
+}
+
+.polish-config .input {
+  height: 32px;
+  font-size: 12px;
 }
 
 .result-card {
@@ -119,6 +309,12 @@ body {
   overflow: auto;
   display: flex;
   flex-direction: column;
+  gap: 7px;
+  padding: 10px 11px 9px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
 }
 
 .result-card .result {
@@ -131,5 +327,10 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 4px;
+  gap: 7px;
+  padding: 16px;
+  background: var(--surface-2);
+  border-radius: var(--radius-md);
+  color: var(--text-muted);
+  font-size: 13px;
 }

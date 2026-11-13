@@ -7,6 +7,7 @@ import { clearCache } from '../core/cache'
 import { clearHistory } from '../storage/history'
 import { applyTheme } from '../ui/apply-theme'
 import { extensionVersion } from '../ui/version'
+import { SectionTitle } from '../app/SectionTitle'
 import { AiProvidersSection } from './AiProvidersSection'
 
 export default function App() {
@@ -68,12 +69,19 @@ export default function App() {
 
   return (
     <div className="container">
-      <header className="stack">
-        <h1 className="page-title">羽译 · 设置</h1>
-        <p className="page-subtitle">
-          翻译、语法检查、润色与生词学习一体的浏览器扩展。当前版本 v{extensionVersion()}，生词学习在后续里程碑实现。
-        </p>
-        <span className="hint">{savedText}</span>
+      <header className="opts-head">
+        <div className="stack" style={{ gap: 4 }}>
+          <h1 className="page-title">羽译 · 设置</h1>
+          <p className="page-subtitle">
+            翻译、语法检查、润色与生词学习一体的浏览器扩展。当前版本 v{extensionVersion()}，生词学习在后续里程碑实现。
+          </p>
+        </div>
+        <span className="save">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M20 6 9 17l-5-5" />
+          </svg>
+          {savedText}
+        </span>
       </header>
 
       {notice ? (
@@ -87,7 +95,7 @@ export default function App() {
       ) : null}
 
       <section className="card section">
-        <h2 className="section-title">通用</h2>
+        <SectionTitle icon="sliders">通用</SectionTitle>
         <div className="grid-2">
           <label className="field">
             <span className="field-label">界面主题</span>
@@ -138,13 +146,14 @@ export default function App() {
               checked={settings.historyEnabled}
               onChange={(event) => patch({ historyEnabled: event.target.checked })}
             />
-            记录翻译历史
+            <span className="sw" aria-hidden="true" />
+            <span>记录翻译历史</span>
           </label>
         </div>
       </section>
 
       <section className="card section">
-        <h2 className="section-title">划词翻译</h2>
+        <SectionTitle icon="type">划词翻译</SectionTitle>
         <div className="grid-2">
           <label className="field">
             <span className="field-label">触发方式</span>
@@ -184,7 +193,7 @@ export default function App() {
       </section>
 
       <section className="card section">
-        <h2 className="section-title">网页翻译</h2>
+        <SectionTitle icon="globe">网页翻译</SectionTitle>
         <div className="grid-2">
           <label className="field">
             <span className="field-label">呈现方式</span>
@@ -205,7 +214,7 @@ export default function App() {
       </section>
 
       <section className="card section">
-        <h2 className="section-title">翻译引擎</h2>
+        <SectionTitle icon="zap">翻译引擎</SectionTitle>
         <p className="hint">
           翻译、语法检查、润色、网页翻译可以分别指定引擎。AI 更懂语境但会产生费用；免费通道适合长文与兜底。检查和润色只能用 AI。
         </p>
@@ -284,7 +293,8 @@ export default function App() {
                 patch({ mtEnabled: { ...settings.mtEnabled, 'google-free': event.target.checked } })
               }
             />
-            启用谷歌翻译免费通道（免 Key）
+            <span className="sw" aria-hidden="true" />
+            <span>启用谷歌翻译免费通道（免 Key）</span>
           </label>
           <label className="switch">
             <input
@@ -292,7 +302,8 @@ export default function App() {
               checked={settings.mtEnabled.mymemory !== false}
               onChange={(event) => patch({ mtEnabled: { ...settings.mtEnabled, mymemory: event.target.checked } })}
             />
-            启用 MyMemory（免 Key，有限流）
+            <span className="sw" aria-hidden="true" />
+            <span>启用 MyMemory（免 Key，有限流）</span>
           </label>
         </div>
       </section>
@@ -300,7 +311,7 @@ export default function App() {
       <AiProvidersSection settings={settings} onChange={updateProviders} />
 
       <section className="card section">
-        <h2 className="section-title">数据与隐私</h2>
+        <SectionTitle icon="shield">数据与隐私</SectionTitle>
         <p className="hint">
           翻译内容会发送到你自己选择的翻译服务。API Key 只保存在本机浏览器（chrome.storage.local），不会同步到云端，也不会写进日志。
         </p>
@@ -318,7 +329,7 @@ export default function App() {
       </section>
 
       <section className="card section">
-        <h2 className="section-title">关于</h2>
+        <SectionTitle icon="info">关于</SectionTitle>
         <p className="hint">
           羽译 v{extensionVersion()} · 快捷键：Alt+T 翻译选中内容，Alt+P 翻译当前页面（可在浏览器扩展快捷键页修改）。
         </p>

@@ -44,6 +44,7 @@ function ensurePill(): Pill {
       pill?.hide()
     },
   })
+  if (settings) pill.setTheme(settings.theme)
   return pill
 }
 
@@ -88,6 +89,7 @@ export async function startPageTranslation(): Promise<PageCommandResult> {
   } catch {
     return { ok: false, reason: '读取设置失败，请刷新页面后再试', state }
   }
+  pill?.setTheme(settings.theme)
   if (hasPageTranslations() || state.state !== 'idle') {
     restorePage()
     resetRunState()
