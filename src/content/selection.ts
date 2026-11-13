@@ -13,6 +13,7 @@ import {
   normalizeSelectionText,
 } from './context'
 import { requestSelectionTranslation } from './translate-client'
+import { isYuyiNode, isYuyiPath, markUiHost } from './ui-mark'
 
 const ICON_SIZE = 26
 const ICON_STYLE = `
@@ -60,25 +61,11 @@ async function refreshSettings(): Promise<void> {
 }
 
 function isOurNode(node: Node | null): boolean {
-  let cursor: Node | null = node
-  while (cursor) {
-    if (cursor === iconHost || (bubble !== null && cursor === bubble.element)) return true
-    const root: Node = typeof cursor.getRootNode === 'function' ? cursor.getRootNode() : cursor
-    if (root !== cursor && root.nodeType === 11) {
-      const host: Node = (root as ShadowRoot).host
-      if (host === iconHost || (bubble !== null && host === bubble.element)) return true
-      cursor = host
-      continue
-    }
-    cursor = cursor.parentNode
-  }
-  return false
+  return isYuyiNode(node)
 }
 
 function isOurPath(path: EventTarget[]): boolean {
-  if (iconHost && path.includes(iconHost)) return true
-  if (bubble && path.includes(bubble.element)) return true
-  return false
+  return isYuyiPath(path)
 }
 
 function pickContextText(range: Range, maxChars: number): string {
@@ -131,7 +118,7 @@ export function readSelectionInfo(): SelectionInfo | null {
 function ensureIcon(): HTMLElement {
   if (iconHost) return iconHost
   const host = document.createElement('div')
-  host.setAttribute('data-yuyi-ui', 'icon')
+  markUiHost(host, 'icon')
   host.style.cssText = 'all: initial; position: fixed; z-index: 2147483645; display: none;'
   const shadow = host.attachShadow({ mode: 'open' })
   shadow.innerHTML = `<style>${ICON_STYLE}</style><button type="button" class="icon" title="翻译选中内容">译</button>`

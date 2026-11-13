@@ -77,14 +77,16 @@ async function runTranslate(request: TranslateJobRequest, job: Job): Promise<voi
       },
     })
 
-    await addHistory({
-      mode: 'translate',
-      sourceText: request.segments.join('\n\n'),
-      resultText: result.segments.join('\n\n'),
-      engineLabel: result.engineLabel,
-      sourceLang: request.sourceLang,
-      targetLang: request.targetLang,
-    })
+    if (!request.silent) {
+      await addHistory({
+        mode: 'translate',
+        sourceText: request.segments.join('\n\n'),
+        resultText: result.segments.join('\n\n'),
+        engineLabel: result.engineLabel,
+        sourceLang: request.sourceLang,
+        targetLang: request.targetLang,
+      })
+    }
   } catch (error) {
     sendError(job, request.requestId, error)
   } finally {

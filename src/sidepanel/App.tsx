@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import type { ExternalResult } from '../app/TranslatePanel'
 import { TranslatePanel } from '../app/TranslatePanel'
 import { HistoryList } from '../app/HistoryList'
+import { PageButton } from '../app/PageButton'
 import type { HistoryEntry } from '../storage/history'
 import type { Settings } from '../storage/settings'
 import { loadSettings, patchSettings } from '../storage/settings'
@@ -86,14 +87,7 @@ export default function App() {
       </div>
 
       <footer className="app-footer">
-        <button
-          type="button"
-          className="btn ghost small"
-          disabled
-          title="网页翻译在 M4 实现：双语对照 / 仅译文，可随时还原"
-        >
-          翻译本页
-        </button>
+        <PageButton />
         <button type="button" className="btn ghost small" onClick={openLearning}>
           生词本
         </button>

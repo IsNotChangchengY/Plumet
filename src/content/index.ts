@@ -1,7 +1,10 @@
+import type { PageCommandName } from '../core/messaging'
+import { handlePageCommand } from './page/translate'
 import { initSelection, translateCurrentSelection } from './selection'
 
 type ContentMessage = {
   type?: string
+  command?: PageCommandName
 }
 
 let started = false
@@ -22,28 +25,30 @@ if (document.readyState === 'loading') {
   start()
 }
 
-function handleMessage(message: ContentMessage): { ok: boolean; status?: string; reason?: string } | null {
-  if (!message || typeof message !== 'object') return null
+function handleMessage(message: ContentMessage, sendResponse: (value: unknown) => void): boolean {
+  if (!message || typeof message !== 'object') return false
   if (message.type === 'yuyi:ping') {
-    return { ok: true, status: 'content-ready' }
+    sendResponse({ ok: true, status: 'content-ready' })
+    return false
   }
   if (message.type === 'yuyi:translate-selection') {
     start()
     const opened = translateCurrentSelection()
-    return { ok: opened, reason: opened ? undefined : '没有选中文本，或选区在输入框里' }
+    sendResponse({ ok: opened, reason: opened ? undefined : '没有选中文本，或选区在输入框里' })
+    return false
   }
-  if (message.type === 'yuyi:translate-page') {
-    return { ok: false, reason: '网页翻译在 M4 实现' }
+  if (message.type === 'yuyi:translate-page' || message.type === 'yuyi:page-command') {
+    start()
+    const command: PageCommandName = message.command ?? 'translate'
+    void handlePageCommand(command).then(sendResponse)
+    return true
   }
-  return null
+  return false
 }
 
 try {
   chrome.runtime.onMessage.addListener((message: ContentMessage, _sender, sendResponse) => {
-    const result = handleMessage(message)
-    if (!result) return false
-    sendResponse(result)
-    return true
+    return handleMessage(message, sendResponse)
   })
 } catch {
   // content script 在某些受限页面不会注入，忽略即可

@@ -1,6 +1,6 @@
 # 羽译 设计大纲
 
-> 状态：M0–M3 已实现，M4–M5 待做。本文件是产品与技术的总纲；工程约定见根目录 `AGENTS.md`，服务商对接细节见 `providers.md`。维护与同步规则见 [README.md](README.md)。
+> 状态：M0–M4 已实现，M5 待做。本文件是产品与技术的总纲；工程约定见根目录 `AGENTS.md`，服务商对接细节见 `providers.md`。维护与同步规则见 [README.md](README.md)。
 
 ## 1. 定位
 
@@ -46,14 +46,16 @@
 - 单词与句子共用一套气泡，单词模式放大原词显示；词典卡、收藏、AI 讲解并入 M5 学习模块。
 - 定位：选区上方优先，放不下翻到下方，贴边修正；滚动 / 缩放时跟随，选区失效就关闭。
 
-### 2.5 网页翻译（M4）
-- 入口：面板按钮 / 右键菜单 / `Alt+P` / 按域名自动。
-- 采集：`TreeWalker` 文本节点，跳过脚本、样式、代码、输入框、`contenteditable`、`[translate="no"]`、隐藏与已译节点。
-- 分块：按块级容器聚合成段；纯文本块直接替换，含内联标签先按文本节点分别翻译（占位符保护留到 v2）。
-- 呈现：双语对照（原块后插入译文块，`yuyi-*` 命名空间）与仅译文（原文存 `data-yuyi-orig`，可一键还原）。
-- 动态内容：`MutationObserver` 防抖 500ms 增量补译；SPA 路由变化重扫。
-- 站点规则：`never / auto / manual` + 单站目标语言。
-- 性能：`requestIdleCallback` 分片、并发上限（AI 3–5）、`AbortController` 取消、译文缓存。
+### 2.5 网页翻译（已实现 M4）
+- 入口：面板底部「翻译本页」/ 右键菜单「羽译：翻译此页」/ `Alt+P`；页内右下角有状态条（进度 / 取消 / 重试失败 / 还原本页）。
+- 采集：从 `document.body` 递归，只把「不含块级子元素的块级元素」当一个单元（段落、标题、列表项、表格单元格）；`<br>` 读成空格，不用 `textContent` 直接拼接（会把 `Hello<br>world` 粘成 `Helloworld`）。
+- 跳过：代码块（`pre/code` 等）、输入框、`contenteditable`、`translate="no"`、`.notranslate`、隐藏内容、我们自己写入的节点；已是目标语言的段落（按脚本判断，中 / 日 / 韩 / 俄 / 阿可靠；拉丁语系目标不跳过）。
+- 分块：8 段 / 1200 字符一批、2 批并发；单元文本超过 3000 字符直接跳过并在状态条说明。
+- 呈现：**双语对照**（原文块末尾追加 `span[data-yuyi="trans"]`）与**仅译文**（原文子节点整体搬进 `span[data-yuyi="orig"]` 隐藏，还原时搬回）——都不销毁页面原有节点；译文与原文完全相同时不插重复段。
+- 动态内容：首次翻译后挂 `MutationObserver`（`childList` + 500ms 防抖），只扫新增节点，并过滤自己的译文（否则会自己触发自己）；`location.href` 变化（SPA 换页）时整页重扫。单页上限 400 段。
+- 失败与取消：一批失败只标记那一批（虚线框）并计入失败数，其余照常；取消立即停发新批次、已译保留；还原删掉全部译文与标记，DOM 回到翻译前。
+- 不写历史：网页翻译用 `silent` 标记跳过 `history.v1`，否则翻一页会灌 5–10 条记录。
+- 未做（留后）：按域名的站点规则（`never/auto/manual` + 单站目标语言）、占位符保护（链接与加粗不进入译文）、iframe 与 shadow DOM 内文本、单段重译。
 
 ### 2.6 学习（M5）
 1. 生词/短语本：自动带上下文句、来源网址、时间、语言对、标签。
@@ -64,7 +66,7 @@
 待拍板：学习目标是背单词还是积累表达？要不要 AI 例句（花 key）？复习强度？要不要多设备同步？
 
 ### 2.7 设置页（已实现）
-通用（主题/语言/历史）、划词翻译（触发方式/上下文长度）、翻译引擎（翻译/检查/润色/网页翻译四条链路分别选引擎）、AI 服务（增删改 + 授权并测试）、免费通道开关、数据与隐私、关于。
+通用（主题/语言/历史）、划词翻译（触发方式/上下文长度）、网页翻译（呈现方式）、翻译引擎（翻译/检查/润色/网页翻译四条链路分别选引擎）、AI 服务（增删改 + 授权并测试）、免费通道开关、数据与隐私、关于。
 
 ## 3. 荧光笔标注规范（M2 的核心）
 
@@ -82,8 +84,8 @@ Mark = { kind: 'equal'|'del'|'ins'|'warn', text, issueId?, severity?, state? }
 
 ## 4. UI/UX
 
-- 载体：**侧边栏 Side Panel 为主面板**（点图标即开），**设置页 / 生词本为独立标签页**，划词气泡与网页译文注入在页面内。
-- 侧栏布局：标题栏（羽译 · 设置齿轮）→ 翻译/历史 tab → 语言栏 → 引擎选择 → 输入区 → 动作行 → 结果卡片 → 底部（翻译本页 · 生词本 · 版本）。
+- 载体：**侧边栏 Side Panel 为主面板**（点图标即开），**设置页 / 生词本为独立标签页**，划词气泡与网页译文注入在页面内；网页翻译的进度条固定在页面右下角（Shadow DOM，`data-yuyi-ui="pill"`）。
+- 侧栏布局：标题栏（羽译 · 设置齿轮）→ 翻译/历史 tab → 语言栏 → 引擎选择 → 输入区 → 动作行 → 结果卡片 → 底部（翻译本页/还原 · 生词本 · 版本）。
 - 设计 token（`src/ui/theme.css`）：主色「羽蓝」`#4C7DFF`；中性灰阶；圆角 8/12/16；间距 4/8/12/16；字体 system-ui + 微软雅黑；深浅色两套变量，跟随系统或手动。
 - 交互底线：所有请求有 loading / 失败 / 取消三态；失败文案中文且给「去设置 / 重试」；快捷键在设置页只读展示并指引到扩展快捷键页。
 
@@ -92,18 +94,19 @@ Mark = { kind: 'equal'|'del'|'ins'|'warn', text, issueId?, severity?, state? }
 - Service Worker：唯一联网方；消息路由、右键菜单、快捷键、任务表、缓存、写历史。
 - Content Script：页面 DOM 读写（划词/网页翻译），不发网络请求。
 - 扩展页面（侧栏/设置/生词本）：React 渲染，直接用 `chrome.storage`。
-- 通信：Port 协议（`translate` / `check` / `polish` / `cancel` / `test` → `delta` / `progress` / `done` / `checkDone` / `polishDone` / `testDone` / `error`），`requestId` 对齐。
+- 通信：Port 协议（`translate` / `check` / `polish` / `cancel` / `test` → `delta` / `progress` / `done` / `checkDone` / `polishDone` / `testDone` / `error`），`requestId` 对齐；网页翻译的控制走一次性消息：面板 → `runtime.sendMessage` → SW 取当前标签页 → `tabs.sendMessage` → content script，进度反方向 `runtime.sendMessage` 广播给面板。
 - 构建：一个 `scripts/build.mjs` 连跑三次 Vite（页面多入口、background ESM、content IIFE）。
 - 权限：`storage / unlimitedStorage / scripting / activeTab / contextMenus / sidePanel`；`<all_urls>` 内容脚本；自定义 AI 端点走 `optional_host_permissions`。
 
 ## 6. 服务商策略
 
 默认链路：**用户 AI Key（主） → 谷歌免费通道 → MyMemory**。国内服务商做成「填了 Key 才亮」的适配器；免费链路只做兜底，并允许一键切走。
+网页翻译按量最大，默认走免费通道；切到 AI 时按段计费。
 实测结论见 `providers.md`。
 
 ## 7. 数据与存储
 
-全部 `chrome.storage.local`（v1）：`settings.v1`、`providers` 在 settings 里、`history.v1`（最多 200 条）、`cache.v1`（分片缓存，TTL 7 天）。学习卡片到 M5 再定是否迁 IndexedDB（`storage/learning.ts` 预留一层）。
+全部 `chrome.storage.local`（v1）：`settings.v1`、`providers` 在 settings 里、`history.v1`（最多 200 条，网页翻译不写入）、`cache.v1`（分片缓存，TTL 7 天，网页翻译按批命中）。学习卡片到 M5 再定是否迁 IndexedDB（`storage/learning.ts` 预留一层）。
 
 ## 8. 里程碑与状态
 
@@ -113,7 +116,7 @@ Mark = { kind: 'equal'|'del'|'ins'|'warn', text, issueId?, severity?, state? }
 | M1 服务商层 + 翻译面板 | ✅ | 面板可流式翻译、切引擎、错 Key 有中文提示、配置持久化、免费通道实测可用 |
 | M2 检查 + 润色 | ✅ | 荧光笔高亮/列表/终稿 + 忽略语义 + 自定义方向 + 长文切段 + mock 链路测试 |
 | M3 划词 | ✅ | 选中弹气泡、上下文注入生效、输入框不误触、快捷键与右键菜单可用 |
-| M4 网页翻译 | ⬜ | 三个真实页面完整翻译不塌布局，可取消、可还原、命中缓存 |
+| M4 网页翻译 | ✅ | 三个真实页面完整翻译不塌布局，可取消、可还原、命中缓存（按域名自动翻译留后） |
 | M5 学习 + 打包 | ⬜ | 收藏→复习→统计自洽，zip 可安装 |
 
 ## 9. 明确不做（v1）

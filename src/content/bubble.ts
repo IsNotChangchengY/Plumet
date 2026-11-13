@@ -1,4 +1,5 @@
 import { calculatePlacement } from './context'
+import { markUiHost } from './ui-mark'
 
 export type BubbleView =
   | { status: 'loading' }
@@ -130,7 +131,7 @@ const STYLE = `
 
 export function createBubble(handlers: BubbleHandlers): Bubble {
   const host = document.createElement('div')
-  host.setAttribute('data-yuyi-ui', 'bubble')
+  markUiHost(host, 'bubble')
   const shadow = host.attachShadow({ mode: 'open' })
   const style = document.createElement('style')
   style.textContent = STYLE

@@ -1,6 +1,6 @@
 import type { ErrorCode } from './errors'
 import type { IssueCategory, IssueSeverity } from './check'
-import type { AiProviderConfig } from '../storage/settings'
+import type { AiProviderConfig, PageMode } from '../storage/settings'
 
 export const YUYI_PORT = 'yuyi'
 
@@ -12,6 +12,7 @@ export type TranslateJobRequest = {
   targetLang: string
   context?: string
   engineId?: string
+  silent?: boolean
 }
 
 export type CheckJobRequest = {
@@ -97,4 +98,46 @@ export function isJobEvent(value: unknown): value is JobEvent {
   if (!value || typeof value !== 'object') return false
   const kind = (value as { kind?: unknown }).kind
   return typeof kind === 'string' && EVENT_KINDS.has(kind)
+}
+
+export type PageState = {
+  state: 'idle' | 'running' | 'done' | 'error' | 'cancelled'
+  done: number
+  total: number
+  failed: number
+  engineLabel?: string
+  message?: string
+  mode: PageMode
+}
+
+export type PageCommandName = 'translate' | 'cancel' | 'restore' | 'status'
+
+export type PageCommand = {
+  type: 'yuyi:page-command'
+  command: PageCommandName
+}
+
+export type PageCommandResult = {
+  ok: boolean
+  state?: PageState
+  reason?: string
+}
+
+export type PageStateEvent = {
+  type: 'yuyi:page-state'
+  state: PageState
+}
+
+const PAGE_COMMANDS = new Set<string>(['translate', 'cancel', 'restore', 'status'])
+
+export function isPageCommand(value: unknown): value is PageCommand {
+  if (!value || typeof value !== 'object') return false
+  const message = value as { type?: unknown; command?: unknown }
+  return message.type === 'yuyi:page-command' && typeof message.command === 'string' && PAGE_COMMANDS.has(message.command)
+}
+
+export function isPageStateEvent(value: unknown): value is PageStateEvent {
+  if (!value || typeof value !== 'object') return false
+  const message = value as { type?: unknown }
+  return message.type === 'yuyi:page-state'
 }

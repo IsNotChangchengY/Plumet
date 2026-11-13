@@ -1,6 +1,7 @@
 import { YUYI_PORT } from '../core/messaging'
 import type { JobRequest } from '../core/messaging'
 import { handleJobMessage, removePort } from './jobs'
+import { setupPageRouter } from './page'
 
 function setupSidePanel(): void {
   chrome.sidePanel
@@ -54,6 +55,7 @@ chrome.runtime.onStartup.addListener(() => {
 })
 
 setupSidePanel()
+setupPageRouter()
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   const tabId = tab?.id

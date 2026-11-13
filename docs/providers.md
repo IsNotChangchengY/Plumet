@@ -15,11 +15,12 @@ interface TranslateProvider {
 }
 ```
 
-- `request.segments`：要翻译的文本段（面板一般 1 段，网页翻译会是很多段）。
+- `request.segments`：要翻译的文本段（面板一般 1 段，网页翻译一批 8 段、划词 1 段）。
 - `request.sourceLang`：可能是 `auto`，MT 服务商需要自己检测（`resolveSourceLang`）。
-- `request.context / glossary`：上下文与术语表，MT 可忽略。
-- `request.onDelta`：有就流式推送（目前只有 AI 单段实现）。
+- `request.context / glossary`：上下文与术语表，MT 可忽略；网页翻译不传 context（见第 7 节）。
+- `request.onDelta`：有就流式推送（目前只有 AI 单段实现；网页翻译不用 delta，直接等 `done`）。
 - `request.signal`：取消。
+- 网页翻译在协议层用 `TranslateJobRequest.silent` 标记「不要写历史」，服务商层无感知。
 
 引擎层（`src/core/engine.ts`）负责：缓存 → 主引擎 → 失败降级到免费通道 → 标记 `usedFallback`。
 
@@ -48,6 +49,7 @@ interface TranslateProvider {
 - 单段 + 有 `onDelta`：`stream: true`，逐行解析 `data: {...}`（`[DONE]` 结束）。
 - 多段：请求 JSON，提示模型只返回 `{"translations": [...]}`；用 zod 校验；条数不一致直接报 `parse`（避免段落错位）。
 - 批量上限：单批 16 段 / 2200 字符，超出自动分组，串行发送。
+- 网页翻译每批 8 段 / 1200 字符，在 AI 适配器里不会再被二次拆分。
 - 内置预设：DeepSeek、硅基流动、OpenAI、Moonshot、智谱、通义兼容模式、Ollama、LM Studio、自定义。
 
 **权限**：自定义端点不在 manifest 的 `host_permissions` 里，必须在设置页点「授权并测试」触发 `chrome.permissions.request({ origins:['https://host/*'] })`（浏览器要求用户手势；模式里不能带端口）。授权后 SW 才能 fetch。
@@ -94,7 +96,9 @@ MyMemory 细节：
 
 ## 7. 成本与限流
 
-- AI 长文翻译很贵：网页翻译默认走免费通道，切 AI 时面板会给提示。
+- AI 长文翻译很贵：网页翻译默认走免费通道，把网页翻译切到 AI 时，设置页的引擎提示会说明按段计费。
+- 网页翻译的分批：8 段 / 1200 字符一批，content script 侧最多 2 批并发；批次落在缓存键上，同一页重复翻译基本零成本。
 - 缓存键包含引擎、语言、上下文、原文，所以换引擎不会错误复用；重复的句子第二次不再花钱。
-- 批量并发：AI 串行分组发送（当前实现），后续网页翻译会加并发上限 3–5。
+- 批量并发：AI 适配器内部按 16 段 / 2200 字符再分组、串行发送；网页翻译的并发在批次这一层。
 - 划词翻译复用 `settings.translateEngine`；上下文（页面标题 + 网站 + 段落）会进入缓存键，所以同一个词在不同段落会各请求一次，这是刻意行为。
+- 网页翻译刻意**不带** context（只带语言对）：一批 8 段本身已经提供局部连贯性，而按页面语境写缓存会让同一句话在每个网站各存一份，浪费空间与额度。

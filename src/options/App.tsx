@@ -71,7 +71,7 @@ export default function App() {
       <header className="stack">
         <h1 className="page-title">羽译 · 设置</h1>
         <p className="page-subtitle">
-          翻译、语法检查、润色与生词学习一体的浏览器扩展。当前版本 v{extensionVersion()}，网页翻译与划词翻译在后续里程碑实现。
+          翻译、语法检查、润色与生词学习一体的浏览器扩展。当前版本 v{extensionVersion()}，生词学习在后续里程碑实现。
         </p>
         <span className="hint">{savedText}</span>
       </header>
@@ -184,6 +184,27 @@ export default function App() {
       </section>
 
       <section className="card section">
+        <h2 className="section-title">网页翻译</h2>
+        <div className="grid-2">
+          <label className="field">
+            <span className="field-label">呈现方式</span>
+            <select
+              className="select"
+              style={{ width: '100%' }}
+              value={settings.pageMode}
+              onChange={(event) => patch({ pageMode: event.target.value as Settings['pageMode'] })}
+            >
+              <option value="bilingual">双语对照（原文下面加译文）</option>
+              <option value="replace">仅译文（隐藏原文，可一键还原）</option>
+            </select>
+          </label>
+        </div>
+        <p className="hint">
+          网页翻译会跳过代码块、输入框与隐藏内容，翻译过程中可在页面右下角取消。改了呈现方式后，回面板再点一次「翻译本页」就会按新方式重排；按域名自动翻译留到后续版本。
+        </p>
+      </section>
+
+      <section className="card section">
         <h2 className="section-title">翻译引擎</h2>
         <p className="hint">
           翻译、语法检查、润色、网页翻译可以分别指定引擎。AI 更懂语境但会产生费用；免费通道适合长文与兜底。检查和润色只能用 AI。
@@ -206,7 +227,7 @@ export default function App() {
             </select>
           </label>
           <label className="field">
-            <span className="field-label">网页翻译（M4 使用）</span>
+            <span className="field-label">网页翻译</span>
             <select
               className="select"
               style={{ width: '100%' }}

@@ -1,11 +1,25 @@
 import type { TranslateJobRequest } from '../core/messaging'
 import { isJobEvent, YUYI_PORT } from '../core/messaging'
 
+export type TextTranslation = {
+  segments: string[]
+  engineLabel: string
+  elapsedMs: number
+  cached: boolean
+  detectedLang?: string
+}
+
 export type SelectionTranslation = {
   text: string
   engineLabel: string
   elapsedMs: number
   detectedLang?: string
+}
+
+export type TextHandlers = {
+  onDelta?: (delta: string) => void
+  onDone?: (result: TextTranslation) => void
+  onError?: (message: string) => void
 }
 
 export type SelectionHandlers = {
@@ -14,17 +28,23 @@ export type SelectionHandlers = {
   onError?: (message: string) => void
 }
 
+export type TextInput = {
+  segments: string[]
+  sourceLang: string
+  targetLang: string
+  context?: string
+  engineId?: string
+  silent?: boolean
+}
+
 function newRequestId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID()
   }
-  return `sel-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  return `req-${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
-export function requestSelectionTranslation(
-  input: { text: string; context: string; sourceLang: string; targetLang: string },
-  handlers: SelectionHandlers,
-): () => void {
+export function requestTextTranslation(input: TextInput, handlers: TextHandlers): () => void {
   const requestId = newRequestId()
   let finished = false
   let port: chrome.runtime.Port
@@ -54,9 +74,10 @@ export function requestSelectionTranslation(
     }
     if (event.kind === 'done') {
       handlers.onDone?.({
-        text: event.result.segments.join('\n\n'),
+        segments: event.result.segments,
         engineLabel: event.result.engineLabel,
         elapsedMs: event.result.elapsedMs,
+        cached: event.result.cached,
         detectedLang: event.result.detectedLang,
       })
       finish()
@@ -79,10 +100,12 @@ export function requestSelectionTranslation(
     const payload: TranslateJobRequest = {
       kind: 'translate',
       requestId,
-      segments: [input.text],
+      segments: input.segments,
       sourceLang: input.sourceLang,
       targetLang: input.targetLang,
       context: input.context || undefined,
+      engineId: input.engineId || undefined,
+      silent: input.silent || undefined,
     }
     port.postMessage(payload)
   } catch {
@@ -99,4 +122,30 @@ export function requestSelectionTranslation(
     }
     finish()
   }
+}
+
+export function requestSelectionTranslation(
+  input: { text: string; context: string; sourceLang: string; targetLang: string },
+  handlers: SelectionHandlers,
+): () => void {
+  return requestTextTranslation(
+    {
+      segments: [input.text],
+      context: input.context,
+      sourceLang: input.sourceLang,
+      targetLang: input.targetLang,
+    },
+    {
+      onDelta: handlers.onDelta,
+      onDone(result) {
+        handlers.onDone?.({
+          text: result.segments.join('\n\n'),
+          engineLabel: result.engineLabel,
+          elapsedMs: result.elapsedMs,
+          detectedLang: result.detectedLang,
+        })
+      },
+      onError: handlers.onError,
+    },
+  )
 }

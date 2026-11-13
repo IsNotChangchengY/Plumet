@@ -1,7 +1,7 @@
 {
   "name": "yuyi",
   "private": true,
-  "version": "0.3.0",
+  "version": "1.0.0",
   "type": "module",
   "engines": {
     "node": ">=22.12.0"
