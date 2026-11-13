@@ -3,19 +3,8 @@ import type { JobRequest } from '../core/messaging'
 import { handleJobMessage, removePort } from './jobs'
 import { setupPageRouter } from './page'
 
-function setupSidePanel(): void {
-  chrome.sidePanel
-    .setPanelBehavior({ openPanelOnActionClick: true })
-    .catch(() => undefined)
-}
-
 function setupMenus(): void {
   chrome.contextMenus.removeAll(() => {
-    chrome.contextMenus.create({
-      id: 'yuyi-open-panel',
-      title: '羽译：打开翻译面板',
-      contexts: ['all'],
-    })
     chrome.contextMenus.create({
       id: 'yuyi-translate-selection',
       title: '羽译：翻译选中内容',
@@ -29,14 +18,6 @@ function setupMenus(): void {
   })
 }
 
-async function openPanelForWindow(windowId: number): Promise<void> {
-  try {
-    await chrome.sidePanel.open({ windowId })
-  } catch {
-    // 用户手势缺失时浏览器会拒绝打开，忽略即可
-  }
-}
-
 async function tellContent(tabId: number, type: string): Promise<void> {
   try {
     await chrome.tabs.sendMessage(tabId, { type })
@@ -46,31 +27,23 @@ async function tellContent(tabId: number, type: string): Promise<void> {
 }
 
 chrome.runtime.onInstalled.addListener(() => {
-  setupSidePanel()
   setupMenus()
 })
 
 chrome.runtime.onStartup.addListener(() => {
-  setupSidePanel()
+  setupMenus()
 })
 
-setupSidePanel()
 setupPageRouter()
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   const tabId = tab?.id
-  const windowId = tab?.windowId
-  if (info.menuItemId === 'yuyi-open-panel' && windowId !== undefined) {
-    void openPanelForWindow(windowId)
-    return
-  }
   if (info.menuItemId === 'yuyi-translate-selection' && tabId !== undefined) {
     void tellContent(tabId, 'yuyi:translate-selection')
     return
   }
   if (info.menuItemId === 'yuyi-translate-page' && tabId !== undefined) {
     void tellContent(tabId, 'yuyi:translate-page')
-    if (windowId !== undefined) void openPanelForWindow(windowId)
   }
 })
 

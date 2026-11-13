@@ -1,0 +1,135 @@
+html,
+body,
+#root {
+  min-height: 0;
+}
+
+body {
+  width: 340px;
+}
+
+.popup {
+  width: 340px;
+  height: 600px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.popup-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.popup-header .brand {
+  margin-right: 2px;
+}
+
+.popup-header .view-tabs {
+  margin-left: auto;
+}
+
+.popup-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 10px;
+}
+
+.popup-body > .stack {
+  flex: 1;
+  min-height: 0;
+}
+
+.popup-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.popup-footer {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 7px 10px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.composer {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.composer-input {
+  min-height: 96px;
+  padding-bottom: 40px;
+  resize: none;
+}
+
+.composer-actions {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.polish-config {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  padding: 7px 10px;
+}
+
+.polish-config summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-muted);
+  list-style: none;
+}
+
+.polish-config summary::-webkit-details-marker {
+  display: none;
+}
+
+.polish-config summary::before {
+  content: '▸';
+  display: inline-block;
+  margin-right: 6px;
+  transition: transform 0.15s ease;
+}
+
+.polish-config[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.result-card {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.result-card .result {
+  flex: 1;
+}
+
+.result-card .empty {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}

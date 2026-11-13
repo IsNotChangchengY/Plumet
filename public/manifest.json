@@ -9,8 +9,7 @@
     "unlimitedStorage",
     "scripting",
     "activeTab",
-    "contextMenus",
-    "sidePanel"
+    "contextMenus"
   ],
   "host_permissions": [
     "https://clients5.google.com/*",
@@ -27,10 +26,8 @@
     "type": "module"
   },
   "action": {
-    "default_title": "羽译"
-  },
-  "side_panel": {
-    "default_path": "sidepanel/index.html"
+    "default_title": "羽译",
+    "default_popup": "popup/index.html"
   },
   "options_ui": {
     "page": "options/index.html",

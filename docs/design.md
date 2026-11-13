@@ -1,6 +1,6 @@
 # 羽译 设计大纲
 
-> 状态：M0–M4 已实现，M5 待做。本文件是产品与技术的总纲；工程约定见根目录 `AGENTS.md`，服务商对接细节见 `providers.md`。维护与同步规则见 [README.md](README.md)。
+> 状态：M0–M4 与工具栏弹窗已实现，M5 待做。本文件是产品与技术的总纲；工程约定见根目录 `AGENTS.md`，服务商对接细节见 `providers.md`。维护与同步规则见 [README.md](README.md)。
 
 ## 1. 定位
 
@@ -17,9 +17,9 @@
 
 ## 2. 功能大纲
 
-### 2.1 翻译面板（已实现）
+### 2.1 翻译（已实现）
 - 语言栏：自动检测 → 目标语言，可互换；语言选择持久化。
-- 输入：多行文本，`Ctrl+Enter` 翻译；超过 2500 字符按段落自动切段。
+- 输入：多行文本；`Enter` 直接翻译（`Shift+Enter` 换行），超过 2500 字符按段落自动切段。
 - 三动作：翻译 / 检查 / 润色，共用同一份输入。
 - 结果：AI 流式输出；显示引擎、耗时、缓存命中、是否降级；复制、清空、历史回看。
 - 术语表：设置里维护 `原文 → 译文`，注入提示词。
@@ -35,7 +35,7 @@
 - 方向控制两层叠加：
   - 快捷 chips：更自然 / 更正式 / 更口语 / **更诗意** / 更简洁 / 更学术 / 保留术语 / 尽量不改长度。
   - 自由指令框：一句话说清要求（例：「改得像散文，保留全部事实」），直接进提示词。
-- 视图：内联合并视图（红底删除线 = 删掉，绿底 = 新增，未动普通字）、纯净稿、并排对照（侧栏窄于 560px 时自动禁用并排）。
+- 视图：内联合并视图（红底删除线 = 删掉，绿底 = 新增，未动普通字）、纯净稿、并排对照（窗口窄于 560px 时自动禁用并排）。
 - diff 与修改清单都由前端计算（`diff` + `Intl.Segmenter`），模型只输出润色后的全文；模型给理由需要多一次调用，留到后续版本。
 - 「再来一版」：同文本重新采样，界面保留当前结果直到新版返回。
 
@@ -47,7 +47,7 @@
 - 定位：选区上方优先，放不下翻到下方，贴边修正；滚动 / 缩放时跟随，选区失效就关闭。
 
 ### 2.5 网页翻译（已实现 M4）
-- 入口：面板底部「翻译本页」/ 右键菜单「羽译：翻译此页」/ `Alt+P`；页内右下角有状态条（进度 / 取消 / 重试失败 / 还原本页）。
+- 入口：弹窗底部「翻译本页」/ 右键菜单「羽译：翻译此页」/ `Alt+P`；页内右下角有状态条（进度 / 取消 / 重试失败 / 还原本页）。
 - 采集：从 `document.body` 递归，只把「不含块级子元素的块级元素」当一个单元（段落、标题、列表项、表格单元格）；`<br>` 读成空格，不用 `textContent` 直接拼接（会把 `Hello<br>world` 粘成 `Helloworld`）。
 - 跳过：代码块（`pre/code` 等）、输入框、`contenteditable`、`translate="no"`、`.notranslate`、隐藏内容、我们自己写入的节点；已是目标语言的段落（按脚本判断，中 / 日 / 韩 / 俄 / 阿可靠；拉丁语系目标不跳过）。
 - 分块：8 段 / 1200 字符一批、2 批并发；单元文本超过 3000 字符直接跳过并在状态条说明。
@@ -84,8 +84,9 @@ Mark = { kind: 'equal'|'del'|'ins'|'warn', text, issueId?, severity?, state? }
 
 ## 4. UI/UX
 
-- 载体：**侧边栏 Side Panel 为主面板**（点图标即开），**设置页 / 生词本为独立标签页**，划词气泡与网页译文注入在页面内；网页翻译的进度条固定在页面右下角（Shadow DOM，`data-yuyi-ui="pill"`）。
-- 侧栏布局：标题栏（羽译 · 设置齿轮）→ 翻译/历史 tab → 语言栏 → 引擎选择 → 输入区 → 动作行 → 结果卡片 → 底部（翻译本页/还原 · 生词本 · 版本）。
+- 载体：**只有工具栏弹窗一个界面**（`action.default_popup`，340×600，点到别处就关），设置页与生词本仍是新标签页；划词气泡与网页译文注入在页面内，网页翻译的进度条固定在页面右下角（Shadow DOM，`data-yuyi-ui="pill"`）。
+- 弹窗布局：标题栏（羽译 · 翻译/历史 tab · 生词本 · 设置）→ 语言栏 → 引擎选择 → 输入框（三个动作在框内右下角：检查 / 润色 / 翻译）→「润色方向」折叠块 → 结果卡片（内部滚动）→ 底部（翻译本页 · 版本）。
+- 高度固定、内容自己滚：检查的高亮/列表/终稿与润色 diff 都塞进结果卡片里滚，不再另开页面；代价是弹窗一关就看不到过程（任务会跑完并进历史），且「并排对照」需要 560px 以上宽度，在 340px 的弹窗里始终不可用。
 - 设计 token（`src/ui/theme.css`）：主色「羽蓝」`#4C7DFF`；中性灰阶；圆角 8/12/16；间距 4/8/12/16；字体 system-ui + 微软雅黑；深浅色两套变量，跟随系统或手动。
 - 交互底线：所有请求有 loading / 失败 / 取消三态；失败文案中文且给「去设置 / 重试」；快捷键在设置页只读展示并指引到扩展快捷键页。
 
@@ -93,10 +94,10 @@ Mark = { kind: 'equal'|'del'|'ins'|'warn', text, issueId?, severity?, state? }
 
 - Service Worker：唯一联网方；消息路由、右键菜单、快捷键、任务表、缓存、写历史。
 - Content Script：页面 DOM 读写（划词/网页翻译），不发网络请求。
-- 扩展页面（侧栏/设置/生词本）：React 渲染，直接用 `chrome.storage`。
-- 通信：Port 协议（`translate` / `check` / `polish` / `cancel` / `test` → `delta` / `progress` / `done` / `checkDone` / `polishDone` / `testDone` / `error`），`requestId` 对齐；网页翻译的控制走一次性消息：面板 → `runtime.sendMessage` → SW 取当前标签页 → `tabs.sendMessage` → content script，进度反方向 `runtime.sendMessage` 广播给面板。
-- 构建：一个 `scripts/build.mjs` 连跑三次 Vite（页面多入口、background ESM、content IIFE）。
-- 权限：`storage / unlimitedStorage / scripting / activeTab / contextMenus / sidePanel`；`<all_urls>` 内容脚本；自定义 AI 端点走 `optional_host_permissions`。
+- 扩展页面（弹窗/设置/生词本）：React 渲染，直接用 `chrome.storage`。
+- 通信：Port 协议（`translate` / `check` / `polish` / `cancel` / `test` → `delta` / `progress` / `done` / `checkDone` / `polishDone` / `testDone` / `error`），`requestId` 对齐；网页翻译的控制走一次性消息：弹窗 → `runtime.sendMessage` → SW 取当前标签页 → `tabs.sendMessage` → content script，进度反方向 `runtime.sendMessage` 广播回弹窗。
+- 构建：一个 `scripts/build.mjs` 连跑三次 Vite（页面多入口三条：`popup` / `options` / `learning`、background ESM、content IIFE）。
+- 权限：`storage / unlimitedStorage / scripting / activeTab / contextMenus`；`<all_urls>` 内容脚本；自定义 AI 端点走 `optional_host_permissions`。
 
 ## 6. 服务商策略
 
@@ -117,8 +118,9 @@ Mark = { kind: 'equal'|'del'|'ins'|'warn', text, issueId?, severity?, state? }
 | M2 检查 + 润色 | ✅ | 荧光笔高亮/列表/终稿 + 忽略语义 + 自定义方向 + 长文切段 + mock 链路测试 |
 | M3 划词 | ✅ | 选中弹气泡、上下文注入生效、输入框不误触、快捷键与右键菜单可用 |
 | M4 网页翻译 | ✅ | 三个真实页面完整翻译不塌布局，可取消、可还原、命中缓存（按域名自动翻译留后） |
+| 工具栏弹窗 | ✅ | 点图标弹出 340×600 单界面：翻译/检查/润色/历史都在弹窗里，`Enter` 即译、翻译本页可用；`pnpm check` 全绿 |
 | M5 学习 + 打包 | ⬜ | 收藏→复习→统计自洽，zip 可安装 |
 
 ## 9. 明确不做（v1）
 
-Firefox / 移动端、云同步与账号、PDF 翻译、悬浮取词、TMX 术语库导入、遥测、AI 自动出题、多词库管理。
+Firefox / 移动端、云同步与账号、PDF 翻译、悬浮取词、TMX 术语库导入、遥测、AI 自动出题、多词库管理、侧栏常驻面板与独立面板页面（v1 只有工具栏弹窗）。

@@ -123,23 +123,6 @@ textarea {
   color: inherit;
 }
 
-.app {
-  display: flex;
-  flex-direction: column;
-  min-height: 100vh;
-  background: var(--bg);
-}
-
-.app-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 10px 14px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface);
-}
-
 .brand {
   display: flex;
   align-items: center;
@@ -159,24 +142,6 @@ textarea {
   justify-content: center;
   font-size: 13px;
   font-weight: 700;
-}
-
-.app-body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-  padding: 12px 14px 16px;
-}
-
-.app-footer {
-  display: flex;
-  gap: 8px;
-  padding: 10px 14px;
-  border-top: 1px solid var(--border);
-  background: var(--surface);
-  position: sticky;
-  bottom: 0;
 }
 
 .tabs {

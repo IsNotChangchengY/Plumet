@@ -9,13 +9,13 @@
 ```ts
 interface TranslateProvider {
   id: string            // 'ai:<providerId>' | 'mt:google-free' | 'mt:mymemory'
-  label: string         // 显示在面板与设置里
+  label: string         // 显示在弹窗与设置里
   kind: 'mt' | 'ai'
   translate(request: TranslateRequest): Promise<TranslateResponse>
 }
 ```
 
-- `request.segments`：要翻译的文本段（面板一般 1 段，网页翻译一批 8 段、划词 1 段）。
+- `request.segments`：要翻译的文本段（弹窗一般 1 段，网页翻译一批 8 段、划词 1 段）。
 - `request.sourceLang`：可能是 `auto`，MT 服务商需要自己检测（`resolveSourceLang`）。
 - `request.context / glossary`：上下文与术语表，MT 可忽略；网页翻译不传 context（见第 7 节）。
 - `request.onDelta`：有就流式推送（目前只有 AI 单段实现；网页翻译不用 delta，直接等 `done`）。

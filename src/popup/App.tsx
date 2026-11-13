@@ -43,54 +43,55 @@ export default function App() {
 
   if (!settings) {
     return (
-      <div className="app">
+      <div className="popup">
         <div className="empty">正在加载设置…</div>
       </div>
     )
   }
 
   return (
-    <div className="app">
-      <header className="app-header">
+    <div className="popup">
+      <header className="popup-header">
         <div className="brand">
           <span className="brand-mark">羽</span>
           <span>羽译</span>
         </div>
-        <button type="button" className="btn ghost small" onClick={openOptions} title="打开设置">
-          ⚙ 设置
-        </button>
-      </header>
-
-      <div className="app-body">
-        <div className="tabs">
+        <div className="view-tabs">
           <button
             type="button"
-            className={`tab${tab === 'translate' ? ' active' : ''}`}
+            className={`view-tab${tab === 'translate' ? ' active' : ''}`}
             onClick={() => switchTab('translate')}
           >
             翻译
           </button>
           <button
             type="button"
-            className={`tab${tab === 'history' ? ' active' : ''}`}
+            className={`view-tab${tab === 'history' ? ' active' : ''}`}
             onClick={() => switchTab('history')}
           >
             历史
           </button>
         </div>
+        <button type="button" className="btn ghost small" onClick={openLearning} title="打开生词本">
+          生词本
+        </button>
+        <button type="button" className="btn ghost small" onClick={openOptions} title="打开设置">
+          ⚙
+        </button>
+      </header>
 
+      <div className="popup-body">
         {tab === 'translate' ? (
           <TranslatePanel settings={settings} onPatch={patch} external={external} />
         ) : (
-          <HistoryList refreshKey={historyRefresh} onPick={pickHistory} />
+          <div className="popup-scroll">
+            <HistoryList refreshKey={historyRefresh} onPick={pickHistory} />
+          </div>
         )}
       </div>
 
-      <footer className="app-footer">
-        <PageButton />
-        <button type="button" className="btn ghost small" onClick={openLearning}>
-          生词本
-        </button>
+      <footer className="popup-footer">
+        <PageButton onStarted={() => window.close()} />
         <span className="spacer" />
         <span className="hint">v{extensionVersion()}</span>
       </footer>

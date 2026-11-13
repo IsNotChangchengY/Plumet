@@ -3,7 +3,7 @@ import { POLISH_CHIPS, buildPolishInstruction } from '../core/polish'
 import { listEngines } from '../core/providers/registry'
 import { splitSegments } from '../core/text'
 import type { Settings } from '../storage/settings'
-import { useJob } from '../sidepanel/useJob'
+import { useJob } from './useJob'
 import { openOptions } from '../ui/nav'
 import { CheckView } from './CheckView'
 import { LangBar } from './LangBar'
@@ -121,7 +121,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
       />
 
       <div className="row">
-        <span className="field-label">翻译引擎</span>
+        <span className="field-label">引擎</span>
         <select
           className="select"
           style={{ flex: 1 }}
@@ -137,77 +137,75 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
         </select>
       </div>
 
-      <textarea
-        className="textarea"
-        placeholder="输入或粘贴文本：可翻译、检查语法、润色。Ctrl+Enter 直接翻译"
-        value={text}
-        onChange={(event) => setText(event.target.value)}
-        onKeyDown={(event) => {
-          if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
+      <div className="composer">
+        <textarea
+          className="textarea composer-input"
+          placeholder="输入或粘贴文本，Enter 翻译"
+          value={text}
+          onChange={(event) => setText(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== 'Enter' || event.shiftKey) return
+            if (event.nativeEvent.isComposing) return
             event.preventDefault()
             startTranslate()
-          }
-        }}
-      />
-
-      <div className="stack" style={{ gap: 6 }}>
-        <div className="row">
-          <span className="field-label">润色方向</span>
-          <span className="hint">可多选，检查与润色使用设置里指定的 AI</span>
-        </div>
-        <div className="chips">
-          {POLISH_CHIPS.map((chip) => (
-            <button
-              key={chip.id}
-              type="button"
-              className={`chip${chips.includes(chip.id) ? ' active' : ''}`}
-              onClick={() => toggleChip(chip.id)}
-            >
-              {chip.label}
-            </button>
-          ))}
-        </div>
-        <input
-          className="input"
-          placeholder="自定义要求，例如：更诗意一点、写给中学生看"
-          value={direction}
-          onChange={(event) => setDirection(event.target.value)}
-          onBlur={persistDirection}
+          }}
         />
-      </div>
-
-      <div className="actions">
-        <button type="button" className="btn primary" onClick={startTranslate} disabled={running || !text.trim()}>
-          翻译
-        </button>
-        <button
-          type="button"
-          className="btn"
-          onClick={startCheck}
-          disabled={running || !text.trim()}
-          title="红黄荧光笔标出问题，绿底给出改法"
-        >
-          检查
-        </button>
-        <button
-          type="button"
-          className="btn"
-          onClick={startPolish}
-          disabled={running || !text.trim()}
-          title="荧光笔 diff：划掉表示删除，绿底表示新增"
-        >
-          润色
-        </button>
-        {running ? (
-          <button type="button" className="btn" onClick={job.cancel}>
-            停止
+        <div className="composer-actions">
+          {running ? (
+            <button type="button" className="btn ghost small" onClick={job.cancel}>
+              停止
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="btn ghost small"
+            onClick={startCheck}
+            disabled={running || !text.trim()}
+            title="红黄荧光笔标出问题，绿底给出改法"
+          >
+            检查
           </button>
-        ) : null}
-        <span className="spacer" />
-        <span className="hint">{text.length > 0 ? `${text.length} 字符` : ''}</span>
+          <button
+            type="button"
+            className="btn ghost small"
+            onClick={startPolish}
+            disabled={running || !text.trim()}
+            title="荧光笔 diff：划掉表示删除，绿底表示新增"
+          >
+            润色
+          </button>
+          <button type="button" className="btn primary small" onClick={startTranslate} disabled={running || !text.trim()}>
+            翻译
+          </button>
+        </div>
       </div>
 
-      <div className="card">
+      <details className="polish-config">
+        <summary>润色方向{chips.length > 0 ? `（已选 ${chips.length}）` : ''}</summary>
+        <div className="stack" style={{ gap: 6, marginTop: 8 }}>
+          <div className="chips">
+            {POLISH_CHIPS.map((chip) => (
+              <button
+                key={chip.id}
+                type="button"
+                className={`chip${chips.includes(chip.id) ? ' active' : ''}`}
+                onClick={() => toggleChip(chip.id)}
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
+          <input
+            className="input"
+            placeholder="自定义要求，例如：更诗意一点、写给中学生看"
+            value={direction}
+            onChange={(event) => setDirection(event.target.value)}
+            onBlur={persistDirection}
+          />
+        </div>
+      </details>
+
+      <div className="card result-card">
         <div className="result">
           <div className="result-meta">
             {state.status === 'running' ? (
@@ -231,8 +229,6 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
             ) : null}
 
             {state.status === 'idle' && manual ? <span className="tag">来自历史</span> : null}
-
-            {state.status === 'idle' && !manual ? <span className="hint">结果会显示在这里</span> : null}
 
             {state.status === 'error' ? (
               <>
@@ -295,6 +291,15 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
           ) : null}
 
           {state.status === 'idle' && manual ? <pre className="result-text">{manual.result}</pre> : null}
+
+          {state.status === 'idle' && !manual ? (
+            <div className="empty">
+              结果会显示在这里
+              <div className="hint" style={{ marginTop: 4 }}>
+                Shift+Enter 换行 · 检查标出错误 · 润色改写
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
     </div>

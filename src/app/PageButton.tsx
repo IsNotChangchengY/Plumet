@@ -24,7 +24,11 @@ function statusLabel(state: PageState): string {
   return `已译 ${state.done} 段`
 }
 
-export function PageButton() {
+type Props = {
+  onStarted?: () => void
+}
+
+export function PageButton({ onStarted }: Props = {}) {
   const [status, setStatus] = useState<PageState | null>(null)
   const [reason, setReason] = useState('')
 
@@ -57,6 +61,7 @@ export function PageButton() {
     const result = await sendPageCommand(command)
     if (result.state) setStatus(result.state)
     setReason(result.ok ? '' : (result.reason ?? '网页翻译没有执行'))
+    if (result.ok && command === 'translate') onStarted?.()
   }
 
   const running = status?.state === 'running'

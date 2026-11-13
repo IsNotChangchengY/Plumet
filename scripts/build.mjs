@@ -18,7 +18,7 @@ const pages = {
     target: 'chrome114',
     rollupOptions: {
       input: {
-        sidepanel: resolve(root, 'src/sidepanel/index.html'),
+        popup: resolve(root, 'src/popup/index.html'),
         options: resolve(root, 'src/options/index.html'),
         learning: resolve(root, 'src/learning/index.html'),
       },
