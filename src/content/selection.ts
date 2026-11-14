@@ -1,5 +1,6 @@
 import type { Settings } from '../storage/settings'
 import { loadSettings } from '../storage/settings'
+import { saveCard } from '../storage/learning'
 import type { Bubble } from './bubble'
 import { createBubble } from './bubble'
 import {
@@ -57,6 +58,7 @@ let settings: Settings | null = null
 let iconHost: HTMLElement | null = null
 let bubble: Bubble | null = null
 let current: SelectionInfo | null = null
+let lastTranslation = ''
 let cancelRequest: (() => void) | null = null
 let initialized = false
 let viewportFrame = 0
@@ -175,6 +177,9 @@ function ensureBubble(): Bubble {
     onSpeak: (text) => {
       speak(text)
     },
+    onSave: () => {
+      void saveCurrentSelection()
+    },
     onRetry: () => {
       if (!current) return
       bubble?.render({ status: 'loading' })
@@ -186,6 +191,24 @@ function ensureBubble(): Bubble {
   })
   bubble.setTheme(settings?.theme ?? 'auto')
   return bubble
+}
+
+async function saveCurrentSelection(): Promise<void> {
+  if (!current || !lastTranslation) return
+  try {
+    await saveCard({
+      text: current.text,
+      translation: lastTranslation,
+      context: current.context,
+      sourceUrl: location.href,
+      sourceTitle: document.title,
+      sourceLang: settings?.sourceLang ?? 'auto',
+      targetLang: settings?.targetLang ?? 'zh-CN',
+    })
+    bubble?.setSaved(true)
+  } catch {
+    // 存储不可用时维持未收藏态
+  }
 }
 
 function speak(text: string): void {
@@ -222,6 +245,7 @@ function startTranslation(info: SelectionInfo): void {
       },
       onDone(result) {
         cancelRequest = null
+        lastTranslation = result.text
         bubble?.render({
           status: 'done',
           text: result.text,
@@ -242,6 +266,7 @@ async function openBubble(info: SelectionInfo): Promise<void> {
   hideIcon()
   const view = ensureBubble()
   current = info
+  lastTranslation = ''
   view.setSource(info.text)
   view.showAt({ top: info.rect.top, bottom: info.rect.bottom, left: info.rect.left })
   view.render({ status: 'loading' })
@@ -253,6 +278,7 @@ function closeBubble(): void {
   cancelRequest?.()
   cancelRequest = null
   current = null
+  lastTranslation = ''
   bubble?.hide()
 }
 

@@ -3,6 +3,7 @@ import { POLISH_CHIPS, buildPolishInstruction } from '../core/polish'
 import { listEngines } from '../core/providers/registry'
 import { splitSegments } from '../core/text'
 import type { Settings } from '../storage/settings'
+import { saveCard } from '../storage/learning'
 import { useJob } from './useJob'
 import { openOptions } from '../ui/nav'
 import { CheckView } from './CheckView'
@@ -29,6 +30,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
   const [runSeq, setRunSeq] = useState(0)
   const [chips, setChips] = useState<string[]>(() => settings.polishChips)
   const [direction, setDirection] = useState(() => settings.polishDirection)
+  const [saved, setSaved] = useState(false)
   const engines = useMemo(() => listEngines(settings), [settings])
   const state = job.state
   const running = state.status === 'running'
@@ -38,6 +40,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
     setText(external.source)
     setSubmitted(external.source)
     setManual(external)
+    setSaved(false)
     job.reset()
   }, [external])
 
@@ -56,6 +59,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
     if (segments.length === 0) return
     setManual(null)
     setSubmitted(text)
+    setSaved(false)
     setRunSeq((value) => value + 1)
     job.run({
       kind: 'translate',
@@ -91,6 +95,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
     setText('')
     setManual(null)
     setSubmitted('')
+    setSaved(false)
     job.reset()
   }
 
@@ -104,6 +109,24 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
       : state.status === 'idle' && manual
         ? manual.result
         : ''
+
+  const saveSource =
+    translateText === ''
+      ? ''
+      : state.status === 'done' && state.kind === 'translate'
+        ? submitted
+        : (manual?.source ?? '')
+
+  const saveTranslation = async () => {
+    if (!saveSource.trim() || !translateText) return
+    await saveCard({
+      text: saveSource,
+      translation: translateText,
+      sourceLang: settings.sourceLang,
+      targetLang: settings.targetLang,
+    })
+    setSaved(true)
+  }
 
   const progressLabel =
     state.status === 'running' && state.kind === 'check' && state.progress
@@ -303,6 +326,17 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
 
           {translateText || text ? (
             <div className="result-actions">
+              {saveSource ? (
+                <button
+                  type="button"
+                  className="btn ghost small"
+                  onClick={() => void saveTranslation()}
+                  disabled={saved}
+                  title="收进生词本，之后在生词本页面复习"
+                >
+                  {saved ? '已收藏' : '收藏'}
+                </button>
+              ) : null}
               {translateText ? (
                 <button type="button" className="btn ghost small" onClick={() => copyText(translateText)}>
                   复制

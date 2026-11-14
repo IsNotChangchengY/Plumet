@@ -12,6 +12,7 @@ export type BubbleView =
 export type BubbleHandlers = {
   onCopy: (text: string) => void
   onSpeak: (text: string) => void
+  onSave: () => void
   onRetry: () => void
   onClose: () => void
 }
@@ -21,6 +22,7 @@ export type Bubble = {
   ownsPath: (path: EventTarget[]) => boolean
   isOpen: () => boolean
   setSource: (text: string) => void
+  setSaved: (saved: boolean) => void
   setTheme: (theme: ThemeMode) => void
   render: (view: BubbleView) => void
   showAt: (anchor: { top: number; bottom: number; left: number }) => void
@@ -224,6 +226,7 @@ const STYLE = `
   }
   .act:hover { background: var(--surface-3); color: var(--text); }
   .act[hidden] { display: none; }
+  .act:disabled { color: var(--text-faint); cursor: default; background: transparent; }
   .act svg { width: 11px; height: 11px; }
 
   @keyframes yy-pop {
@@ -252,6 +255,8 @@ const ICON_COPY =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></svg>'
 const ICON_RETRY =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.4 5.7"/><path d="M20 5.5V11h-5.6"/></svg>'
+const ICON_SAVE =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/></svg>'
 const ICON_CLOSE =
   '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
 const ICON_ERROR =
@@ -276,6 +281,7 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
     '<div class="acts">',
     `<button class="act" type="button" data-action="speak" hidden>${ICON_SPEAK}朗读</button>`,
     `<button class="act" type="button" data-action="copy" hidden>${ICON_COPY}复制</button>`,
+    `<button class="act" type="button" data-action="save" hidden>${ICON_SAVE}收藏</button>`,
     `<button class="act" type="button" data-action="retry" hidden>${ICON_RETRY}重试</button>`,
     '</div>',
     '</div>',
@@ -288,6 +294,7 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
   const meta = panel.querySelector('.meta') as HTMLElement
   const speakButton = panel.querySelector('[data-action="speak"]') as HTMLButtonElement
   const copyButton = panel.querySelector('[data-action="copy"]') as HTMLButtonElement
+  const saveButton = panel.querySelector('[data-action="save"]') as HTMLButtonElement
   const retryButton = panel.querySelector('[data-action="retry"]') as HTMLButtonElement
 
   let open = false
@@ -330,12 +337,20 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
   function resetActions(): void {
     speakButton.hidden = true
     copyButton.hidden = true
+    saveButton.hidden = true
     retryButton.hidden = true
+    applySaved(false)
     meta.textContent = ''
   }
 
+  function applySaved(saved: boolean): void {
+    saveButton.disabled = saved
+    saveButton.innerHTML = `${ICON_SAVE}${saved ? '已收藏' : '收藏'}`
+  }
+
   function syncFoot(): void {
-    foot.hidden = !meta.textContent && speakButton.hidden && copyButton.hidden && retryButton.hidden
+    foot.hidden =
+      !meta.textContent && speakButton.hidden && copyButton.hidden && saveButton.hidden && retryButton.hidden
   }
 
   function renderStreaming(text: string): void {
@@ -393,6 +408,7 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
       meta.textContent = `${view.engineLabel} · ${Math.max(1, Math.round(view.elapsedMs / 100) / 10)}s`
       speakButton.hidden = false
       copyButton.hidden = false
+      saveButton.hidden = false
     } else {
       panel.className = 'panel error-state'
       body.innerHTML = ''
@@ -457,6 +473,10 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
       handlers.onSpeak(latestText)
       return
     }
+    if (action === 'save') {
+      handlers.onSave()
+      return
+    }
     if (action === 'retry') {
       handlers.onRetry()
     }
@@ -470,6 +490,9 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
     isOpen: () => open,
     setSource(text: string) {
       latestSource = text
+    },
+    setSaved(saved: boolean) {
+      applySaved(saved)
     },
     setTheme(theme: ThemeMode) {
       applyHostTheme(host, theme)

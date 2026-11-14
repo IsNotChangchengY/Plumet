@@ -12,6 +12,7 @@ const handlers = {
     calls.push('copy')
   },
   onSpeak: () => calls.push('speak'),
+  onSave: () => calls.push('save'),
   onRetry: () => calls.push('retry'),
   onClose: () => calls.push('close'),
 }
@@ -59,7 +60,7 @@ describe('selection bubble', () => {
     expect(partOf<HTMLElement>(view, '.foot').hidden).toBe(true)
   })
 
-  it('完成态显示引擎耗时与朗读/复制，且只有右上角一个关闭入口', () => {
+  it('完成态显示引擎耗时与朗读/复制/收藏，且只有右上角一个关闭入口', () => {
     const view = mount()
     view.showAt({ top: 200, bottom: 220, left: 100 })
     view.render({ status: 'done', text: '已推迟发布。', engineLabel: 'DeepSeek', elapsedMs: 1400, word: false })
@@ -67,8 +68,23 @@ describe('selection bubble', () => {
     expect(partOf<HTMLElement>(view, '.foot').hidden).toBe(false)
     expect(buttonOf(view, 'copy').hidden).toBe(false)
     expect(buttonOf(view, 'speak').hidden).toBe(false)
+    expect(buttonOf(view, 'save').hidden).toBe(false)
     expect(rootOf(view).querySelectorAll('.close').length).toBe(1)
     expect(rootOf(view).querySelector('[data-action="close"]')).toBe(null)
+  })
+
+  it('收藏按钮触发 onSave，收藏后按钮变已收藏并禁用', () => {
+    const view = mount()
+    view.showAt({ top: 200, bottom: 220, left: 100 })
+    view.render({ status: 'done', text: '已推迟发布。', engineLabel: 'DeepSeek', elapsedMs: 1400, word: false })
+    buttonOf(view, 'save').click()
+    expect(calls).toEqual(['save'])
+    view.setSaved(true)
+    expect(buttonOf(view, 'save').disabled).toBe(true)
+    expect(buttonOf(view, 'save').textContent).toContain('已收藏')
+    view.render({ status: 'loading' })
+    expect(buttonOf(view, 'save').hidden).toBe(true)
+    expect(buttonOf(view, 'save').disabled).toBe(false)
   })
 
   it('错误态只留重试，不显示原文', () => {

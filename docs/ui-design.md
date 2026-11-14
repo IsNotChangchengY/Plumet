@@ -235,6 +235,16 @@
 - 按钮 24px 高、11.5px：进行中显示「取消」；有失败显示「重试失败」；有译文显示「还原本页」；始终有 `×`。
 - 主题同样走 `data-theme` + `prefers-color-scheme`。
 
+### 7.6 生词本页面
+
+- 布局沿用设置页：`.container`（`max-width: 880px`、`padding: 32px 24px 56px`）、页头 `.opts-head`、卡片 `.card` + `.section`。页头只放标题与副标题，右侧不放状态胶囊。
+- 统计卡：4 列网格 `.learn-stats`，每格 `.learn-stat`（`--surface-2` 底、圆角 14、内边距 12/14）里一个大数字（22px/700、tabular-nums）与一行 11.5px 说明；窄屏（≤720px）退化为 2 列。
+- 工具条：主操作「开始复习」（`.btn.primary`，显示 `（N 张）`）靠左，其余「导出 JSON / 导入 JSON / 清空」靠右；清空是 `.btn.danger` 且保留 `window.confirm`。
+- 卡片列表 `.learn-list` / `.learn-card`：原文 15px/600、译文 13px、上下文左侧 2px 竖线引文（12px `--text-muted`）、元信息一行 11px（来源域名链接、日期、语言对、复习次数、忘记次数）。到期显示 `.tag.brand`「待复习」，未到期显示「N 天后」。
+- 复习台 `.review-stage`：进度行（`第 i/N 张` + 「结束复习」）→ 进度轨 → 原文卡（`--surface-2` 底，28px/700 原文 + 上下文）→「显示答案」→ 答案块（17px，`--dur-base` 淡入）→ 四档评分格（`.review-grade`：46px 高、两行 = 档位名 + 10.5px 提示，`记得` 用 `.btn.primary`）。窄屏评分格退化为 2 列。
+- 复习完成态：`.review-done` 居中，44px `--ok-soft` 圆形勾图标 + 本轮统计 +「返回列表」。
+- 空态复用 `.empty` + `.re-icon` + `.re-title` + `.re-hint`，提示从气泡与弹窗两处收藏。
+
 ## 8. 主题与深浅色
 
 | 运行环境 | 主题来源 | 实现 |
@@ -255,6 +265,7 @@ Shadow DOM 的限制：页面里的 `:root` 变量不会自动带进来，所以
 | 设置条、输入卡、结果卡结构 | `src/app/TranslatePanel.tsx`、`src/app/LangBar.tsx` |
 | 分区标题图标 | `src/app/SectionTitle.tsx` |
 | 设置页布局与页头 | `src/options/App.tsx`、`src/options/AiProvidersSection.tsx` |
+| 生词本页面与复习台 | `src/learning/App.tsx`、`src/learning/CardList.tsx`、`src/learning/ReviewSession.tsx`、`src/learning/learning.css` |
 | 气泡（样式字符串） | `src/content/bubble.ts` |
 | 触发图标 | `src/content/selection.ts` |
 | 页内状态条 | `src/content/page/pill.ts` |
@@ -281,12 +292,14 @@ Shadow DOM 的限制：页面里的 `:root` 变量不会自动带进来，所以
 1. 想改外观：先改 `src/ui/theme.css` 的变量或组件样式，**不要**在业务组件里写内联颜色。
 2. 需要新的视觉方案时，在 `AGENTS/ui-design/` 用设计板对比，选定后再落到变量。
 3. 改了变量或结构：同步本文件对应章节，并在 `docs/design.md` 的「UI/UX」里更新取舍。
-4. 用真实 CSS 快速回归：`AGENTS/ui-design/_verify/` 里是渲染弹窗/设置页/气泡/状态条的静态夹具，
+4. 用真实 CSS 快速回归：`AGENTS/ui-design/_verify/` 里是渲染弹窗/设置页/气泡/状态条/生词本（`learning.html`）的静态夹具，
    先跑 `node AGENTS/ui-design/_verify/build-bubble-css.mjs` 生成 Shadow DOM 样式，再用 Edge 无头截图对比。
 
 ## 12. 已知取舍
 
 - 设计板里的单词卡画了音标与词性，但服务商不返回这两项，插件里单词卡只有「原文 + 译文」；排版沿用 `word-line → 10px → word-def` 的节奏。
+- 生词本的「标签」在数据里保留（`tags`），但 v1 界面不做打标签与按标签筛选；复习评分固定四档，不暴露 ease / interval 数值。
+- 复习台一次最多 20 张，进复习时对队列拍快照，评分只刷新底层数据，不在复习中途重排队列。
 - 弹窗检查态的示例文案按「2 个错误 + 1 个警告」标注（`borrow` 不标红），与高亮和计数自洽；v2/v3 设计板用的是 3 错误版本，只影响对照板。
 - 本机只有 SimSun 可用作衬线；本版（v1）全站无衬线，不受影响。
 - `src/ui/theme.css` 的变量是唯一真源；`src/content/theme.ts` 是 Shadow DOM 的镜像副本，属于有意重复。

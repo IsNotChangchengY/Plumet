@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "node scripts/build.mjs --watch",
     "build": "node scripts/build.mjs",
+    "package": "node scripts/package.mjs",
     "verify": "node scripts/verify-dist.mjs",
     "docs:check": "node scripts/check-docs.mjs",
     "typecheck": "tsc --noEmit",
