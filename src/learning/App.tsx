@@ -46,7 +46,7 @@ export default function App() {
     if (!book) return
     const cards = dueCards(book.cards)
     if (cards.length === 0) {
-      setNotice('现在没有到期的卡片，去网页上多收藏几句吧')
+      setNotice('没有到期的卡片')
       return
     }
     setSession(cards)
@@ -107,7 +107,7 @@ export default function App() {
         <div className="stack" style={{ gap: 4 }}>
           <h1 className="page-title">羽译 · 生词本</h1>
           <p className="page-subtitle">
-            划词或翻译时点「收藏」，词句连同上下文一起进这里。先回忆原文，再按记忆强度安排下次复习。
+            划词或翻译时点「收藏」，词句连同上下文一起进这里。
           </p>
         </div>
       </header>

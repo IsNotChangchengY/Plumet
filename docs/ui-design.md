@@ -179,6 +179,21 @@
 
 `.issue-item` 对应问题卡：`--surface-2` 底、左侧 3px 语义色竖条（`::before`，上下各留 6px）、圆角 14、激活时 `--surface-3` + 2px 主色环。
 
+### 6.9 设置页：分类顶栏与服务组件
+
+设置页 v4 专用组件（样式都在 `src/ui/theme.css`）：
+
+- `.topbar` / `.tb`：吸顶顶栏，半透明底 + 12px 模糊 + 1px 下边框，高 58；左侧品牌标、中间分类胶囊、右侧保存状态。
+- `.cats` / `.cat`：分类分段控件（`--surface-2` 轨道 + 3px 内衬，激活项 `--surface` 底 + 1px 边框 + `--shadow-sm`）。`.cat .badge` 是 15px 警示数标，只在「引擎」存在不可用槽位时出现。
+- `.cat-head`：分类页头，22px 标题 + 右侧动作区。
+- `.group-head`：服务分组标题行：13px 标题 + 计数 + 1px 横线，横线之后可放添加动作。
+- `.card.list` / `.svc-row`：服务行列表，行高约 48（11px 上下内边距 + 1px 分隔线），左侧 26px 图标座、名称、10px 类型胶囊，右侧状态与动作。
+- `.st`：状态点，`i` 是 6px 实心圆；`ok` / `warn` / `err` 取 `--ok` / `--warn` / `--danger`，默认 `--text-faint`。用于服务与引擎槽位的「就绪 / 未配置」。
+- `.grid-svc` / `.svc`：AI 服务卡片网格（3 列，窄屏 2 列），卡片分 `.svc-top`（图标 + 名称 + 状态）与 `.svc-foot`（等宽模型名 + 动作）。
+- `.slot`：引擎槽位行，三列 `190px / 1fr / auto`；`.slot-id` 放 26px 图标座 + 名称（检查 / 润色额外挂 `仅 AI` 胶囊），`.slot-eng` 放 select（最大 380），`.slot-side` 放状态与「去配置」。
+- `.detail-head` / `.detail-grid`：服务详情，左侧凭证卡 + 右侧 292px 说明栏（`.aside-card`：`.steps` 编号步骤、`.quota` 额度）。`.back` 返回「全部服务」。
+- `.kbd` / `.kv-row`：「其它」页的键帽与键值行。
+
 ## 7. 界面规格
 
 ### 7.1 划词触发图标
@@ -221,12 +236,14 @@
 
 ### 7.4 设置页
 
-- 单列居中，`max-width: 880px`，`padding: 32px 24px 56px`，卡片间距 16。
-- 页头 `.opts-head`：左标题（21px）+ 副标题（12.5px）；右侧保存状态胶囊 `.save`（`--ok-soft` 底、勾选图标、tabular-nums）。
-- 分区顺序固定：通用 → 划词翻译 → 网页翻译 → 翻译引擎 → AI 服务 → 数据与隐私 → 关于；每个分区标题带 24px 图标座。
+- 单列居中，`max-width: 1040px`，`padding: 0 24px 72px`；顶栏吸顶，分类切换不整页刷新（hash 同步，可深链）。
+- 顶栏：品牌标 + 5 个分类胶囊（通用 / 翻译 / 引擎 / 服务 / 其它）+ 右侧保存状态胶囊；「引擎」分类带不可用槽位计数徽标。
+- 每个分类页只有页头（22px 标题）+ 内容，不写副标题；分类按「一屏一件事」划分：引擎只做分配，服务只做配置。
 - 字段两列 `.grid-2`（间距 `16px 24px`），窄屏退化为单列；字段 = 标签 11.5px + 控件。
-- AI 服务卡：头部（名称 + preset 标签 + 删除）→ 名称/模型 → Base URL 全宽 → Key/温度 → 「授权并测试」+ 结果条（成功 `banner ok`、失败 `banner error`）。
-- 危险操作只放在「数据与隐私」，用 `.btn.danger`，且保留 `window.confirm`。
+- 引擎页：一张槽位卡，四行槽位；行内 select + 可用状态；不可用时显示「去配置」并跳到对应服务。
+- 服务页：三个分组（免费通道 / 机器翻译 / AI 服务）。免费与机器翻译是 `.card.list` 行列表，AI 服务是 3 列卡片网格；行与卡片右上角只放状态点，不放说明文字。
+- 服务详情：`.back` + 名称与状态 → 左侧凭证卡（字段 + 「测试连接」+ 结果条）→ 右侧「怎么拿密钥」步骤、额度与申请入口。
+- 危险操作（清空 / 恢复默认）只放在「其它」，用 `.btn.danger`，且保留 `window.confirm`。
 
 ### 7.5 页内状态条（pill）
 
@@ -264,7 +281,9 @@ Shadow DOM 的限制：页面里的 `:root` 变量不会自动带进来，所以
 | 弹窗头部与 tab 指示器 | `src/popup/App.tsx` |
 | 设置条、输入卡、结果卡结构 | `src/app/TranslatePanel.tsx`、`src/app/LangBar.tsx` |
 | 分区标题图标 | `src/app/SectionTitle.tsx` |
-| 设置页布局与页头 | `src/options/App.tsx`、`src/options/AiProvidersSection.tsx` |
+| 设置页顶栏、分类、通用/翻译/其它分区 | `src/options/App.tsx` |
+| 引擎槽位与就绪状态 | `src/options/EnginesSection.tsx` |
+| 服务列表、服务详情、连接测试 | `src/options/ServicesSection.tsx`、`src/options/test.ts` |
 | 生词本页面与复习台 | `src/learning/App.tsx`、`src/learning/CardList.tsx`、`src/learning/ReviewSession.tsx`、`src/learning/learning.css` |
 | 气泡（样式字符串） | `src/content/bubble.ts` |
 | 触发图标 | `src/content/selection.ts` |
@@ -285,7 +304,8 @@ Shadow DOM 的限制：页面里的 `:root` 变量不会自动带进来，所以
 7. 340px 弹窗内无横向溢出、无按钮文字竖排、结果卡可滚动。
 8. 图标全部内联 SVG（`stroke-width: 1.7`），没有 emoji 混排。
 9. 新颜色进变量，两处主题文件同步。
-10. `pnpm check` 全绿。
+10. 设置页五个分类逐一点开（浅色与深色各一遍）：顶栏徽标数与不可用槽位数一致；不可用槽位点「去配置」能落到对应服务；服务详情能返回列表；删掉一个 AI 服务后引擎下拉不再出现它。
+11. `pnpm check` 全绿。
 
 ## 11. 变更流程
 

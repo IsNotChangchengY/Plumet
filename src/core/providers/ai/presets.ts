@@ -20,9 +20,21 @@ export const AI_PRESETS: AiPreset[] = [
   },
   {
     id: 'openai',
-    label: 'OpenAI',
+    label: 'OpenAI / ChatGPT',
     baseUrl: 'https://api.openai.com/v1',
     models: ['gpt-4o-mini', 'gpt-4o', 'gpt-4.1-mini'],
+  },
+  {
+    id: 'gemini',
+    label: 'Gemini',
+    baseUrl: 'https://generativelanguage.googleapis.com/v1beta/openai',
+    models: ['gemini-2.5-flash', 'gemini-2.5-pro'],
+  },
+  {
+    id: 'grok',
+    label: 'Grok（xAI）',
+    baseUrl: 'https://api.x.ai/v1',
+    models: ['grok-4', 'grok-3-mini'],
   },
   {
     id: 'moonshot',

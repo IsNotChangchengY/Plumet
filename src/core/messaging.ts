@@ -1,6 +1,6 @@
 import type { ErrorCode } from './errors'
 import type { IssueCategory, IssueSeverity } from './check'
-import type { AiProviderConfig, PageMode } from '../storage/settings'
+import type { AiProviderConfig, MtServiceConfig, MtServiceId, PageMode } from '../storage/settings'
 
 export const YUYI_PORT = 'yuyi'
 
@@ -35,11 +35,9 @@ export type CancelJobRequest = {
   requestId: string
 }
 
-export type TestJobRequest = {
-  kind: 'test'
-  requestId: string
-  config: AiProviderConfig
-}
+export type TestJobRequest =
+  | { kind: 'test'; requestId: string; target: 'ai'; config: AiProviderConfig }
+  | { kind: 'test'; requestId: string; target: 'mt'; serviceId: MtServiceId; config: MtServiceConfig }
 
 export type JobRequest =
   | TranslateJobRequest
@@ -51,7 +49,6 @@ export type JobRequest =
 export type JobResult = {
   segments: string[]
   engineLabel: string
-  usedFallback: boolean
   cached: boolean
   elapsedMs: number
   detectedLang?: string

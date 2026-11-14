@@ -10,6 +10,17 @@ export type AiProviderConfig = {
   temperature: number
 }
 
+export type MtServiceId = 'google-free' | 'mymemory' | 'baidu' | 'microsoft'
+
+export type MtServiceConfig = {
+  enabled: boolean
+  appId: string
+  secret: string
+  key: string
+  region: string
+  endpoint: string
+}
+
 export type GlossaryEntry = {
   source: string
   target: string
@@ -20,15 +31,15 @@ export type SelectionTrigger = 'icon' | 'shortcut' | 'off'
 export type PageMode = 'bilingual' | 'replace'
 
 export type Settings = {
-  version: 1
+  version: 2
   sourceLang: string
   targetLang: string
   translateEngine: string
   checkEngine: string
   polishEngine: string
   pageEngine: string
+  services: Record<MtServiceId, MtServiceConfig>
   aiProviders: AiProviderConfig[]
-  mtEnabled: Record<string, boolean>
   theme: ThemeMode
   selectionTrigger: SelectionTrigger
   selectionContextChars: number
@@ -42,16 +53,35 @@ export type Settings = {
 
 export const SETTINGS_KEY = 'settings.v1'
 
+export const MT_SERVICE_IDS: MtServiceId[] = ['google-free', 'mymemory', 'baidu', 'microsoft']
+
+export function defaultServices(): Record<MtServiceId, MtServiceConfig> {
+  const empty = (): MtServiceConfig => ({
+    enabled: true,
+    appId: '',
+    secret: '',
+    key: '',
+    region: '',
+    endpoint: '',
+  })
+  return {
+    'google-free': empty(),
+    mymemory: empty(),
+    baidu: empty(),
+    microsoft: empty(),
+  }
+}
+
 export const DEFAULT_SETTINGS: Settings = {
-  version: 1,
+  version: 2,
   sourceLang: 'auto',
   targetLang: 'zh-CN',
   translateEngine: 'mt:google-free',
   checkEngine: '',
   polishEngine: '',
   pageEngine: 'mt:google-free',
+  services: defaultServices(),
   aiProviders: [],
-  mtEnabled: { 'google-free': true, mymemory: true },
   theme: 'auto',
   selectionTrigger: 'icon',
   selectionContextChars: 600,
@@ -63,21 +93,64 @@ export const DEFAULT_SETTINGS: Settings = {
   polishDirection: '',
 }
 
-export function normalizeSettings(raw: unknown): Settings {
-  if (!raw || typeof raw !== 'object') return { ...DEFAULT_SETTINGS }
-  const stored = raw as Partial<Settings>
-  return {
-    ...DEFAULT_SETTINGS,
-    ...stored,
-    version: 1,
-    aiProviders: Array.isArray(stored.aiProviders) ? stored.aiProviders : [],
-    mtEnabled: { ...DEFAULT_SETTINGS.mtEnabled, ...(stored.mtEnabled ?? {}) },
-    glossary: Array.isArray(stored.glossary) ? stored.glossary : [],
-    polishChips: Array.isArray(stored.polishChips) ? stored.polishChips : [],
-    polishDirection: typeof stored.polishDirection === 'string' ? stored.polishDirection : '',
-    checkEngine: typeof stored.checkEngine === 'string' ? stored.checkEngine : '',
-    polishEngine: typeof stored.polishEngine === 'string' ? stored.polishEngine : '',
+function asString(value: unknown): string {
+  return typeof value === 'string' ? value : ''
+}
+
+function asBoolean(value: unknown, fallback: boolean): boolean {
+  return typeof value === 'boolean' ? value : fallback
+}
+
+function normalizeServices(stored: Record<string, unknown>, legacy: unknown): Record<MtServiceId, MtServiceConfig> {
+  const defaults = defaultServices()
+  const legacyEnabled = legacy && typeof legacy === 'object' ? (legacy as Record<string, unknown>) : null
+  const result = {} as Record<MtServiceId, MtServiceConfig>
+  for (const id of MT_SERVICE_IDS) {
+    const entry = stored[id]
+    const raw = entry && typeof entry === 'object' ? (entry as Record<string, unknown>) : {}
+    result[id] = {
+      enabled: asBoolean(raw.enabled, asBoolean(legacyEnabled?.[id], defaults[id].enabled)),
+      appId: asString(raw.appId),
+      secret: asString(raw.secret),
+      key: asString(raw.key),
+      region: asString(raw.region),
+      endpoint: asString(raw.endpoint),
+    }
   }
+  return result
+}
+
+export function normalizeSettings(raw: unknown): Settings {
+  if (!raw || typeof raw !== 'object') return { ...DEFAULT_SETTINGS, services: defaultServices() }
+  const stored = raw as Record<string, unknown>
+  const servicesRaw =
+    stored.services && typeof stored.services === 'object'
+      ? (stored.services as Record<string, unknown>)
+      : {}
+  const next: Settings & { mtEnabled?: unknown } = {
+    ...DEFAULT_SETTINGS,
+    ...(stored as Partial<Settings>),
+    version: 2,
+    services: normalizeServices(servicesRaw, stored.mtEnabled),
+    aiProviders: Array.isArray(stored.aiProviders)
+      ? (stored.aiProviders as AiProviderConfig[]).map((provider) => ({
+          id: asString(provider.id) || newId(),
+          label: asString(provider.label),
+          presetId: asString(provider.presetId) || 'custom',
+          baseUrl: asString(provider.baseUrl),
+          apiKey: asString(provider.apiKey),
+          model: asString(provider.model),
+          temperature: typeof provider.temperature === 'number' ? provider.temperature : 0.3,
+        }))
+      : [],
+    glossary: Array.isArray(stored.glossary) ? (stored.glossary as GlossaryEntry[]) : [],
+    polishChips: Array.isArray(stored.polishChips) ? (stored.polishChips as string[]) : [],
+    polishDirection: asString(stored.polishDirection),
+    checkEngine: asString(stored.checkEngine),
+    polishEngine: asString(stored.polishEngine),
+  }
+  delete next.mtEnabled
+  return next
 }
 
 export async function loadSettings(): Promise<Settings> {
@@ -95,14 +168,11 @@ export async function patchSettings(patch: Partial<Settings>): Promise<Settings>
   return next
 }
 
-export function newAiProvider(presetId: string, baseUrl: string, model: string): AiProviderConfig {
-  return {
-    id: newId(),
-    label: '',
-    presetId,
-    baseUrl,
-    apiKey: '',
-    model,
-    temperature: 0.3,
-  }
+export function patchMtService(
+  settings: Settings,
+  id: MtServiceId,
+  patch: Partial<MtServiceConfig>,
+): Record<MtServiceId, MtServiceConfig> {
+  return { ...settings.services, [id]: { ...settings.services[id], ...patch } }
 }
+

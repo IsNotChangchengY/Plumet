@@ -21,7 +21,7 @@
 - 语言栏：自动检测 → 目标语言，可互换；语言选择持久化。
 - 输入：多行文本；`Enter` 直接翻译（`Shift+Enter` 换行），超过 2500 字符按段落自动切段。
 - 三动作：翻译 / 检查 / 润色，共用同一份输入。
-- 结果：AI 流式输出；显示引擎、耗时、缓存命中、是否降级；复制、清空、历史回看。
+- 结果：AI 流式输出；显示引擎、耗时、缓存命中；复制、清空、历史回看。
 - 术语表：设置里维护 `原文 → 译文`，注入提示词。
 
 ### 2.2 语法检查（已实现 M2）
@@ -65,8 +65,8 @@
 - 数据：`chrome.storage.local` 的 `learning.v1`，导入导出 JSON；导入只并卡片、不并统计，重复项跳过，不做多设备同步。
 - 拍板结论：**词与句都能收**（学习目标兼顾背词与积累表达）；**不做 AI 例句**（v1 不额外花 Key）；复习强度固定 20 张、四档评分；不做云同步。词典卡（音标/词性）不做——服务商不返回这些字段。
 
-### 2.7 设置页（已实现）
-通用（主题/语言/历史）、划词翻译（触发方式/上下文长度）、网页翻译（呈现方式）、翻译引擎（翻译/检查/润色/网页翻译四条链路分别选引擎）、AI 服务（增删改 + 授权并测试）、免费通道开关、数据与隐私、关于。
+### 2.7 设置页（已实现，v4 顶栏分类）
+顶栏 5 个分类，一屏只显示一类：**通用**（主题/语言/历史）、**翻译**（划词触发与上下文/网页翻译呈现方式）、**引擎**（四个槽位分配 + 可用状态 + 去配置）、**服务**（免费通道开关、百度/微软凭证、AI 服务增删改与测试；点进单个服务看申请步骤与额度）、**其它**（清缓存/历史、恢复默认、快捷键、版本）。引擎与服务分离：引擎只做分配，服务只做配置。
 
 ## 3. 荧光笔标注规范（M2 的核心）
 
@@ -98,17 +98,21 @@ Mark = { kind: 'equal'|'del'|'ins'|'warn', text, issueId?, severity?, state? }
 - 扩展页面（弹窗/设置/生词本）：React 渲染，直接用 `chrome.storage`。
 - 通信：Port 协议（`translate` / `check` / `polish` / `cancel` / `test` → `delta` / `progress` / `done` / `checkDone` / `polishDone` / `testDone` / `error`），`requestId` 对齐；网页翻译的控制走一次性消息：弹窗 → `runtime.sendMessage` → SW 取当前标签页 → `tabs.sendMessage` → content script，进度反方向 `runtime.sendMessage` 广播回弹窗。
 - 构建：一个 `scripts/build.mjs` 连跑三次 Vite（页面多入口三条：`popup` / `options` / `learning`、background ESM、content IIFE）。
-- 权限：`storage / unlimitedStorage / scripting / activeTab / contextMenus`；`<all_urls>` 内容脚本；自定义 AI 端点走 `optional_host_permissions`。
+- 权限：`storage / unlimitedStorage / scripting / activeTab / contextMenus`；`<all_urls>` 内容脚本；内置服务商（谷歌、MyMemory、百度、Azure、OpenAI、Gemini、xAI 等固定域名）写进 `host_permissions`，自定义 / 本地端点仍走 `optional_host_permissions` + 点击授权。
 
 ## 6. 服务商策略
 
-默认链路：**用户 AI Key（主） → 谷歌免费通道 → MyMemory**。国内服务商做成「填了 Key 才亮」的适配器；免费链路只做兜底，并允许一键切走。
-网页翻译按量最大，默认走免费通道；切到 AI 时按段计费。
-实测结论见 `providers.md`。
+服务分三类：**免费通道**（谷歌、MyMemory）、**需要密钥的机器翻译**（百度、微软 / 必应 Azure v3）、**AI 服务**（OpenAI 兼容，含 Gemini 兼容层与 Grok）。
+
+- 只用**启用且就绪**的服务：引擎下拉只列可用的，未就绪的选中项标红并给「去配置」。
+- **没有失败降级**：主引擎未配置或运行失败都直接报错，不会悄悄换成免费通道（早期版本有自动降级与「已自动降级」标记，已移除）。
+- 检查 / 润色只能用 AI，自动模式 = 翻译引擎是可用 AI 就用它，否则用第一个可用 AI。
+- 网页翻译按量最大，默认走免费通道；切到 AI 时按段计费。
+- 实测结论见 `providers.md`。
 
 ## 7. 数据与存储
 
-全部 `chrome.storage.local`（v1）：`settings.v1`、`providers` 在 settings 里、`history.v1`（最多 200 条，网页翻译不写入）、`cache.v1`（分片缓存，TTL 7 天，网页翻译按批命中）、`learning.v1`（生词卡片 + 每日复习次数 + 正确次数；卡片量小，暂不迁 IndexedDB）。
+全部 `chrome.storage.local`：`settings.v1`（载荷 version 2：`services` 凭证表 + `aiProviders`；旧的 `mtEnabled` 在读取时自动迁移）、`history.v1`（最多 200 条，网页翻译不写入）、`cache.v1`（分片缓存，TTL 7 天，网页翻译按批命中）、`learning.v1`（生词卡片 + 每日复习次数 + 正确次数；卡片量小，暂不迁 IndexedDB）。
 
 ## 8. 里程碑与状态
 
@@ -121,6 +125,7 @@ Mark = { kind: 'equal'|'del'|'ins'|'warn', text, issueId?, severity?, state? }
 | M4 网页翻译 | ✅ | 三个真实页面完整翻译不塌布局，可取消、可还原、命中缓存（按域名自动翻译留后） |
 | 工具栏弹窗 | ✅ | 点图标弹出 340×600 单界面：翻译/检查/润色/历史都在弹窗里，`Enter` 即译、翻译本页可用；`pnpm check` 全绿 |
 | M5 学习 + 打包 | ✅ | 收藏→复习→统计自洽，zip 可安装 |
+| M6 多服务 + 设置页重设计 | ✅ | 百度 / 微软适配器可用（需自备密钥），Gemini / Grok / ChatGPT 预设可添加；引擎只用就绪服务、失败不降级；设置页顶栏 5 分类，服务页列表 + 详情；`pnpm check` 全绿 |
 
 ## 9. 明确不做（v1）
 

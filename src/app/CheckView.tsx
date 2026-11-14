@@ -176,7 +176,7 @@ export function CheckView({ text, result, onReplaceInput }: Props) {
         <div className="card flat">
           <MarksView marks={marks} activeIssueId={activeId} onIssueClick={focusCard} />
           <div className="hint" style={{ marginTop: 8 }}>
-            红色 = 错误，黄色 = 警告与建议，绿色 = 改法；点击下划线可跳到对应问题。
+            点击下划线跳到对应问题。
           </div>
         </div>
       ) : null}

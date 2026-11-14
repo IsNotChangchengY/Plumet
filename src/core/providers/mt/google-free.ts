@@ -1,6 +1,9 @@
 import { AppError } from '../../errors'
 import type { TranslateProvider, TranslateRequest, TranslateResponse } from '../types'
 import { ensureOk, fetchWithTimeout } from '../http'
+import { chunkByLimits } from '../batch'
+
+export { chunkByLimits } from '../batch'
 
 const ENDPOINT = 'https://clients5.google.com/translate_a/t'
 const MAX_ITEMS_PER_REQUEST = 20
@@ -35,25 +38,6 @@ export function parseGoogleFree(raw: unknown): GoogleItem[] {
     throw new AppError('parse', '谷歌免费通道没有返回可用的译文')
   }
   return items
-}
-
-export function chunkByLimits(segments: string[], maxItems: number, maxChars: number): string[][] {
-  const groups: string[][] = []
-  let current: string[] = []
-  let chars = 0
-  for (const segment of segments) {
-    const tooLong = chars + segment.length > maxChars
-    const tooMany = current.length >= maxItems
-    if (current.length > 0 && (tooLong || tooMany)) {
-      groups.push(current)
-      current = []
-      chars = 0
-    }
-    current.push(segment)
-    chars += segment.length
-  }
-  if (current.length > 0) groups.push(current)
-  return groups
 }
 
 export function createGoogleFreeProvider(): TranslateProvider {

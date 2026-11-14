@@ -1,13 +1,13 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest'
-import { translateWithFallback } from '../src/core/engine'
+import { translateText } from '../src/core/engine'
 import { DEFAULT_SETTINGS } from '../src/storage/settings'
 
 const live = process.env.YUYI_LIVE === '1'
 
 describe.skipIf(!live)('真实网络：谷歌免费通道', () => {
   it('通过引擎层翻译一句英文', async () => {
-    const result = await translateWithFallback(
+    const result = await translateText(
       { segments: ['Hello world, this is a translation test.'], sourceLang: 'auto', targetLang: 'zh-CN' },
       DEFAULT_SETTINGS,
       'mt:google-free',
@@ -16,7 +16,7 @@ describe.skipIf(!live)('真实网络：谷歌免费通道', () => {
   }, 30_000)
 
   it('同一句第二次命中缓存', async () => {
-    const result = await translateWithFallback(
+    const result = await translateText(
       { segments: ['Hello world, this is a translation test.'], sourceLang: 'auto', targetLang: 'zh-CN' },
       DEFAULT_SETTINGS,
       'mt:google-free',

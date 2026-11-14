@@ -32,6 +32,8 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
   const [direction, setDirection] = useState(() => settings.polishDirection)
   const [saved, setSaved] = useState(false)
   const engines = useMemo(() => listEngines(settings), [settings])
+  const readyEngines = useMemo(() => engines.filter((engine) => engine.ready), [engines])
+  const currentEngine = engines.find((engine) => engine.id === settings.translateEngine)
   const state = job.state
   const running = state.status === 'running'
 
@@ -152,10 +154,15 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
             onChange={(event) => void onPatch({ translateEngine: event.target.value })}
             aria-label="翻译引擎"
           >
-            {engines.map((engine) => (
+            {settings.translateEngine && !currentEngine ? (
+              <option value={settings.translateEngine}>{settings.translateEngine}（已删除）</option>
+            ) : null}
+            {currentEngine && !currentEngine.ready ? (
+              <option value={currentEngine.id}>{currentEngine.label}（未配置）</option>
+            ) : null}
+            {readyEngines.map((engine) => (
               <option key={engine.id} value={engine.id}>
                 {engine.label}
-                {engine.configured ? '' : '（未配置）'}
               </option>
             ))}
           </select>
@@ -249,7 +256,6 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
                 <span>{state.result.engineLabel}</span>
                 <span className="tag">{Math.max(1, Math.round(state.result.elapsedMs / 100) / 10)}s</span>
                 {state.result.cached ? <span className="tag ok">缓存命中</span> : null}
-                {state.result.usedFallback ? <span className="tag warn">已自动降级</span> : null}
               </>
             ) : null}
 
@@ -260,7 +266,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
                 <span className="dot error" />
                 <span>出错了</span>
                 {state.code === 'config' || state.code === 'auth' ? (
-                  <button type="button" className="btn ghost small" onClick={openOptions}>
+                  <button type="button" className="btn ghost small" onClick={() => openOptions('engines')}>
                     去设置
                   </button>
                 ) : null}
@@ -320,7 +326,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
                 </svg>
               </span>
               <span className="re-title">结果会显示在这里</span>
-              <span className="re-hint">Shift+Enter 换行 · 检查标出错误 · 润色改写</span>
+              <span className="re-hint">Shift+Enter 换行</span>
             </div>
           ) : null}
 

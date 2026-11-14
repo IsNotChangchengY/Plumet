@@ -54,7 +54,7 @@ export function HistoryList({ refreshKey, onPick }: Props) {
   }
 
   if (items.length === 0) {
-    return <div className="empty">还没有历史记录，翻译一次就会出现在这里</div>
+    return <div className="empty">还没有历史记录</div>
   }
 
   return (

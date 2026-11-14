@@ -33,9 +33,7 @@ export function CardList({ cards, onRemove }: Props) {
             </svg>
           </span>
           <span className="re-title">还没有收藏</span>
-          <span className="re-hint">
-            在网页上划词翻译，点气泡底栏的「收藏」；或者在弹窗里翻译一段后点结果卡底部的「收藏」。
-          </span>
+          <span className="re-hint">划词后点气泡底栏「收藏」，或在弹窗结果卡点「收藏」。</span>
         </div>
       </div>
     )

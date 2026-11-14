@@ -1,6 +1,7 @@
 import { AppError, isAbortError, toAppError } from '../core/errors'
-import { translateWithFallback } from '../core/engine'
+import { translateText } from '../core/engine'
 import { testAiProvider } from '../core/providers/ai/openai-compatible'
+import { createMtProvider } from '../core/providers/services'
 import { runCheckChunk } from '../core/providers/ai/check'
 import { runPolish } from '../core/providers/ai/polish'
 import { aiEngineLabel, resolveAiProviderConfig } from '../core/providers/registry'
@@ -50,7 +51,7 @@ async function runTranslate(request: TranslateJobRequest, job: Job): Promise<voi
   try {
     const settings = await loadSettings()
     const engineId = request.engineId?.trim() ? request.engineId : settings.translateEngine
-    const result = await translateWithFallback(
+    const result = await translateText(
       {
         segments: request.segments,
         sourceLang: request.sourceLang,
@@ -70,7 +71,6 @@ async function runTranslate(request: TranslateJobRequest, job: Job): Promise<voi
       result: {
         segments: result.segments,
         engineLabel: result.engineLabel,
-        usedFallback: result.usedFallback,
         cached: result.cached,
         elapsedMs: result.elapsedMs,
         detectedLang: result.detectedLang,
@@ -199,12 +199,24 @@ async function runPolishJob(request: PolishJobRequest, job: Job): Promise<void> 
 
 async function runTest(request: TestJobRequest, job: Job): Promise<void> {
   try {
-    const result = await testAiProvider(request.config)
+    const started = Date.now()
+    let sample = ''
+    if (request.target === 'ai') {
+      sample = (await testAiProvider(request.config)).sample
+    } else {
+      const provider = createMtProvider(request.serviceId, request.config)
+      const result = await provider.translate({
+        segments: ['Hello world'],
+        sourceLang: 'en',
+        targetLang: 'zh-CN',
+      })
+      sample = result.segments[0] ?? ''
+    }
     sendTo(job, {
       kind: 'testDone',
       requestId: request.requestId,
-      latencyMs: result.latencyMs,
-      sample: result.sample,
+      latencyMs: Date.now() - started,
+      sample,
     })
   } catch (error) {
     sendError(job, request.requestId, error)
