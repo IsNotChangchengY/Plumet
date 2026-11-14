@@ -103,13 +103,25 @@ export function calculatePlacement(
   anchor: { top: number; bottom: number; left: number },
   size: { width: number; height: number },
   viewport: { width: number; height: number },
-  gap = 8,
+  options: { gap?: number; prefer?: Placement['side'] } = {},
 ): Placement {
-  const fitsAbove = anchor.top - size.height - gap >= gap
-  const top = fitsAbove
-    ? anchor.top - size.height - gap
-    : Math.min(anchor.bottom + gap, Math.max(gap, viewport.height - size.height - gap))
+  const gap = options.gap ?? 8
+  const prefer = options.prefer ?? 'above'
+  const other: Placement['side'] = prefer === 'above' ? 'below' : 'above'
+  const roomAbove = anchor.top - gap * 2
+  const roomBelow = viewport.height - anchor.bottom - gap * 2
+  const fitsPreferred = (prefer === 'above' ? roomAbove : roomBelow) >= size.height
+  const fitsOther = (prefer === 'above' ? roomBelow : roomAbove) >= size.height
+  const side = fitsPreferred
+    ? prefer
+    : fitsOther
+      ? other
+      : roomAbove >= roomBelow
+        ? 'above'
+        : 'below'
+  const top = side === 'above' ? anchor.top - size.height - gap : anchor.bottom + gap
+  const maxTop = Math.max(gap, viewport.height - size.height - gap)
   const maxLeft = Math.max(gap, viewport.width - size.width - gap)
   const left = Math.min(Math.max(gap, anchor.left), maxLeft)
-  return { left, top, side: fitsAbove ? 'above' : 'below' }
+  return { left, top: Math.min(Math.max(gap, top), maxTop), side }
 }

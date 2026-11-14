@@ -66,7 +66,11 @@ const STYLE = `
     justify-content: space-between;
     gap: 8px;
     padding: 8px 12px 0;
+    cursor: grab;
+    touch-action: none;
+    user-select: none;
   }
+  .head.dragging { cursor: grabbing; }
   .title {
     display: flex;
     align-items: center;
@@ -188,6 +192,7 @@ const STYLE = `
     border-top: 1px solid var(--border);
     background: linear-gradient(180deg, rgba(0, 0, 0, 0), var(--surface-2));
   }
+  .foot[hidden] { display: none; }
   .error-state .foot { background: transparent; }
   .meta {
     flex: 1;
@@ -272,18 +277,18 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
     `<button class="act" type="button" data-action="speak" hidden>${ICON_SPEAK}朗读</button>`,
     `<button class="act" type="button" data-action="copy" hidden>${ICON_COPY}复制</button>`,
     `<button class="act" type="button" data-action="retry" hidden>${ICON_RETRY}重试</button>`,
-    '<button class="act" type="button" data-action="close">关闭</button>',
     '</div>',
     '</div>',
   ].join('')
   shadow.append(style, panel)
 
+  const head = panel.querySelector('.head') as HTMLElement
   const body = panel.querySelector('.body') as HTMLElement
+  const foot = panel.querySelector('.foot') as HTMLElement
   const meta = panel.querySelector('.meta') as HTMLElement
   const speakButton = panel.querySelector('[data-action="speak"]') as HTMLButtonElement
   const copyButton = panel.querySelector('[data-action="copy"]') as HTMLButtonElement
   const retryButton = panel.querySelector('[data-action="retry"]') as HTMLButtonElement
-  const closeButton = panel.querySelector('.close') as HTMLButtonElement
 
   let open = false
   let anchor: { top: number; bottom: number; left: number } | null = null
@@ -291,6 +296,8 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
   let latestSource = ''
   let frame = 0
   let mounted = false
+  let pinned = false
+  let drag: { id: number; dx: number; dy: number } | null = null
 
   function mount(): void {
     if (mounted) return
@@ -299,12 +306,14 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
   }
 
   function position(): void {
-    if (!open || !anchor) return
+    if (!open || !anchor || pinned) return
     const rect = panel.getBoundingClientRect()
-    const placement = calculatePlacement(anchor, { width: rect.width, height: rect.height }, {
-      width: window.innerWidth,
-      height: window.innerHeight,
-    })
+    const placement = calculatePlacement(
+      anchor,
+      { width: rect.width, height: rect.height },
+      { width: window.innerWidth, height: window.innerHeight },
+      { prefer: 'below' },
+    )
     host.style.left = `${Math.round(placement.left)}px`
     host.style.top = `${Math.round(placement.top)}px`
     host.setAttribute('data-side', placement.side)
@@ -322,6 +331,11 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
     speakButton.hidden = true
     copyButton.hidden = true
     retryButton.hidden = true
+    meta.textContent = ''
+  }
+
+  function syncFoot(): void {
+    foot.hidden = !meta.textContent && speakButton.hidden && copyButton.hidden && retryButton.hidden
   }
 
   function renderStreaming(text: string): void {
@@ -361,7 +375,6 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
     if (view.status === 'loading') {
       body.innerHTML =
         '<div class="loading"><span class="dots"><i></i><i></i><i></i></span>正在翻译</div><div class="skel"><i></i><i></i></div>'
-      meta.textContent = latestSource
     } else if (view.status === 'streaming') {
       latestText = view.text
       renderStreaming(view.text)
@@ -389,19 +402,53 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
       const message = error.querySelector('.err-text') as HTMLElement
       message.textContent = view.message
       body.appendChild(error)
-      meta.textContent = latestSource
       retryButton.hidden = false
     }
+    syncFoot()
     schedulePosition()
   }
 
+  function startDrag(event: PointerEvent): void {
+    if (event.button !== 0) return
+    const target = event.target as Element | null
+    if (target?.closest?.('.close')) return
+    const rect = host.getBoundingClientRect()
+    drag = { id: event.pointerId, dx: event.clientX - rect.left, dy: event.clientY - rect.top }
+    head.classList.add('dragging')
+    head.setPointerCapture(event.pointerId)
+    event.preventDefault()
+    event.stopPropagation()
+  }
+
+  function moveDrag(event: PointerEvent): void {
+    if (!drag || event.pointerId !== drag.id) return
+    pinned = true
+    const rect = panel.getBoundingClientRect()
+    const left = Math.min(Math.max(4, event.clientX - drag.dx), Math.max(4, window.innerWidth - rect.width - 4))
+    const top = Math.min(Math.max(4, event.clientY - drag.dy), Math.max(4, window.innerHeight - rect.height - 4))
+    host.style.left = `${Math.round(left)}px`
+    host.style.top = `${Math.round(top)}px`
+    event.stopPropagation()
+  }
+
+  function endDrag(event: PointerEvent): void {
+    if (!drag || event.pointerId !== drag.id) return
+    drag = null
+    head.classList.remove('dragging')
+  }
+
+  head.addEventListener('pointerdown', startDrag)
+  head.addEventListener('pointermove', moveDrag)
+  head.addEventListener('pointerup', endDrag)
+  head.addEventListener('pointercancel', endDrag)
+
   shadow.addEventListener('click', (event) => {
-    const target = event.target as HTMLElement | null
-    const action = target?.getAttribute?.('data-action')
-    if (target === closeButton || action === 'close') {
+    const target = event.target as Element | null
+    if (target?.closest?.('.close')) {
       handlers.onClose()
       return
     }
+    const action = (target?.closest?.('[data-action]') as HTMLElement | null)?.dataset.action
     if (action === 'copy') {
       handlers.onCopy(latestText)
       return
@@ -430,6 +477,7 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
     render,
     showAt(nextAnchor) {
       mount()
+      if (!open) pinned = false
       anchor = nextAnchor
       open = true
       host.setAttribute('data-open', '1')
@@ -438,12 +486,16 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
     reposition: schedulePosition,
     hide() {
       open = false
+      pinned = false
+      drag = null
+      head.classList.remove('dragging')
       host.removeAttribute('data-open')
       anchor = null
     },
     destroy() {
       open = false
       mounted = false
+      pinned = false
       host.remove()
     },
   }

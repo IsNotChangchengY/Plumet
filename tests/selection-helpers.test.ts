@@ -141,4 +141,36 @@ describe('calculatePlacement', () => {
     expect(placement.top).toBeGreaterThanOrEqual(8)
     expect(placement.top).toBeLessThanOrEqual(600 - 120)
   })
+
+  it('prefer 下方时贴着选区底边展开', () => {
+    const placement = calculatePlacement(
+      { top: 200, bottom: 220, left: 100 },
+      { width: 300, height: 120 },
+      viewport,
+      { prefer: 'below' },
+    )
+    expect(placement.side).toBe('below')
+    expect(placement.top).toBe(228)
+  })
+
+  it('prefer 下方但下方放不下时翻到上方', () => {
+    const placement = calculatePlacement(
+      { top: 500, bottom: 560, left: 100 },
+      { width: 300, height: 120 },
+      viewport,
+      { prefer: 'below' },
+    )
+    expect(placement.side).toBe('above')
+    expect(placement.top).toBe(372)
+  })
+
+  it('gap 可调', () => {
+    const placement = calculatePlacement(
+      { top: 200, bottom: 220, left: 100 },
+      { width: 300, height: 120 },
+      viewport,
+      { gap: 16, prefer: 'below' },
+    )
+    expect(placement.top).toBe(236)
+  })
 })

@@ -17,6 +17,7 @@ import { applyHostTheme, CONTENT_THEME_CSS } from './theme'
 import { isYuyiNode, isYuyiPath, markUiHost } from './ui-mark'
 
 const ICON_SIZE = 28
+const ICON_GAP = 8
 const ICON_STYLE = `
   ${CONTENT_THEME_CSS}
   :host { all: initial; }
@@ -150,15 +151,14 @@ function ensureIcon(): HTMLElement {
   return host
 }
 
-function showIcon(rect: SelectionInfo['rect']): void {
+function showIcon(point: { x: number; y: number }): void {
   const host = ensureIcon()
-  let left = rect.right + 6
-  let top = rect.top - ICON_SIZE - 6
-  if (top < 6) top = rect.bottom + 6
-  left = Math.min(Math.max(6, left), window.innerWidth - ICON_SIZE - 8)
-  top = Math.min(Math.max(6, top), window.innerHeight - ICON_SIZE - 8)
-  host.style.left = `${Math.round(left)}px`
-  host.style.top = `${Math.round(top)}px`
+  const maxLeft = Math.max(6, window.innerWidth - ICON_SIZE - 8)
+  const maxTop = Math.max(6, window.innerHeight - ICON_SIZE - 8)
+  const left = point.x + ICON_GAP > maxLeft ? point.x - ICON_SIZE - ICON_GAP : point.x + ICON_GAP
+  const top = point.y + ICON_GAP > maxTop ? point.y - ICON_SIZE - ICON_GAP : point.y + ICON_GAP
+  host.style.left = `${Math.round(Math.min(Math.max(6, left), maxLeft))}px`
+  host.style.top = `${Math.round(Math.min(Math.max(6, top), maxTop))}px`
   host.style.display = 'block'
 }
 
@@ -276,7 +276,7 @@ function onMouseUp(event: MouseEvent): void {
       return
     }
     current = info
-    showIcon(info.rect)
+    showIcon({ x: event.clientX, y: event.clientY })
   }, 0)
 }
 
