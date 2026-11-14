@@ -25,6 +25,16 @@ const BLOCK_TAGS = new Set([
 ])
 
 export function normalizeSelectionText(text: string): string {
+  return text
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => line.replace(/\s+/g, ' ').trim())
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
+function flatten(text: string): string {
   return text.replace(/\s+/g, ' ').trim()
 }
 
@@ -36,9 +46,9 @@ export function looksLikeWord(text: string): boolean {
 }
 
 export function buildContextWindow(blockText: string, selectionText: string, maxChars: number): string {
-  const clean = normalizeSelectionText(blockText)
+  const clean = flatten(blockText)
   if (!clean) return ''
-  const needle = normalizeSelectionText(selectionText)
+  const needle = flatten(selectionText)
   const limit = Math.max(0, maxChars)
   if (!needle) return clean.slice(0, limit * 2)
   const index = clean.indexOf(needle)

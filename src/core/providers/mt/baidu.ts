@@ -68,6 +68,14 @@ export function parseBaidu(raw: unknown, expected: number): { segments: string[]
   return { segments, from: typeof payload.from === 'string' ? payload.from : '' }
 }
 
+export function parseBaiduLines(raw: unknown): string {
+  const payload = raw as BaiduPayload
+  if (payload && payload.error_code) throw baiduError(payload.error_code, payload.error_msg ?? '')
+  const items = payload?.trans_result
+  if (!Array.isArray(items) || items.length === 0) throw new AppError('parse', '百度翻译没有返回译文')
+  return items.map((item) => (typeof item?.dst === 'string' ? item.dst : '')).join('\n')
+}
+
 export function byteLength(text: string): number {
   return new TextEncoder().encode(text).length
 }
@@ -166,10 +174,10 @@ export function createBaiduProvider(config: MtServiceConfig): TranslateProvider 
         const translated: string[] = []
         for (const piece of chunkByBytes(segment)) {
           const payload = await requestBaidu(config, piece, from, to, request.signal)
-          const parsed = parseBaidu(payload, 1)
-          if (!detected) detected = parsed.from
-          translated.push(parsed.segments[0] ?? '')
-          request.onDelta?.(parsed.segments[0] ?? '')
+          const text = piece.includes('\n') ? parseBaiduLines(payload) : (parseBaidu(payload, 1).segments[0] ?? '')
+          if (!detected && typeof payload.from === 'string') detected = payload.from
+          translated.push(text)
+          request.onDelta?.(text)
         }
         output.push(translated.join(''))
       }

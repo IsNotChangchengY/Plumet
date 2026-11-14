@@ -57,6 +57,23 @@ const STYLE = `
     box-sizing: border-box;
     font-size: 13px;
     line-height: 1.6;
+    user-select: text;
+  }
+  .panel::-webkit-scrollbar { width: 8px; height: 8px; }
+  .panel::-webkit-scrollbar-track { background: transparent; }
+  .panel::-webkit-scrollbar-thumb {
+    background: var(--surface-3);
+    border: 2px solid transparent;
+    border-radius: 999px;
+    background-clip: content-box;
+  }
+  .panel::-webkit-scrollbar-thumb:hover {
+    background-color: var(--text-faint);
+    background-clip: content-box;
+  }
+  .panel ::selection {
+    background: color-mix(in srgb, var(--brand) 40%, transparent);
+    color: var(--text);
   }
   :host([data-open="1"]) .panel {
     animation: yy-pop var(--dur-pop) var(--ease-pop) both;
@@ -118,6 +135,7 @@ const STYLE = `
     white-space: pre-wrap;
     word-break: break-word;
     color: var(--text);
+    cursor: text;
   }
   .text.empty { color: var(--text-faint); }
 
@@ -301,6 +319,7 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
   let anchor: { top: number; bottom: number; left: number } | null = null
   let latestText = ''
   let latestSource = ''
+  let streamedText = ''
   let frame = 0
   let mounted = false
   let pinned = false
@@ -354,14 +373,23 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
   }
 
   function renderStreaming(text: string): void {
+    const pre = body.firstElementChild as HTMLElement | null
+    const cursor = pre?.querySelector('.cursor')
+    if (pre && cursor && text.startsWith(streamedText)) {
+      const added = text.slice(streamedText.length)
+      if (added) pre.insertBefore(document.createTextNode(added), cursor)
+      streamedText = text
+      return
+    }
+    streamedText = text
     body.innerHTML = ''
-    const pre = document.createElement('pre')
-    pre.className = 'text'
-    pre.textContent = text
-    const cursor = document.createElement('span')
-    cursor.className = 'cursor'
-    pre.appendChild(cursor)
-    body.appendChild(pre)
+    const next = document.createElement('pre')
+    next.className = 'text'
+    next.appendChild(document.createTextNode(text))
+    const caret = document.createElement('span')
+    caret.className = 'cursor'
+    next.appendChild(caret)
+    body.appendChild(next)
   }
 
   function renderWordCard(source: string, text: string): void {
@@ -386,6 +414,7 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
     body.className = 'body'
     panel.className = 'panel'
     resetActions()
+    if (view.status !== 'streaming') streamedText = ''
 
     if (view.status === 'loading') {
       body.innerHTML =
@@ -481,6 +510,13 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
       handlers.onRetry()
     }
   })
+
+  const stopSelectionHijack = (event: Event): void => {
+    event.stopPropagation()
+  }
+  for (const type of ['mousedown', 'mouseup', 'selectstart']) {
+    shadow.addEventListener(type, stopSelectionHijack, true)
+  }
 
   return {
     element: host,

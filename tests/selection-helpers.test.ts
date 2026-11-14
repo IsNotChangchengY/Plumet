@@ -10,8 +10,13 @@ import {
 } from '../src/content/context'
 
 describe('normalizeSelectionText', () => {
-  it('把换行与多余空格压成单空格', () => {
-    expect(normalizeSelectionText('  hello\n\n  world  ')).toBe('hello world')
+  it('保留换行，压掉行内多余空白', () => {
+    expect(normalizeSelectionText('  hello\n\n  world  ')).toBe('hello\n\nworld')
+    expect(normalizeSelectionText('line one\nline two')).toBe('line one\nline two')
+  })
+
+  it('最多保留一个空行', () => {
+    expect(normalizeSelectionText('a\n\n\n\nb')).toBe('a\n\nb')
   })
 
   it('空白文本返回空串', () => {

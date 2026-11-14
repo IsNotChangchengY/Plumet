@@ -84,6 +84,7 @@ interface TranslateProvider {
 - 语言码要转换（`src/core/providers/lang-map.ts`）：`zh-CN→zh`、`zh-TW→cht`、`ja→jp`、`ko→kor`、`fr→fra`、`es→spa`、`ar→ara`；`auto` 直传。
 - 限制：单次 `q ≤ 6000` 字节（适配器按 5500 字节切分）；标准版 QPS = 1，适配器用 1 秒间隔串行排队，网页翻译一批 8 段会明显变慢。
 - 多段：先把多段用换行拼成一条 `q`，按 `trans_result` 数组还原（待实测：官方是否稳定按行返回）；条数不符自动退回逐段请求。
+- 单段内含换行（划词多行选区、弹窗粘贴多行）：百度会把它当多条 query 返回，不能按 1 段校验，走 `parseBaiduLines()` 把 `dst` 按行拼回 `\n`。
 - 错误码映射见第 4 节；返回体是 200 + `error_code`，不是 HTTP 错误，适配器解析后抛 `AppError`。
 - 免费额度以开放平台定价为准（个人认证约 5 万字符/月）。
 

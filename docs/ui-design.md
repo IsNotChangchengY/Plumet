@@ -206,6 +206,9 @@
 ### 7.2 划词气泡
 
 - 宽度 `min(340px, 100vw - 24px)`，最大高度 `min(60vh, 420px)`，内部滚动；圆角 14、1px 边框、`--shadow-md`。
+- 滚动条自绘 8px：`.panel::-webkit-scrollbar` 滑块 `--surface-3`、轨道透明、hover 变 `--text-faint`。不用系统滚动条——深色卡片里它会是一条浅色 17px 条；`scrollbar-color` 也不行，两端的箭头按钮仍是系统浅色（实测）。
+- 正文可拖选复制：`.panel` 显式 `user-select: text`，宿主页写了 `html/body { user-select: none }` 也照样能选（头部要拖动，`.head` 保持 `none`）。译文按原文换行分段（`pre-wrap`），多段选区不会挤成一段。
+- 选中高亮自带一条：`.panel ::selection` 用 `color-mix(in srgb, var(--brand) 40%, transparent)` + `color: var(--text)`，深浅色都清晰。宿主页的 `::selection`（编辑器、深色皮肤常写 `background: transparent`）会漏进 Shadow DOM，不写这条就会出现「明明选上了却没有高亮」；实测页面侧加 `!important` 也压不过这条。流式输出只追加文本节点，边生成边选不会被打断。
 - 定位：默认贴在选区**正下方**（间距 8），不遮挡被选中的文字；下方空间不足才翻到上方，贴边修正。头部可拖动，拖动后改为固定位置、不再跟随滚动，关闭再打开恢复跟随。
 - 结构：头部（13×13 渐变羽毛点 +「羽译 · 划词翻译」+ 22×22 关闭按钮）→ 正文 → 底栏（10.5px 元信息 + 动作组）。头部整条是拖动区（`cursor: grab`），关闭只有右上角这一个入口。
 - 底栏动作：`朗读`「复制」（加载/流式时不出现）、`重试`（仅错误）；均为 24px 高、10.5px 的文本按钮，hover 出 `--surface-3`。底栏没有任何内容可显示时整条收起，不占高度。

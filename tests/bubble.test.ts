@@ -124,6 +124,29 @@ describe('selection bubble', () => {
     expect(copied).toBe('已推迟发布。')
   })
 
+  it('流式只追加文本节点，不重建正文', () => {
+    const view = mount()
+    view.showAt({ top: 200, bottom: 220, left: 100 })
+    view.render({ status: 'streaming', text: '委员会' })
+    const pre = partOf<HTMLElement>(view, '.text')
+    const first = pre.firstChild
+    view.render({ status: 'streaming', text: '委员会已决定' })
+    expect(partOf<HTMLElement>(view, '.text')).toBe(pre)
+    expect(pre.firstChild).toBe(first)
+    expect(pre.textContent).toBe('委员会已决定')
+    expect(pre.lastElementChild?.className).toBe('cursor')
+  })
+
+  it('流式文本不是前缀时整块重建', () => {
+    const view = mount()
+    view.showAt({ top: 200, bottom: 220, left: 100 })
+    view.render({ status: 'streaming', text: 'abc' })
+    const pre = partOf<HTMLElement>(view, '.text')
+    view.render({ status: 'streaming', text: 'xyz' })
+    expect(partOf<HTMLElement>(view, '.text')).not.toBe(pre)
+    expect(partOf<HTMLElement>(view, '.text').textContent).toBe('xyz')
+  })
+
   it('默认出现在选区下方', async () => {
     const view = mount()
     view.showAt({ top: 200, bottom: 220, left: 100 })

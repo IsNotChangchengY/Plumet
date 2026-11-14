@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { translateText } from '../src/core/engine'
 import { md5 } from '../src/core/providers/mt/md5'
-import { chunkByBytes, createBaiduProvider, parseBaidu, signBaidu } from '../src/core/providers/mt/baidu'
+import { chunkByBytes, createBaiduProvider, parseBaidu, parseBaiduLines, signBaidu } from '../src/core/providers/mt/baidu'
 import {
   azureEndpoint,
   buildAzureUrl,
@@ -82,6 +82,24 @@ describe('百度响应解析', () => {
 
   it('段数不一致时报 parse', () => {
     expect(() => parseBaidu({ trans_result: [{ dst: '甲' }] }, 2)).toThrow(/段/)
+  })
+
+  it('单段多行按行还原，不按段数校验', () => {
+    expect(parseBaiduLines({ from: 'en', trans_result: [{ dst: '甲' }, { dst: '乙' }] })).toBe('甲\n乙')
+    expect(() => parseBaiduLines({ trans_result: [] })).toThrow(/译文/)
+    expect(() => parseBaiduLines({ error_code: '54001', error_msg: 'Invalid Sign' })).toThrow(/签名错误/)
+  })
+})
+
+describe('百度多行单段', () => {
+  it('选区带换行时拼回分行译文，而不是报段数不符', async () => {
+    vi.stubGlobal('fetch', async () =>
+      new Response(JSON.stringify({ from: 'en', trans_result: [{ dst: '甲' }, { dst: '乙' }] }), { status: 200 }),
+    )
+    const provider = createBaiduProvider({ ...defaultServices().baidu, appId: 'app', secret: 's' })
+    const result = await provider.translate({ segments: ['one\ntwo'], sourceLang: 'en', targetLang: 'zh-CN' })
+    expect(result.segments).toEqual(['甲\n乙'])
+    expect(result.detectedLang).toBe('en')
   })
 })
 
