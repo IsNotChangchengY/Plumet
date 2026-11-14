@@ -150,7 +150,7 @@
 - `.input` / `.select`：高 36、圆角 10、`--field` 底、1px 边框；聚焦边框转主色 + 3px `--brand-soft` 环。
 - `.select` 用内联 SVG 背景画下拉箭头（12px，`right 10px center`），不依赖系统箭头。
 - **原生下拉列表（`<option>` 弹出层）不吃 CSS 变量**：它的深浅皮肤跟随 `color-scheme`，底色取控件自身背景。因此：① 深色分支必须声明 `color-scheme: dark`（否则变量是深色、UA 仍按浅色画弹层）；② **select 的背景不能是 `transparent`**，必须给不透明底色（`.sb-eval` 用 `var(--surface)`，`.select` 用 `var(--field)`），透明底会让弹层回落到浅色；③ 在 `theme.css` 里给 `select option` 显式补 `background-color: var(--field)` 与 `color: var(--text)` 兜底。
-- 弹窗内的语言胶囊 `.sb-chip` 是 **原生 select 伪装成胶囊**：无边框、居中文字、`--raised` 底、`--shadow-sm`；引擎行 `.sb-engine` 是「label + select + 箭头」的一整行，整行 hover 才出现主色环。
+- 弹窗内的语言胶囊 `.sb-chip` 是 **原生 select 伪装成胶囊**：无边框、居中文字、`--raised` 底、`--shadow-sm`；引擎行 `.sb-engine` 是「label + select + 箭头」的一整行，整行 hover 才出现主色环。目标语言下拉第一项是「智能（中⇄英）」（其他语言→中文，中文→英文），选中时交换按钮禁用（`.sb-swap:disabled`），`title` 说明完整规则。
 - `.textarea` 只用于设置页以外的长文本场景；弹窗输入框用 `.composer` 容器 + 无边框 `.composer-input`，聚焦环画在容器上。
 
 ### 6.6 开关
@@ -227,7 +227,7 @@
 | 主体 `.popup-body` | 508 | 内边距 `0 12px 12px`，纵向 stack，间距 8 |
 | 底部 `.popup-footer` | 52 | 1px 上边框 + 主按钮「翻译本页 / 重译本页」占满剩余宽度 + 版本号（11px `--text-faint`） |
 
-主体自上而下：设置条 `.setbar`（语言两枚胶囊 + 交换 + 引擎行）→ 输入卡 `.composer`（输入区 + 右下动作：检查 / 润色 / 翻译）→ 折叠项 `.polish-config`（28px 高的「润色方向」条）→ 结果卡 `.result-card`（`flex: 1`、内部滚动）。
+主体自上而下：设置条 `.setbar`（语言两枚胶囊 + 交换 + 引擎行）→ 输入卡 `.composer`（输入区 + 右下动作：检查 / 润色 / 翻译）→ 折叠项 `.polish-config`（28px 高的「润色方向」条）→ 结果卡 `.result-card`（`flex: 1`、内部滚动）。弹窗打开时输入框自动聚焦（`TranslatePanel` 挂载时 focus，从「历史」tab 切回也会重新聚焦），点图标即可直接打字。
 
 - 结果卡状态行 `.result-meta` 只放状态与元信息；可用动作（复制/清空）沉到卡片底部 `.result-actions`，用 1px 分隔线与正文分开。
 - 检查结果：状态行（处数/保留/忽略/引擎/耗时 + 三视图切换）→ 高亮块（`.card.flat` + `.marks-view`）→ 问题卡列表（`.issue-item`）。列表可滚动，不压缩行高。

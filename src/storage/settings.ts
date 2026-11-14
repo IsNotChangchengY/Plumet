@@ -1,4 +1,5 @@
 import { newId, readLocal, writeLocal } from './local'
+import { SMART_TARGET_LANG } from '../core/lang'
 
 export type AiProviderConfig = {
   id: string
@@ -75,7 +76,7 @@ export function defaultServices(): Record<MtServiceId, MtServiceConfig> {
 export const DEFAULT_SETTINGS: Settings = {
   version: 2,
   sourceLang: 'auto',
-  targetLang: 'zh-CN',
+  targetLang: SMART_TARGET_LANG,
   translateEngine: 'mt:google-free',
   checkEngine: '',
   polishEngine: '',

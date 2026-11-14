@@ -21,6 +21,13 @@ export const LANGUAGES: LangOption[] = [
   { code: 'ar', label: '阿拉伯语' },
 ]
 
+export const SMART_TARGET_LANG = 'smart'
+
+export const TARGET_LANGUAGES: LangOption[] = [
+  { code: SMART_TARGET_LANG, label: '智能（中⇄英）' },
+  ...LANGUAGES.filter((item) => item.code !== AUTO_LANG),
+]
+
 const LABEL_BY_CODE = new Map(LANGUAGES.map((item) => [item.code, item.label]))
 
 export function langLabel(code: string): string {
@@ -73,4 +80,9 @@ export function detectLang(text: string): string {
 
 export function resolveSourceLang(sourceLang: string, text: string): string {
   return sourceLang === AUTO_LANG ? detectLang(text) : sourceLang
+}
+
+export function resolveTargetLang(targetLang: string, text: string): string {
+  if (targetLang !== SMART_TARGET_LANG) return targetLang
+  return detectLang(text).startsWith('zh') ? 'en' : 'zh-CN'
 }

@@ -1,5 +1,6 @@
 import { AppError, isAbortError, toAppError } from '../core/errors'
 import { translateText } from '../core/engine'
+import { resolveTargetLang } from '../core/lang'
 import { testAiProvider } from '../core/providers/ai/openai-compatible'
 import { createMtProvider } from '../core/providers/services'
 import { runCheckChunk } from '../core/providers/ai/check'
@@ -51,11 +52,12 @@ async function runTranslate(request: TranslateJobRequest, job: Job): Promise<voi
   try {
     const settings = await loadSettings()
     const engineId = request.engineId?.trim() ? request.engineId : settings.translateEngine
+    const targetLang = resolveTargetLang(request.targetLang, request.segments.join('\n'))
     const result = await translateText(
       {
         segments: request.segments,
         sourceLang: request.sourceLang,
-        targetLang: request.targetLang,
+        targetLang,
         context: request.context,
         glossary: settings.glossary,
         signal: job.controller.signal,
@@ -84,7 +86,7 @@ async function runTranslate(request: TranslateJobRequest, job: Job): Promise<voi
         resultText: result.segments.join('\n\n'),
         engineLabel: result.engineLabel,
         sourceLang: request.sourceLang,
-        targetLang: request.targetLang,
+        targetLang,
       })
     }
   } catch (error) {
@@ -152,7 +154,7 @@ async function runCheck(request: CheckJobRequest, job: Job): Promise<void> {
       resultText: corrected,
       engineLabel,
       sourceLang: settings.sourceLang,
-      targetLang: settings.targetLang,
+      targetLang: resolveTargetLang(settings.targetLang, request.text),
     })
   } catch (error) {
     sendError(job, request.requestId, error)
@@ -188,7 +190,7 @@ async function runPolishJob(request: PolishJobRequest, job: Job): Promise<void> 
       resultText: polished,
       engineLabel,
       sourceLang: settings.sourceLang,
-      targetLang: settings.targetLang,
+      targetLang: resolveTargetLang(settings.targetLang, request.text),
     })
   } catch (error) {
     sendError(job, request.requestId, error)

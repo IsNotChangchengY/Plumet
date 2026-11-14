@@ -1,6 +1,7 @@
 import type { Settings } from '../storage/settings'
 import { loadSettings } from '../storage/settings'
 import { saveCard } from '../storage/learning'
+import { resolveTargetLang } from '../core/lang'
 import type { Bubble } from './bubble'
 import { createBubble } from './bubble'
 import {
@@ -59,6 +60,7 @@ let iconHost: HTMLElement | null = null
 let bubble: Bubble | null = null
 let current: SelectionInfo | null = null
 let lastTranslation = ''
+let lastTargetLang = ''
 let cancelRequest: (() => void) | null = null
 let initialized = false
 let viewportFrame = 0
@@ -203,7 +205,7 @@ async function saveCurrentSelection(): Promise<void> {
       sourceUrl: location.href,
       sourceTitle: document.title,
       sourceLang: settings?.sourceLang ?? 'auto',
-      targetLang: settings?.targetLang ?? 'zh-CN',
+      targetLang: lastTargetLang || resolveTargetLang(settings?.targetLang ?? 'zh-CN', current.text),
     })
     bubble?.setSaved(true)
   } catch {
@@ -214,7 +216,7 @@ async function saveCurrentSelection(): Promise<void> {
 function speak(text: string): void {
   try {
     const utterance = new SpeechSynthesisUtterance(text)
-    if (settings?.targetLang) utterance.lang = settings.targetLang
+    if (lastTargetLang) utterance.lang = lastTargetLang
     window.speechSynthesis.cancel()
     window.speechSynthesis.speak(utterance)
   } catch {
@@ -230,13 +232,15 @@ function startTranslation(info: SelectionInfo): void {
     return
   }
   const word = looksLikeWord(info.text)
+  const targetLang = resolveTargetLang(settings.targetLang, info.text)
+  lastTargetLang = targetLang
   let streamed = ''
   cancelRequest = requestSelectionTranslation(
     {
       text: info.text,
       context: info.context,
       sourceLang: settings.sourceLang,
-      targetLang: settings.targetLang,
+      targetLang,
     },
     {
       onDelta(delta) {
@@ -267,6 +271,7 @@ async function openBubble(info: SelectionInfo): Promise<void> {
   const view = ensureBubble()
   current = info
   lastTranslation = ''
+  lastTargetLang = ''
   view.setSource(info.text)
   view.showAt({ top: info.rect.top, bottom: info.rect.bottom, left: info.rect.left })
   view.render({ status: 'loading' })
@@ -279,6 +284,7 @@ function closeBubble(): void {
   cancelRequest = null
   current = null
   lastTranslation = ''
+  lastTargetLang = ''
   bubble?.hide()
 }
 

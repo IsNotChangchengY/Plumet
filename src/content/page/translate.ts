@@ -1,6 +1,7 @@
 import type { PageCommandName, PageCommandResult, PageState } from '../../core/messaging'
 import type { Settings } from '../../storage/settings'
 import { loadSettings } from '../../storage/settings'
+import { resolveTargetLang } from '../../core/lang'
 import { isYuyiNode } from '../ui-mark'
 import { requestTextTranslation } from '../translate-client'
 import type { PageUnit, SkipCounts } from './collect'
@@ -8,10 +9,11 @@ import { collectUnits } from './collect'
 import type { Pill } from './pill'
 import { createPill } from './pill'
 import { ensurePageStyle, hasPageTranslations, markUnitFailed, renderTranslation, restorePage } from './render'
-import { MAX_UNITS, groupUnits, pickScanRoots } from './text'
+import { MAX_UNITS, groupUnits, isTargetLanguageText, pickScanRoots } from './text'
 
 const CONCURRENCY = 2
 const DEBOUNCE_MS = 500
+const SAMPLE_UNITS = 12
 
 let state: PageState = { state: 'idle', done: 0, total: 0, failed: 0, mode: 'bilingual' }
 let settings: Settings | null = null
@@ -27,6 +29,19 @@ let pending: MutationRecord[] = []
 let lastHref = ''
 let lastSkip: SkipCounts = {}
 let pill: Pill | null = null
+let pageTarget = ''
+
+function batchTargetLang(): string {
+  return pageTarget || settings?.targetLang || 'zh-CN'
+}
+
+function sampleText(units: PageUnit[]): string {
+  const sample = units
+    .slice(0, SAMPLE_UNITS)
+    .map((unit) => unit.text)
+    .join('\n')
+  return sample || document.title
+}
 
 function ensurePill(): Pill {
   if (pill) return pill
@@ -101,19 +116,25 @@ export async function startPageTranslation(): Promise<PageCommandResult> {
     limit: MAX_UNITS,
     seen,
   })
-  lastSkip = collected.skipped
+  pageTarget = resolveTargetLang(settings.targetLang, sampleText(collected.units))
+  const units = collected.units.filter((unit) => !isTargetLanguageText(unit.text, pageTarget))
+  const removed = collected.units.length - units.length
+  lastSkip =
+    removed > 0
+      ? { ...collected.skipped, targetLang: (collected.skipped.targetLang ?? 0) + removed }
+      : collected.skipped
   lastHref = location.href
-  state = { state: 'running', done: 0, total: collected.units.length, failed: 0, mode: settings.pageMode }
+  state = { state: 'running', done: 0, total: units.length, failed: 0, mode: settings.pageMode }
   ensurePill().render(state)
   startObserver()
-  if (collected.units.length === 0) {
+  if (units.length === 0) {
     stopObserver()
     state = { ...state, state: 'done', message: emptyMessage(lastSkip) }
     broadcast()
     return { ok: true, state }
   }
   broadcast()
-  enqueue(groupUnits(collected.units))
+  enqueue(groupUnits(units))
   return { ok: true, state }
 }
 
@@ -147,6 +168,7 @@ export async function restorePageTranslation(): Promise<PageCommandResult> {
   stopObserver()
   restorePage()
   resetRunState()
+  pageTarget = ''
   state = { state: 'idle', done: 0, total: 0, failed: 0, mode: settings?.pageMode ?? 'bilingual' }
   broadcast()
   return { ok: true, state }
@@ -209,6 +231,7 @@ function markFailed(batch: PageUnit[], message: string): void {
 function runBatch(batch: PageUnit[]): Promise<void> {
   return new Promise((resolve) => {
     const key = batch[0]?.id ?? ''
+    const targetLang = batchTargetLang()
     let finished = false
     const finish = (): void => {
       if (finished) return
@@ -220,7 +243,7 @@ function runBatch(batch: PageUnit[]): Promise<void> {
       {
         segments: batch.map((unit) => unit.text),
         sourceLang: settings?.sourceLang ?? 'auto',
-        targetLang: settings?.targetLang ?? 'zh-CN',
+        targetLang,
         engineId: settings?.pageEngine,
         silent: true,
       },
@@ -231,7 +254,6 @@ function runBatch(batch: PageUnit[]): Promise<void> {
               markFailed(batch, '这一批返回的译文段数不对，已跳过')
             } else {
               const mode = settings?.pageMode ?? 'bilingual'
-              const targetLang = settings?.targetLang ?? 'zh-CN'
               for (let index = 0; index < batch.length; index += 1) {
                 const unit = batch[index] as PageUnit
                 renderTranslation(unit, result.segments[index] ?? '', mode, targetLang)
@@ -292,7 +314,11 @@ function flushMutations(records: MutationRecord[]): void {
   const units: PageUnit[] = []
   for (const root of roots) {
     if (remaining <= 0) break
-    const collected = collectUnits(root, { targetLang: settings.targetLang, limit: remaining, seen })
+    const collected = collectUnits(root, {
+      targetLang: pageTarget || settings.targetLang,
+      limit: remaining,
+      seen,
+    })
     units.push(...collected.units)
     remaining -= collected.units.length
   }

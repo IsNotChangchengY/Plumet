@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { Settings } from '../storage/settings'
 import { DEFAULT_SETTINGS, defaultServices, loadSettings, saveSettings } from '../storage/settings'
 import { engineReadiness, listEngines } from '../core/providers/registry'
-import { LANGUAGES } from '../core/lang'
+import { LANGUAGES, SMART_TARGET_LANG, TARGET_LANGUAGES } from '../core/lang'
 import { clearCache } from '../core/cache'
 import { clearHistory } from '../storage/history'
 import { applyTheme } from '../ui/apply-theme'
@@ -188,12 +188,17 @@ export default function App() {
                     value={settings.targetLang}
                     onChange={(event) => patch({ targetLang: event.target.value })}
                   >
-                    {LANGUAGES.filter((item) => item.code !== 'auto').map((item) => (
+                    {TARGET_LANGUAGES.map((item) => (
                       <option key={item.code} value={item.code}>
                         {item.label}
                       </option>
                     ))}
                   </select>
+                  {settings.targetLang === SMART_TARGET_LANG ? (
+                    <span className="hint" style={{ display: 'block' }}>
+                      智能：其他语言译成中文，中文译成英文
+                    </span>
+                  ) : null}
                 </label>
                 <label className="field">
                   <span className="field-label">默认源语言</span>

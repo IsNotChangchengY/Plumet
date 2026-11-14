@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { POLISH_CHIPS, buildPolishInstruction } from '../core/polish'
+import { resolveTargetLang } from '../core/lang'
 import { listEngines } from '../core/providers/registry'
 import { splitSegments } from '../core/text'
 import type { Settings } from '../storage/settings'
@@ -24,6 +25,7 @@ type Props = {
 
 export function TranslatePanel({ settings, onPatch, external }: Props) {
   const job = useJob()
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const [text, setText] = useState('')
   const [manual, setManual] = useState<ExternalResult>(null)
   const [submitted, setSubmitted] = useState('')
@@ -36,6 +38,10 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
   const currentEngine = engines.find((engine) => engine.id === settings.translateEngine)
   const state = job.state
   const running = state.status === 'running'
+
+  useEffect(() => {
+    inputRef.current?.focus()
+  }, [])
 
   useEffect(() => {
     if (!external) return
@@ -67,7 +73,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
       kind: 'translate',
       segments,
       sourceLang: settings.sourceLang,
-      targetLang: settings.targetLang,
+      targetLang: resolveTargetLang(settings.targetLang, text),
     })
   }
 
@@ -125,7 +131,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
       text: saveSource,
       translation: translateText,
       sourceLang: settings.sourceLang,
-      targetLang: settings.targetLang,
+      targetLang: resolveTargetLang(settings.targetLang, saveSource),
     })
     setSaved(true)
   }
@@ -172,6 +178,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
       <div className="composer">
         <textarea
           className="textarea composer-input"
+          ref={inputRef}
           placeholder="输入或粘贴文本，Enter 翻译"
           value={text}
           onChange={(event) => setText(event.target.value)}

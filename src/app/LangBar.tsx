@@ -1,4 +1,4 @@
-import { LANGUAGES } from '../core/lang'
+import { AUTO_LANG, LANGUAGES, SMART_TARGET_LANG, TARGET_LANGUAGES } from '../core/lang'
 
 type Props = {
   sourceLang: string
@@ -9,7 +9,10 @@ type Props = {
 }
 
 export function LangBar({ sourceLang, targetLang, onChangeSource, onChangeTarget, onSwap }: Props) {
-  const targetOptions = LANGUAGES.filter((item) => item.code !== 'auto')
+  const smartTarget = targetLang === SMART_TARGET_LANG
+  const swapDisabled = sourceLang === AUTO_LANG || smartTarget
+  const swapTitle = smartTarget ? '智能目标语言无法互换' : '自动检测时无法互换'
+
   return (
     <div className="lang-bar">
       <select
@@ -29,8 +32,8 @@ export function LangBar({ sourceLang, targetLang, onChangeSource, onChangeTarget
         type="button"
         className="sb-swap"
         onClick={onSwap}
-        disabled={sourceLang === 'auto'}
-        title={sourceLang === 'auto' ? '自动检测时无法互换' : '互换语言'}
+        disabled={swapDisabled}
+        title={swapDisabled ? swapTitle : '互换语言'}
         aria-label="互换语言"
       >
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
@@ -44,10 +47,10 @@ export function LangBar({ sourceLang, targetLang, onChangeSource, onChangeTarget
         className="sb-chip"
         value={targetLang}
         onChange={(event) => onChangeTarget(event.target.value)}
-        title="目标语言"
+        title={smartTarget ? '其他语言译成中文，中文译成英文' : '目标语言'}
         aria-label="目标语言"
       >
-        {targetOptions.map((item) => (
+        {TARGET_LANGUAGES.map((item) => (
           <option key={item.code} value={item.code}>
             {item.label}
           </option>
