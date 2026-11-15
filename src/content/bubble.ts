@@ -321,14 +321,17 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
   let latestSource = ''
   let streamedText = ''
   let frame = 0
-  let mounted = false
   let pinned = false
   let drag: { id: number; dx: number; dy: number } | null = null
 
+  function mountParent(): Element {
+    const fullscreen = document.fullscreenElement
+    return fullscreen && !(fullscreen instanceof HTMLMediaElement) ? fullscreen : document.documentElement
+  }
+
   function mount(): void {
-    if (mounted) return
-    mounted = true
-    document.documentElement.appendChild(host)
+    const parent = mountParent()
+    if (host.parentNode !== parent) parent.appendChild(host)
   }
 
   function position(): void {
@@ -553,7 +556,6 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
     },
     destroy() {
       open = false
-      mounted = false
       pinned = false
       host.remove()
     },

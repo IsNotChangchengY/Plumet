@@ -2,12 +2,13 @@ import { describe, expect, it } from 'vitest'
 import {
   buildContextWindow,
   calculatePlacement,
+  clampIconPosition,
   composeContext,
   isBlockElement,
-  isEditableElement,
   looksLikeWord,
   normalizeSelectionText,
 } from '../src/content/context'
+import { toRect } from '../src/content/selection-hit'
 
 describe('normalizeSelectionText', () => {
   it('保留换行，压掉行内多余空白', () => {
@@ -88,35 +89,49 @@ describe('composeContext', () => {
   })
 })
 
-describe('isEditableElement', () => {
-  it('输入框与文本域', () => {
-    const input = document.createElement('input')
-    const textarea = document.createElement('textarea')
-    expect(isEditableElement(input)).toBe(true)
-    expect(isEditableElement(textarea)).toBe(true)
-  })
-
-  it('contenteditable 及其子节点', () => {
-    const editable = document.createElement('div')
-    editable.setAttribute('contenteditable', 'true')
-    const child = document.createElement('span')
-    editable.appendChild(child)
-    expect(isEditableElement(child)).toBe(true)
-  })
-
-  it('普通段落返回 false', () => {
-    const paragraph = document.createElement('p')
-    const text = document.createTextNode('hello')
-    paragraph.appendChild(text)
-    expect(isEditableElement(text)).toBe(false)
-  })
-})
-
 describe('isBlockElement', () => {
   it('识别常见块级标签', () => {
     expect(isBlockElement(document.createElement('p'))).toBe(true)
     expect(isBlockElement(document.createElement('h2'))).toBe(true)
     expect(isBlockElement(document.createElement('li'))).toBe(true)
+  })
+})
+
+describe('clampIconPosition', () => {
+  const viewport = { width: 800, height: 600 }
+  const size = { width: 28, height: 28 }
+
+  it('默认落在光标右下角', () => {
+    expect(clampIconPosition({ x: 100, y: 100 }, size, viewport)).toEqual({ left: 108, top: 108 })
+  })
+
+  it('靠近右边缘时翻到光标左侧', () => {
+    expect(clampIconPosition({ x: 790, y: 100 }, size, viewport).left).toBe(790 - 28 - 8)
+  })
+
+  it('靠近底部时翻到光标上方', () => {
+    expect(clampIconPosition({ x: 100, y: 590 }, size, viewport).top).toBe(590 - 28 - 8)
+  })
+
+  it('越界坐标仍留在视口内', () => {
+    const position = clampIconPosition({ x: -50, y: -50 }, size, viewport)
+    expect(position.left).toBe(6)
+    expect(position.top).toBe(6)
+  })
+})
+
+describe('toRect', () => {
+  it('零尺寸视为拿不到位置', () => {
+    expect(toRect({ top: 10, bottom: 10, left: 20, right: 20 })).toBeNull()
+  })
+
+  it('正常矩形原样返回', () => {
+    expect(toRect({ top: 10, bottom: 30, left: 20, right: 80 })).toEqual({
+      top: 10,
+      bottom: 30,
+      left: 20,
+      right: 80,
+    })
   })
 })
 

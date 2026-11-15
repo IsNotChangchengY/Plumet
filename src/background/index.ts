@@ -18,9 +18,9 @@ function setupMenus(): void {
   })
 }
 
-async function tellContent(tabId: number, type: string): Promise<void> {
+async function tellContent(tabId: number, type: string, options?: { frameId?: number }): Promise<void> {
   try {
-    await chrome.tabs.sendMessage(tabId, { type })
+    await chrome.tabs.sendMessage(tabId, { type }, options)
   } catch {
     // 页面里没有 content script（例如浏览器内置页面）时忽略
   }
@@ -39,11 +39,12 @@ setupPageRouter()
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   const tabId = tab?.id
   if (info.menuItemId === 'yuyi-translate-selection' && tabId !== undefined) {
-    void tellContent(tabId, 'yuyi:translate-selection')
+    const options = typeof info.frameId === 'number' ? { frameId: info.frameId } : undefined
+    void tellContent(tabId, 'yuyi:translate-selection', options)
     return
   }
   if (info.menuItemId === 'yuyi-translate-page' && tabId !== undefined) {
-    void tellContent(tabId, 'yuyi:translate-page')
+    void tellContent(tabId, 'yuyi:translate-page', { frameId: 0 })
   }
 })
 
@@ -53,7 +54,7 @@ chrome.commands.onCommand.addListener((command, tab) => {
     void tellContent(tabId, 'yuyi:translate-selection')
   }
   if (command === 'translate-page' && tabId !== undefined) {
-    void tellContent(tabId, 'yuyi:translate-page')
+    void tellContent(tabId, 'yuyi:translate-page', { frameId: 0 })
   }
 })
 

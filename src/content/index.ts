@@ -7,6 +7,7 @@ type ContentMessage = {
   command?: PageCommandName
 }
 
+const isTopFrame = window.top === window
 let started = false
 
 function start(): void {
@@ -34,10 +35,14 @@ function handleMessage(message: ContentMessage, sendResponse: (value: unknown) =
   if (message.type === 'yuyi:translate-selection') {
     start()
     const opened = translateCurrentSelection()
-    sendResponse({ ok: opened, reason: opened ? undefined : '没有选中文本，或选区在输入框里' })
+    sendResponse({ ok: opened, reason: opened ? undefined : '没有选中文本' })
     return false
   }
   if (message.type === 'yuyi:translate-page' || message.type === 'yuyi:page-command') {
+    if (!isTopFrame) {
+      sendResponse({ ok: false, reason: '网页翻译只在主框架执行' })
+      return false
+    }
     start()
     const command: PageCommandName = message.command ?? 'translate'
     void handlePageCommand(command).then(sendResponse)

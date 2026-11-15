@@ -15,7 +15,9 @@ export async function forwardPageCommand(command: PageCommand): Promise<PageComm
   const tabId = await activeTabId()
   if (tabId === null) return { ok: false, reason: '没有找到当前标签页' }
   try {
-    const result = (await chrome.tabs.sendMessage(tabId, command)) as PageCommandResult | undefined
+    const result = (await chrome.tabs.sendMessage(tabId, command, { frameId: 0 })) as
+      | PageCommandResult
+      | undefined
     if (!result || typeof result !== 'object') {
       return { ok: false, reason: '页面没有返回网页翻译状态，刷新页面后再试' }
     }

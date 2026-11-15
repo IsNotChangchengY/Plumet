@@ -1,25 +1,22 @@
 import type { Settings } from '../storage/settings'
-import { loadSettings } from '../storage/settings'
+import { SETTINGS_KEY, loadSettings } from '../storage/settings'
 import { saveCard } from '../storage/learning'
 import { resolveTargetLang } from '../core/lang'
 import type { Bubble } from './bubble'
 import { createBubble } from './bubble'
-import {
-  DEFAULT_CONTEXT_CHARS,
-  MAX_SELECTION_CHARS,
-  buildContextWindow,
-  composeContext,
-  isBlockElement,
-  isEditableElement,
-  looksLikeWord,
-  normalizeSelectionText,
-} from './context'
+import { DEFAULT_CONTEXT_CHARS, clampIconPosition, looksLikeWord } from './context'
+import type { SelectionHit, SelectionProbe } from './selection-hit'
+import { endPointOf, readSelection, rectOf } from './selection-hit'
 import { requestSelectionTranslation } from './translate-client'
 import { applyHostTheme, CONTENT_THEME_CSS } from './theme'
 import { isYuyiNode, isYuyiPath, markUiHost } from './ui-mark'
 
 const ICON_SIZE = 28
 const ICON_GAP = 8
+const ICON_MARGIN = 6
+const CHECK_DELAY = 140
+const POINTER_GUARD = 4000
+const MAX_ROOTS = 32
 const ICON_STYLE = `
   ${CONTENT_THEME_CSS}
   :host { all: initial; }
@@ -48,22 +45,19 @@ const ICON_STYLE = `
   }
 `
 
-export type SelectionInfo = {
-  text: string
-  context: string
-  rect: { top: number; bottom: number; left: number; right: number }
-  range: Range
-}
-
 let settings: Settings | null = null
 let iconHost: HTMLElement | null = null
 let bubble: Bubble | null = null
-let current: SelectionInfo | null = null
+let current: SelectionHit | null = null
 let lastTranslation = ''
 let lastTargetLang = ''
 let cancelRequest: (() => void) | null = null
 let initialized = false
 let viewportFrame = 0
+let pendingCheck = 0
+let pointerGuard = 0
+let pointerDown = false
+let recentRoots: ShadowRoot[] = []
 
 async function refreshSettings(): Promise<void> {
   try {
@@ -77,59 +71,42 @@ async function refreshSettings(): Promise<void> {
   if (settings && settings.selectionTrigger !== 'icon') hideIcon()
 }
 
-function isOurNode(node: Node | null): boolean {
-  return isYuyiNode(node)
+function contextChars(): number {
+  return settings?.selectionContextChars ?? DEFAULT_CONTEXT_CHARS
 }
 
-function isOurPath(path: EventTarget[]): boolean {
-  return isYuyiPath(path)
-}
-
-function pickContextText(range: Range, maxChars: number): string {
-  let node: Node | null = range.startContainer
-  let best = ''
-  while (node && node !== document.body) {
-    if (node.nodeType === 1) {
-      const element = node as HTMLElement
-      if (isBlockElement(element)) {
-        const text = (element.innerText || element.textContent || '').trim()
-        if (text) {
-          best = text
-          if (text.length >= maxChars * 2) break
-        }
-      }
-    }
-    node = node.parentNode
-  }
-  if (best) return best
-  return document.body ? (document.body.innerText || '').slice(0, maxChars * 2) : ''
-}
-
-export function readSelectionInfo(): SelectionInfo | null {
-  const selection = window.getSelection()
-  if (!selection || selection.isCollapsed || selection.rangeCount === 0) return null
-  const text = normalizeSelectionText(selection.toString())
-  if (!text || text.length > MAX_SELECTION_CHARS) return null
-  const range = selection.getRangeAt(0)
-  if (range.collapsed) return null
-  if (isEditableElement(range.commonAncestorContainer)) return null
-  if (isOurNode(range.commonAncestorContainer) || isOurNode(range.startContainer)) return null
-  const rect = range.getBoundingClientRect()
-  if (rect.width === 0 && rect.height === 0) return null
-  const contextChars = settings?.selectionContextChars ?? DEFAULT_CONTEXT_CHARS
-  const blockText = pickContextText(range, contextChars)
-  const context = composeContext({
-    title: document.title,
-    host: location.hostname,
-    window: buildContextWindow(blockText, text, contextChars),
-    maxLength: 2000,
-  })
+function probeFrom(event?: Event): SelectionProbe {
+  const source = event as MouseEvent | undefined
+  if (event) rememberRoots(shadowRootsOf(event))
   return {
-    text,
-    context,
-    rect: { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right },
-    range,
+    contextChars: contextChars(),
+    point: source && typeof source.clientX === 'number' ? { x: source.clientX, y: source.clientY } : undefined,
+    path: event?.composedPath(),
+    roots: recentRoots.slice(),
   }
+}
+
+function shadowRootsOf(event: Event): ShadowRoot[] {
+  const roots: ShadowRoot[] = []
+  for (const target of event.composedPath()) {
+    if (!(target instanceof Node)) continue
+    const root = target.getRootNode()
+    if (!(root instanceof ShadowRoot)) continue
+    if (root.host && isYuyiNode(root.host)) continue
+    if (!roots.includes(root)) roots.push(root)
+  }
+  return roots
+}
+
+function rememberRoots(roots: ShadowRoot[]): void {
+  if (roots.length === 0) return
+  recentRoots = recentRoots.filter((root) => root.host && root.host.isConnected)
+  for (const root of roots) {
+    const index = recentRoots.indexOf(root)
+    if (index >= 0) recentRoots.splice(index, 1)
+    recentRoots.push(root)
+  }
+  if (recentRoots.length > MAX_ROOTS) recentRoots.splice(0, recentRoots.length - MAX_ROOTS)
 }
 
 function ensureIcon(): HTMLElement {
@@ -155,14 +132,32 @@ function ensureIcon(): HTMLElement {
   return host
 }
 
-function showIcon(point: { x: number; y: number }): void {
+function mountHost(host: HTMLElement): void {
+  const fullscreen = document.fullscreenElement
+  const parent = fullscreen && !(fullscreen instanceof HTMLMediaElement) ? fullscreen : document.documentElement
+  if (host.parentNode !== parent) parent.appendChild(host)
+}
+
+function placeIcon(host: HTMLElement, point: { x: number; y: number }): void {
+  const position = clampIconPosition(
+    point,
+    { width: ICON_SIZE, height: ICON_SIZE },
+    { width: window.innerWidth, height: window.innerHeight },
+    { gap: ICON_GAP, margin: ICON_MARGIN },
+  )
+  host.style.left = `${position.left}px`
+  host.style.top = `${position.top}px`
+}
+
+function showIcon(hit: SelectionHit, point?: { x: number; y: number }): void {
+  const anchor = point ?? endPointOf(hit)
+  if (!anchor) {
+    hideIcon()
+    return
+  }
   const host = ensureIcon()
-  const maxLeft = Math.max(6, window.innerWidth - ICON_SIZE - 8)
-  const maxTop = Math.max(6, window.innerHeight - ICON_SIZE - 8)
-  const left = point.x + ICON_GAP > maxLeft ? point.x - ICON_SIZE - ICON_GAP : point.x + ICON_GAP
-  const top = point.y + ICON_GAP > maxTop ? point.y - ICON_SIZE - ICON_GAP : point.y + ICON_GAP
-  host.style.left = `${Math.round(Math.min(Math.max(6, left), maxLeft))}px`
-  host.style.top = `${Math.round(Math.min(Math.max(6, top), maxTop))}px`
+  mountHost(host)
+  placeIcon(host, anchor)
   host.style.display = 'block'
 }
 
@@ -224,21 +219,21 @@ function speak(text: string): void {
   }
 }
 
-function startTranslation(info: SelectionInfo): void {
+function startTranslation(hit: SelectionHit): void {
   cancelRequest?.()
   cancelRequest = null
   if (!settings) {
     bubble?.render({ status: 'error', message: '读取设置失败，请刷新页面后再试' })
     return
   }
-  const word = looksLikeWord(info.text)
-  const targetLang = resolveTargetLang(settings.targetLang, info.text)
+  const word = looksLikeWord(hit.text)
+  const targetLang = resolveTargetLang(settings.targetLang, hit.text)
   lastTargetLang = targetLang
   let streamed = ''
   cancelRequest = requestSelectionTranslation(
     {
-      text: info.text,
-      context: info.context,
+      text: hit.text,
+      context: hit.context,
       sourceLang: settings.sourceLang,
       targetLang,
     },
@@ -266,17 +261,24 @@ function startTranslation(info: SelectionInfo): void {
   )
 }
 
-async function openBubble(info: SelectionInfo): Promise<void> {
+async function openBubble(hit: SelectionHit): Promise<void> {
   hideIcon()
   const view = ensureBubble()
-  current = info
+  current = hit
   lastTranslation = ''
   lastTargetLang = ''
-  view.setSource(info.text)
-  view.showAt({ top: info.rect.top, bottom: info.rect.bottom, left: info.rect.left })
+  view.setSource(hit.text)
+  view.showAt(anchorOf(hit))
   view.render({ status: 'loading' })
   if (!settings) await refreshSettings()
-  startTranslation(info)
+  startTranslation(hit)
+}
+
+function anchorOf(hit: SelectionHit): { top: number; bottom: number; left: number } {
+  const rect = rectOf(hit)
+  if (rect) return { top: rect.top, bottom: rect.bottom, left: rect.left }
+  if (hit.point) return { top: hit.point.y, bottom: hit.point.y, left: hit.point.x }
+  return { top: window.innerHeight / 2, bottom: window.innerHeight / 2, left: window.innerWidth / 2 }
 }
 
 function closeBubble(): void {
@@ -288,38 +290,85 @@ function closeBubble(): void {
   bubble?.hide()
 }
 
-export function translateCurrentSelection(): boolean {
-  const info = readSelectionInfo()
-  if (!info) return false
-  void openBubble(info)
-  return true
+function cancelPending(): void {
+  if (!pendingCheck) return
+  window.clearTimeout(pendingCheck)
+  pendingCheck = 0
 }
 
-function onMouseUp(event: MouseEvent): void {
-  if (isOurPath(event.composedPath())) return
+function scheduleCheck(event: Event | undefined, delay: number): void {
+  cancelPending()
+  const probe = probeFrom(event)
+  pendingCheck = window.setTimeout(() => {
+    pendingCheck = 0
+    check(probe)
+  }, delay)
+}
+
+function check(probe: SelectionProbe): void {
   if (!settings || settings.selectionTrigger !== 'icon') {
     hideIcon()
     return
   }
-  window.setTimeout(() => {
-    const info = readSelectionInfo()
-    if (!info) {
-      hideIcon()
-      return
-    }
-    current = info
-    showIcon({ x: event.clientX, y: event.clientY })
-  }, 0)
+  const hit = readSelection(probe)
+  if (!hit) {
+    hideIcon()
+    return
+  }
+  if (bubble?.isOpen()) {
+    if (current && current.text === hit.text) return
+    closeBubble()
+  }
+  current = hit
+  showIcon(hit, probe.point)
 }
 
-function onMouseDown(event: MouseEvent): void {
-  if (isOurPath(event.composedPath())) return
+function onPointerDown(event: PointerEvent): void {
+  if (isYuyiPath(event.composedPath())) return
+  rememberRoots(shadowRootsOf(event))
+  pointerDown = true
+  if (pointerGuard) window.clearTimeout(pointerGuard)
+  pointerGuard = window.setTimeout(() => {
+    pointerDown = false
+    pointerGuard = 0
+  }, POINTER_GUARD)
+  cancelPending()
   hideIcon()
   if (bubble?.isOpen()) closeBubble()
 }
 
+function onPointerUp(): void {
+  pointerDown = false
+  if (pointerGuard) {
+    window.clearTimeout(pointerGuard)
+    pointerGuard = 0
+  }
+}
+
+function onPointerMove(event: PointerEvent): void {
+  if (!pointerDown) return
+  rememberRoots(shadowRootsOf(event))
+}
+
+function onMouseUp(event: MouseEvent): void {
+  if (isYuyiPath(event.composedPath())) return
+  pointerDown = false
+  if (!settings || settings.selectionTrigger !== 'icon') {
+    hideIcon()
+    return
+  }
+  scheduleCheck(event, 0)
+}
+
+function onSelectionChange(): void {
+  if (pointerDown) return
+  if (!settings || settings.selectionTrigger !== 'icon') return
+  scheduleCheck(undefined, CHECK_DELAY)
+}
+
 function onKeyDown(event: KeyboardEvent): void {
   if (event.key !== 'Escape') return
+  cancelPending()
   hideIcon()
   if (bubble?.isOpen()) closeBubble()
 }
@@ -328,29 +377,46 @@ function onViewportChange(): void {
   if (viewportFrame) return
   viewportFrame = window.requestAnimationFrame(() => {
     viewportFrame = 0
-    if (!bubble?.isOpen() || !current) return
-    const rect = current.range.getBoundingClientRect()
-    if (rect.width === 0 && rect.height === 0) {
+    if (!current) return
+    if (iconHost && iconHost.style.display === 'block') {
+      const point = endPointOf(current)
+      if (point) placeIcon(iconHost, point)
+    }
+    if (!bubble?.isOpen()) return
+    const rect = rectOf(current)
+    if (!rect) {
       closeBubble()
       return
     }
-    current.rect = { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right }
+    current = { ...current, rect }
     bubble.showAt({ top: rect.top, bottom: rect.bottom, left: rect.left })
   })
+}
+
+export function translateCurrentSelection(): boolean {
+  const hit = readSelection({ contextChars: contextChars() })
+  if (!hit) return false
+  void openBubble(hit)
+  return true
 }
 
 export function initSelection(): void {
   if (initialized) return
   initialized = true
   void refreshSettings()
+  document.addEventListener('pointerdown', onPointerDown, true)
+  document.addEventListener('pointermove', onPointerMove, true)
+  document.addEventListener('pointerup', onPointerUp, true)
+  document.addEventListener('pointercancel', onPointerUp, true)
   document.addEventListener('mouseup', onMouseUp, true)
-  document.addEventListener('mousedown', onMouseDown, true)
+  document.addEventListener('selectionchange', onSelectionChange)
+  document.addEventListener('select', onSelectionChange, true)
   document.addEventListener('keydown', onKeyDown, true)
   window.addEventListener('scroll', onViewportChange, true)
   window.addEventListener('resize', onViewportChange)
   try {
-    chrome.storage.onChanged.addListener((_changes, area) => {
-      if (area === 'local') void refreshSettings()
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area === 'local' && changes[SETTINGS_KEY]) void refreshSettings()
     })
   } catch {
     // 非扩展环境（例如本地预览）没有 chrome.storage

@@ -76,23 +76,6 @@ export function composeContext(input: {
   return merged.length > limit ? merged.slice(0, limit) : merged
 }
 
-export function isEditableElement(node: Node | null): boolean {
-  let current: Node | null = node
-  while (current) {
-    if (current.nodeType === 1) {
-      const element = current as HTMLElement
-      const tag = element.tagName
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true
-      if (element.isContentEditable) return true
-      if (typeof element.getAttribute === 'function' && element.getAttribute('contenteditable') === 'true') {
-        return true
-      }
-    }
-    current = current.parentNode
-  }
-  return false
-}
-
 export function isBlockElement(element: Element): boolean {
   if (BLOCK_TAGS.has(element.tagName)) return true
   try {
@@ -134,4 +117,22 @@ export function calculatePlacement(
   const maxLeft = Math.max(gap, viewport.width - size.width - gap)
   const left = Math.min(Math.max(gap, anchor.left), maxLeft)
   return { left, top: Math.min(Math.max(gap, top), maxTop), side }
+}
+
+export function clampIconPosition(
+  point: { x: number; y: number },
+  size: { width: number; height: number },
+  viewport: { width: number; height: number },
+  options: { gap?: number; margin?: number } = {},
+): { left: number; top: number } {
+  const gap = options.gap ?? 8
+  const margin = options.margin ?? 6
+  const maxLeft = Math.max(margin, viewport.width - size.width - gap)
+  const maxTop = Math.max(margin, viewport.height - size.height - gap)
+  const left = point.x + gap > maxLeft ? point.x - size.width - gap : point.x + gap
+  const top = point.y + gap > maxTop ? point.y - size.height - gap : point.y + gap
+  return {
+    left: Math.round(Math.min(Math.max(margin, left), maxLeft)),
+    top: Math.round(Math.min(Math.max(margin, top), maxTop)),
+  }
 }
