@@ -107,7 +107,7 @@ export default function App() {
         <div className="stack" style={{ gap: 4 }}>
           <h1 className="page-title">羽译 · 生词本</h1>
           <p className="page-subtitle">
-            划词或翻译时点「收藏」，词句连同上下文一起进这里。
+            划词或翻译时点「收藏」，单词连同音标、释义、词形与例句一起进这里。
           </p>
         </div>
       </header>

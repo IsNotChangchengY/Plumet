@@ -70,6 +70,151 @@
   word-break: break-word;
 }
 
+.learn-dict {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding-top: 1px;
+}
+
+.learn-dict-phonetics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.learn-dict-phon {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 22px;
+  padding: 0 7px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+  transition:
+    color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease);
+}
+
+.learn-dict-phon:hover {
+  color: var(--brand);
+  background: var(--brand-soft);
+  border-color: color-mix(in srgb, var(--brand) 38%, var(--border));
+}
+
+.learn-dict-phon-label {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.learn-dict-phon:hover .learn-dict-phon-label {
+  color: inherit;
+}
+
+.learn-dict-phon-audio {
+  display: grid;
+  place-items: center;
+  width: 10px;
+  height: 10px;
+  color: currentColor;
+}
+
+.learn-dict-phon-audio svg {
+  width: 10px;
+  height: 10px;
+}
+
+.learn-dict-sec {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.learn-dict-label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: var(--text-faint);
+}
+
+.learn-dict-tr,
+.learn-dict-def,
+.learn-dict-ex,
+.learn-dict-phrase {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text);
+  word-break: break-word;
+}
+
+.learn-dict-def {
+  font-size: 12px;
+}
+
+.learn-dict-pos {
+  margin-right: 5px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--brand);
+}
+
+.learn-dict-ex-inline {
+  display: block;
+  margin-top: 1px;
+  font-size: 11px;
+  font-style: normal;
+  color: var(--text-muted);
+}
+
+.learn-dict-forms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+}
+
+.learn-dict-form {
+  font-size: 11.5px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.learn-dict-form-name {
+  margin-right: 5px;
+  color: var(--text-muted);
+}
+
+.learn-dict-ex {
+  font-size: 11.5px;
+  line-height: 1.55;
+}
+
+.learn-dict-ex-src {
+  display: block;
+  color: var(--text);
+}
+
+.learn-dict-ex-dst {
+  display: block;
+  color: var(--text-muted);
+}
+
+.learn-dict-phrase {
+  font-size: 12px;
+}
+
+.learn-dict-phrase b {
+  margin-right: 6px;
+  font-weight: 600;
+  color: var(--text);
+}
+
 .learn-meta {
   display: flex;
   align-items: center;

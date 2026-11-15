@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { clearLocal } from '../src/storage/local'
+import type { DictionaryEntry } from '../src/core/dictionary/types'
 import type { LearningBook, LearningCard } from '../src/storage/learning'
 import {
   DEFAULT_EASE,
@@ -25,6 +26,7 @@ function baseCard(patch: Partial<LearningCard> = {}): LearningCard {
     id: 'c1',
     text: 'serendipity',
     translation: '意外的幸运',
+    dictionary: null,
     sourceUrl: 'https://example.com/a',
     sourceTitle: 'Example',
     sourceLang: 'en',
@@ -37,6 +39,22 @@ function baseCard(patch: Partial<LearningCard> = {}): LearningCard {
     reps: 0,
     lapses: 0,
     reviewedAt: null,
+    ...patch,
+  }
+}
+
+function baseDictionary(patch: Partial<DictionaryEntry> = {}): DictionaryEntry {
+  return {
+    word: 'serendipity',
+    direction: 'en-zh',
+    phonetics: [{ label: '英', text: '/ˌserənˈdɪpəti/', audio: 'https://dict.youdao.com/dictvoice?audio=serendipity&type=1' }],
+    translations: [{ pos: 'n.', text: '意外的幸运' }],
+    definitions: [
+      { pos: 'n.', text: 'the occurrence of events by chance', example: 'a moment of serendipity' },
+    ],
+    forms: [{ name: '复数', value: 'serendipities' }],
+    examples: [{ source: 'It was pure serendipity.', target: '纯属意外之喜。' }],
+    phrases: [{ phrase: 'serendipity effect', meaning: '意外发现效应' }],
     ...patch,
   }
 }
@@ -129,6 +147,47 @@ describe('卡片存储', () => {
     expect(otherLangAgain.card.id).toBe(otherLang.card.id)
     expect(otherLangAgain.card.translation).toBe('serendipity')
     expect((await loadBook()).cards).toHaveLength(2)
+  })
+
+  it('收藏时保存词典快照，读回仍是结构化字段', async () => {
+    const saved = await saveCard(
+      { text: 'serendipity', translation: '意外的幸运', targetLang: 'zh-CN', dictionary: baseDictionary() },
+      NOW,
+    )
+    expect(saved.card.dictionary?.translations).toEqual([{ pos: 'n.', text: '意外的幸运' }])
+    expect(saved.card.dictionary?.phonetics[0]?.text).toBe('/ˌserənˈdɪpəti/')
+
+    const book = await loadBook()
+    expect(book.cards[0]?.dictionary?.forms).toEqual([{ name: '复数', value: 'serendipities' }])
+    expect(book.cards[0]?.dictionary?.examples).toEqual([
+      { source: 'It was pure serendipity.', target: '纯属意外之喜。' },
+    ])
+  })
+
+  it('重复收藏不改动已有卡的词典快照', async () => {
+    const first = await saveCard(
+      { text: 'serendipity', translation: '意外的幸运', targetLang: 'zh-CN', dictionary: baseDictionary() },
+      NOW,
+    )
+    const again = await saveCard(
+      {
+        text: 'serendipity',
+        translation: '别的译文',
+        targetLang: 'zh-CN',
+        dictionary: baseDictionary({ translations: [{ pos: 'n.', text: '别的译文' }] }),
+      },
+      NOW + 1000,
+    )
+    expect(again.created).toBe(false)
+    expect(again.card.dictionary?.translations).toEqual(first.card.dictionary?.translations)
+  })
+
+  it('旧卡没有词典快照或快照损坏时读入为 null', () => {
+    const noSnapshot = baseCard()
+    const broken = { ...baseCard({ id: 'c2' }), dictionary: { translations: [{ text: 42 }], definitions: 'nope' } }
+    const book = normalizeBook({ version: 1, cards: [noSnapshot, broken], days: {}, correct: 0 })
+    expect(book.cards[0]?.dictionary).toBe(null)
+    expect(book.cards[1]?.dictionary).toBe(null)
   })
 
   it('旧数据里的上下文在规范化时被丢弃', () => {
@@ -238,6 +297,28 @@ describe('导入导出', () => {
     })
     expect(crossLangAgain.added).toBe(0)
     expect(crossLangAgain.skipped).toBe(1)
+  })
+
+  it('导出导入保留词典快照', async () => {
+    await saveCard(
+      {
+        text: 'hello',
+        translation: '你好',
+        targetLang: 'zh-CN',
+        dictionary: baseDictionary({
+          word: 'hello',
+          translations: [{ pos: 'int.', text: '喂，你好' }],
+        }),
+      },
+      NOW,
+    )
+    const payload = exportBook(await loadBook(), NOW)
+    await clearLocal()
+    const result = await importCards(JSON.parse(payload))
+    expect(result.added).toBe(1)
+    const book = await loadBook()
+    expect(book.cards[0]?.dictionary?.translations).toEqual([{ pos: 'int.', text: '喂，你好' }])
+    expect(book.cards[0]?.dictionary?.forms).toEqual([{ name: '复数', value: 'serendipities' }])
   })
 
   it('坏条目被跳过，非数组结构直接报错', async () => {

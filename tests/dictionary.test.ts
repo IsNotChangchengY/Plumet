@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { entryText } from '../src/core/dictionary/format'
+import { normalizeEntrySnapshot, snapshotEntry } from '../src/core/dictionary/snapshot'
 import { clearDictionaryCache, lookupWord } from '../src/core/dictionary/lookup'
 import { dictionaryQueryFor } from '../src/core/dictionary/query'
 import { isDictionaryWord, parseDictionaryQuery } from '../src/core/dictionary/word'
@@ -317,6 +318,58 @@ describe('词卡文本', () => {
     const entry = parseFreeDictionary(freeHello, 'hello')
     if (!entry) throw new Error('应当解析成功')
     expect(entryText(entry)).toContain('a greeting')
+  })
+})
+
+describe('词典快照', () => {
+  it('收藏时保留六类内容', () => {
+    const entry = parseYoudao(youdaoHello, 'hello')
+    if (!entry) throw new Error('应当解析成功')
+    const snapshot = snapshotEntry(entry)
+    expect(snapshot.word).toBe('hello')
+    expect(snapshot.direction).toBe('en-zh')
+    expect(snapshot.phonetics).toHaveLength(2)
+    expect(snapshot.translations).toEqual(entry.translations)
+    expect(snapshot.definitions).toEqual(entry.definitions)
+    expect(snapshot.forms).toEqual(entry.forms)
+    expect(snapshot.examples).toEqual(entry.examples)
+    expect(snapshot.phrases).toEqual(entry.phrases)
+  })
+
+  it('超过上限的条数与超长文本被截断', () => {
+    const long = 'x'.repeat(400)
+    const snapshot = snapshotEntry({
+      word: 'w'.repeat(120),
+      direction: 'en-zh',
+      phonetics: Array.from({ length: 4 }, (_, index) => ({ label: '英', text: `/x${index}/`, audio: '' })),
+      translations: Array.from({ length: 12 }, (_, index) => ({ pos: '', text: `译 ${index}` })),
+      definitions: Array.from({ length: 5 }, (_, index) => ({ pos: '', text: `释义 ${index}`, example: long })),
+      forms: Array.from({ length: 10 }, (_, index) => ({ name: '形', value: `v${index}` })),
+      examples: Array.from({ length: 4 }, (_, index) => ({ source: `句 ${index}`, target: '' })),
+      phrases: Array.from({ length: 9 }, (_, index) => ({ phrase: `组 ${index}`, meaning: '' })),
+    })
+    expect(snapshot.word).toHaveLength(80)
+    expect(snapshot.phonetics).toHaveLength(2)
+    expect(snapshot.translations).toHaveLength(8)
+    expect(snapshot.definitions).toHaveLength(3)
+    expect(snapshot.forms).toHaveLength(8)
+    expect(snapshot.examples).toHaveLength(2)
+    expect(snapshot.phrases).toHaveLength(6)
+    expect(snapshot.definitions[0]?.example).toHaveLength(240)
+  })
+
+  it('坏快照没有可读内容时返回 null，可读条目保留', () => {
+    expect(normalizeEntrySnapshot(null)).toBe(null)
+    expect(normalizeEntrySnapshot('hello')).toBe(null)
+    expect(normalizeEntrySnapshot({ word: 'hello' })).toBe(null)
+    expect(normalizeEntrySnapshot({ translations: [null, { text: 42 }, { text: '   ' }] })).toBe(null)
+    const partial = normalizeEntrySnapshot({
+      translations: [null, { pos: 'n.', text: '问候' }],
+      definitions: 'nope',
+    })
+    expect(partial?.translations).toEqual([{ pos: 'n.', text: '问候' }])
+    expect(partial?.direction).toBe('en-zh')
+    expect(normalizeEntrySnapshot({ word: '你好', translations: [{ text: 'hello' }] })?.direction).toBe('zh-en')
   })
 })
 

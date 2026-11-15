@@ -149,6 +149,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
     await saveCard({
       text: saveSource,
       translation: translateText,
+      dictionary: dictEntry ?? undefined,
       sourceLang: settings.sourceLang,
       targetLang: resolveTargetLang(settings.targetLang, saveSource),
     })

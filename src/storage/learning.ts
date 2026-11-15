@@ -1,3 +1,5 @@
+import type { DictionaryEntry } from '../core/dictionary/types'
+import { normalizeEntrySnapshot, snapshotEntry } from '../core/dictionary/snapshot'
 import { newId, readLocal, writeLocal } from './local'
 
 export type CardGrade = 'again' | 'hard' | 'good' | 'easy'
@@ -6,6 +8,7 @@ export type LearningCard = {
   id: string
   text: string
   translation: string
+  dictionary: DictionaryEntry | null
   sourceUrl: string
   sourceTitle: string
   sourceLang: string
@@ -30,6 +33,7 @@ export type LearningBook = {
 export type NewCardInput = {
   text: string
   translation: string
+  dictionary?: DictionaryEntry
   sourceUrl?: string
   sourceTitle?: string
   sourceLang?: string
@@ -96,6 +100,7 @@ function normalizeCard(raw: unknown): LearningCard | null {
     id: typeof card.id === 'string' && card.id ? card.id : newId(),
     text: body,
     translation: text(card.translation),
+    dictionary: normalizeEntrySnapshot(card.dictionary),
     sourceUrl: text(card.sourceUrl),
     sourceTitle: text(card.sourceTitle),
     sourceLang: text(card.sourceLang) || 'auto',
@@ -186,6 +191,7 @@ function buildCard(input: NewCardInput, now: number): LearningCard {
     id: newId(),
     text: input.text.trim(),
     translation: input.translation.trim(),
+    dictionary: input.dictionary ? snapshotEntry(input.dictionary) : null,
     sourceUrl: input.sourceUrl?.trim() ?? '',
     sourceTitle: input.sourceTitle?.trim() ?? '',
     sourceLang: input.sourceLang || 'auto',

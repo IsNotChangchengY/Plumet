@@ -1,4 +1,5 @@
 import type { LearningCard } from '../storage/learning'
+import { CardDictionary } from './CardDictionary'
 
 type Props = {
   cards: LearningCard[]
@@ -53,7 +54,11 @@ export function CardList({ cards, onRemove }: Props) {
                 删除
               </button>
             </div>
-            {card.translation ? <p className="learn-card-trans">{card.translation}</p> : null}
+            {card.dictionary ? (
+              <CardDictionary entry={card.dictionary} />
+            ) : card.translation ? (
+              <p className="learn-card-trans">{card.translation}</p>
+            ) : null}
             <div className="learn-meta">
               {card.sourceUrl ? (
                 <a className="learn-source" href={card.sourceUrl} target="_blank" rel="noreferrer">

@@ -1,7 +1,9 @@
 import type { Settings } from '../storage/settings'
 import { SETTINGS_KEY, loadSettings } from '../storage/settings'
 import { saveCard } from '../storage/learning'
+import type { DictionaryEntry } from '../core/dictionary/types'
 import { entryText } from '../core/dictionary/format'
+import { snapshotEntry } from '../core/dictionary/snapshot'
 import { playPronunciation } from '../core/dictionary/audio'
 import { dictionaryQueryFor } from '../core/dictionary/query'
 import { resolveTargetLang } from '../core/lang'
@@ -53,6 +55,7 @@ let iconHost: HTMLElement | null = null
 let bubble: Bubble | null = null
 let current: SelectionHit | null = null
 let lastTranslation = ''
+let lastDictionary: DictionaryEntry | null = null
 let lastTargetLang = ''
 let cancelRequest: (() => void) | null = null
 let initialized = false
@@ -202,6 +205,7 @@ async function saveCurrentSelection(): Promise<void> {
     await saveCard({
       text: current.text,
       translation: lastTranslation,
+      dictionary: lastDictionary ?? undefined,
       sourceUrl: location.href,
       sourceTitle: document.title,
       sourceLang: settings?.sourceLang ?? 'auto',
@@ -252,6 +256,7 @@ function startTranslation(hit: SelectionHit): void {
           if (result.kind === 'dictionary') {
             const text = entryText(result.entry)
             lastTranslation = text
+            lastDictionary = snapshotEntry(result.entry)
             bubble?.render({
               status: 'done',
               text,
@@ -264,6 +269,7 @@ function startTranslation(hit: SelectionHit): void {
             return
           }
           lastTranslation = result.text
+          lastDictionary = null
           bubble?.render({
             status: 'done',
             text: result.text,
@@ -296,6 +302,7 @@ function startTranslation(hit: SelectionHit): void {
       onDone(result) {
         cancelRequest = null
         lastTranslation = result.text
+        lastDictionary = null
         bubble?.render({
           status: 'done',
           text: result.text,
@@ -317,6 +324,7 @@ async function openBubble(hit: SelectionHit): Promise<void> {
   const view = ensureBubble()
   current = hit
   lastTranslation = ''
+  lastDictionary = null
   lastTargetLang = ''
   view.setSource(hit.text)
   view.showAt(anchorOf(hit))
@@ -337,6 +345,7 @@ function closeBubble(): void {
   cancelRequest = null
   current = null
   lastTranslation = ''
+  lastDictionary = null
   lastTargetLang = ''
   bubble?.hide()
 }

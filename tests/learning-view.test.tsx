@@ -9,6 +9,7 @@ const card: LearningCard = {
   id: 'c1',
   text: 'serendipity',
   translation: '意外的幸运',
+  dictionary: null,
   sourceUrl: 'https://example.com/post',
   sourceTitle: 'Example',
   sourceLang: 'en',
@@ -21,6 +22,25 @@ const card: LearningCard = {
   reps: 0,
   lapses: 0,
   reviewedAt: null,
+}
+
+const wordCard: LearningCard = {
+  ...card,
+  id: 'c2',
+  dictionary: {
+    word: 'serendipity',
+    direction: 'en-zh',
+    phonetics: [
+      { label: '英', text: '/ˌserənˈdɪpəti/', audio: 'https://dict.youdao.com/dictvoice?audio=serendipity&type=1' },
+    ],
+    translations: [{ pos: 'n.', text: '意外的幸运' }],
+    definitions: [
+      { pos: 'n.', text: 'the occurrence of events by chance', example: 'a moment of serendipity' },
+    ],
+    forms: [{ name: '复数', value: 'serendipities' }],
+    examples: [{ source: 'It was pure serendipity.', target: '纯属意外之喜。' }],
+    phrases: [{ phrase: 'serendipity effect', meaning: '意外发现效应' }],
+  },
 }
 
 describe('CardList 渲染', () => {
@@ -37,6 +57,24 @@ describe('CardList 渲染', () => {
     expect(html).toContain('example.com')
     expect(html).toContain('待复习')
     expect(html).toContain('删除')
+  })
+
+  it('有词典快照时显示音标、释义、词形与例句', () => {
+    const html = renderToStaticMarkup(<CardList cards={[wordCard]} onRemove={() => undefined} />)
+    expect(html).toContain('learn-dict')
+    expect(html).toContain('/ˌserənˈdɪpəti/')
+    expect(html).toContain('意外的幸运')
+    expect(html).toContain('词形变化')
+    expect(html).toContain('serendipities')
+    expect(html).toContain('例句')
+    expect(html).toContain('纯属意外之喜。')
+    expect(html).not.toContain('learn-card-trans')
+  })
+
+  it('旧卡没有词典快照时仍显示纯文本译文', () => {
+    const html = renderToStaticMarkup(<CardList cards={[card]} onRemove={() => undefined} />)
+    expect(html).toContain('learn-card-trans')
+    expect(html).toContain('意外的幸运')
   })
 })
 
