@@ -1,17 +1,29 @@
-import type { ThemeMode } from '../storage/settings'
-import { calculatePlacement } from './context'
+import type { DictionaryEntry } from '../core/dictionary/types'
+import type { DictionarySections, ThemeMode } from '../storage/settings'
+import { calculatePlacement, clampBubbleWidth } from './context'
 import { applyHostTheme, CONTENT_THEME_CSS } from './theme'
 import { markUiHost } from './ui-mark'
 
+export type BubbleAnchor = { top: number; bottom: number; left: number; width?: number }
+
 export type BubbleView =
-  | { status: 'loading' }
+  | { status: 'loading'; label?: string }
   | { status: 'streaming'; text: string }
-  | { status: 'done'; text: string; engineLabel: string; elapsedMs: number; word: boolean }
+  | {
+      status: 'done'
+      text: string
+      engineLabel: string
+      elapsedMs: number
+      word: boolean
+      dictionary?: DictionaryEntry
+      display?: DictionarySections
+    }
   | { status: 'error'; message: string }
 
 export type BubbleHandlers = {
   onCopy: (text: string) => void
-  onSpeak: (text: string) => void
+  onSpeak: (text: string, lang?: string) => void
+  onAudio: (url: string, word: string) => void
   onSave: () => void
   onRetry: () => void
   onClose: () => void
@@ -25,7 +37,7 @@ export type Bubble = {
   setSaved: (saved: boolean) => void
   setTheme: (theme: ThemeMode) => void
   render: (view: BubbleView) => void
-  showAt: (anchor: { top: number; bottom: number; left: number }) => void
+  showAt: (anchor: BubbleAnchor) => void
   reposition: () => void
   hide: () => void
   destroy: () => void
@@ -126,7 +138,13 @@ const STYLE = `
   }
   .close:hover { background: var(--surface-2); color: var(--text); }
 
-  .body { padding: 8px 12px 12px; min-height: 56px; }
+  .body {
+    padding: 8px 12px 12px;
+    min-height: 56px;
+    background: var(--brand-soft);
+    border-top: 1px solid color-mix(in srgb, var(--brand) 12%, transparent);
+  }
+  .error-state .body { background: transparent; border-top: 0; }
   .text {
     margin: 0;
     font-family: inherit;
@@ -163,7 +181,7 @@ const STYLE = `
     display: block;
     height: 8px;
     border-radius: var(--radius-sm);
-    background: var(--surface-2);
+    background: color-mix(in srgb, var(--brand) 22%, transparent);
   }
   .skel i:nth-child(1) { width: 100%; }
   .skel i:nth-child(2) { width: 72%; }
@@ -260,6 +278,61 @@ const STYLE = `
     59%, 100% { opacity: 0.34; }
   }
 
+  .dict { display: flex; flex-direction: column; gap: 11px; }
+  .dict-head { display: flex; flex-direction: column; gap: 7px; }
+  .dict-word {
+    font-size: 19px;
+    line-height: 1.35;
+    font-weight: 650;
+    letter-spacing: 0;
+    color: var(--text);
+    word-break: break-word;
+  }
+  .dict-phonetics { display: flex; flex-wrap: wrap; gap: 5px; }
+  .dict-phon {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 24px;
+    padding: 0 8px;
+    border: 1px solid color-mix(in srgb, var(--brand) 16%, var(--border));
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+    color: var(--text-muted);
+    font-family: inherit;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+    transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
+  }
+  .dict-phon:hover { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 40%, var(--border)); }
+  .dict-phon-label { font-size: 10.5px; color: var(--text-faint); }
+  .dict-phon:hover .dict-phon-label { color: inherit; }
+  .dict-phon-audio { display: grid; place-items: center; width: 11px; height: 11px; }
+  .dict-phon-audio svg { width: 11px; height: 11px; }
+  .dict-sec { display: flex; flex-direction: column; gap: 5px; }
+  .dict-sec h4 {
+    margin: 0;
+    font-size: 10.5px;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+  }
+  .dict-sec-body { display: flex; flex-direction: column; gap: 5px; }
+  .dict-tr, .dict-def, .dict-ex, .dict-phrase { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--text); word-break: break-word; }
+  .dict-pos { display: inline-block; margin-right: 5px; font-size: 11px; font-weight: 600; color: var(--brand); }
+  .dict-def { font-size: 12.5px; line-height: 1.55; }
+  .dict-def-ex { display: block; margin-top: 2px; font-size: 11.5px; font-style: normal; color: var(--text-muted); }
+  .dict-forms { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+  .dict-form { font-size: 12px; line-height: 1.5; color: var(--text); }
+  .dict-form-name { margin-right: 5px; color: var(--text-muted); }
+  .dict-ex { font-size: 12px; line-height: 1.55; }
+  .dict-ex-src { display: block; color: var(--text); }
+  .dict-ex-dst { display: block; color: var(--text-muted); }
+  .dict-phrase { font-size: 12.5px; }
+  .dict-phrase b { margin-right: 6px; font-weight: 600; color: var(--text); }
+  .dict-hint { margin: 0; font-size: 12px; line-height: 1.5; color: var(--text-muted); }
+
   @media (prefers-reduced-motion: reduce) {
     :host([data-open="1"]) .panel { animation: none; }
     .dots i, .cursor { animation: none; opacity: 1; }
@@ -279,6 +352,127 @@ const ICON_CLOSE =
   '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
 const ICON_ERROR =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 7.5v6"/><path d="M12 16.6v.4"/><circle cx="12" cy="12" r="9"/></svg>'
+
+const FULL_DISPLAY: DictionarySections = {
+  phonetic: true,
+  translation: true,
+  definition: true,
+  forms: true,
+  examples: true,
+  phrases: true,
+}
+
+function element<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  className?: string,
+  text?: string,
+): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag)
+  if (className) node.className = className
+  if (text !== undefined) node.textContent = text
+  return node
+}
+
+function sectionBlock(title: string): { root: HTMLElement; list: HTMLElement } {
+  const root = element('section', 'dict-sec')
+  root.appendChild(element('h4', undefined, title))
+  const list = element('div', 'dict-sec-body')
+  root.appendChild(list)
+  return { root, list }
+}
+
+function buildDictionaryCard(entry: DictionaryEntry, display: DictionarySections): HTMLElement {
+  const card = element('div', 'dict')
+  const head = element('div', 'dict-head')
+  head.appendChild(element('span', 'dict-word', entry.word))
+
+  if (display.phonetic && entry.phonetics.length > 0) {
+    const row = element('div', 'dict-phonetics')
+    for (const item of entry.phonetics) {
+      const button = element('button', 'dict-phon')
+      button.type = 'button'
+      button.dataset.audio = item.audio
+      button.title = '播放发音'
+      if (item.label) button.appendChild(element('span', 'dict-phon-label', item.label))
+      if (item.text) button.appendChild(element('span', 'dict-phon-text', item.text))
+      const icon = element('span', 'dict-phon-audio')
+      icon.innerHTML = ICON_SPEAK
+      button.appendChild(icon)
+      row.appendChild(button)
+    }
+    head.appendChild(row)
+  }
+  card.appendChild(head)
+
+  if (display.translation && entry.translations.length > 0) {
+    const block = sectionBlock(entry.direction === 'zh-en' ? '英文释义' : '中文释义')
+    for (const item of entry.translations) {
+      const line = element('p', 'dict-tr')
+      if (item.pos) line.appendChild(element('span', 'dict-pos', item.pos))
+      line.appendChild(document.createTextNode(item.text))
+      block.list.appendChild(line)
+    }
+    card.appendChild(block.root)
+  }
+
+  if (display.definition && entry.definitions.length > 0) {
+    const block = sectionBlock('英英释义')
+    for (const item of entry.definitions) {
+      const line = element('p', 'dict-def')
+      if (item.pos) line.appendChild(element('span', 'dict-pos', item.pos))
+      line.appendChild(document.createTextNode(item.text))
+      if (item.example) line.appendChild(element('em', 'dict-def-ex', item.example))
+      block.list.appendChild(line)
+    }
+    card.appendChild(block.root)
+  }
+
+  if (display.forms && entry.forms.length > 0) {
+    const block = sectionBlock('词形变化')
+    const row = element('div', 'dict-forms')
+    for (const item of entry.forms) {
+      const form = element('span', 'dict-form')
+      form.appendChild(element('span', 'dict-form-name', item.name))
+      form.appendChild(document.createTextNode(item.value))
+      row.appendChild(form)
+    }
+    block.list.appendChild(row)
+    card.appendChild(block.root)
+  }
+
+  if (display.examples && entry.examples.length > 0) {
+    const block = sectionBlock('例句')
+    for (const item of entry.examples) {
+      const line = element('p', 'dict-ex')
+      line.appendChild(element('span', 'dict-ex-src', item.source))
+      if (item.target) line.appendChild(element('span', 'dict-ex-dst', item.target))
+      block.list.appendChild(line)
+    }
+    card.appendChild(block.root)
+  }
+
+  if (display.phrases && entry.phrases.length > 0) {
+    const block = sectionBlock('词组')
+    for (const item of entry.phrases) {
+      const line = element('p', 'dict-phrase')
+      line.appendChild(element('b', undefined, item.phrase))
+      line.appendChild(document.createTextNode(item.meaning))
+      block.list.appendChild(line)
+    }
+    card.appendChild(block.root)
+  }
+
+  const empty =
+    !(display.phonetic && entry.phonetics.length > 0) &&
+    !(display.translation && entry.translations.length > 0) &&
+    !(display.definition && entry.definitions.length > 0) &&
+    !(display.forms && entry.forms.length > 0) &&
+    !(display.examples && entry.examples.length > 0) &&
+    !(display.phrases && entry.phrases.length > 0)
+  if (empty) card.appendChild(element('p', 'dict-hint', '在设置 → 词典里选择要展示的内容'))
+
+  return card
+}
 
 export function createBubble(handlers: BubbleHandlers): Bubble {
   const host = document.createElement('div')
@@ -316,10 +510,12 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
   const retryButton = panel.querySelector('[data-action="retry"]') as HTMLButtonElement
 
   let open = false
-  let anchor: { top: number; bottom: number; left: number } | null = null
+  let anchor: BubbleAnchor | null = null
   let latestText = ''
   let latestSource = ''
+  let latestWord = ''
   let streamedText = ''
+  let dictOpen = false
   let frame = 0
   let pinned = false
   let drag: { id: number; dx: number; dy: number } | null = null
@@ -334,8 +530,14 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
     if (host.parentNode !== parent) parent.appendChild(host)
   }
 
+  function applyWidth(): void {
+    if (!anchor) return
+    panel.style.width = `${clampBubbleWidth(dictOpen ? undefined : anchor.width, window.innerWidth)}px`
+  }
+
   function position(): void {
     if (!open || !anchor || pinned) return
+    applyWidth()
     const rect = panel.getBoundingClientRect()
     const placement = calculatePlacement(
       anchor,
@@ -417,18 +619,26 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
     body.className = 'body'
     panel.className = 'panel'
     resetActions()
+    dictOpen = false
     if (view.status !== 'streaming') streamedText = ''
 
     if (view.status === 'loading') {
       body.innerHTML =
-        '<div class="loading"><span class="dots"><i></i><i></i><i></i></span>正在翻译</div><div class="skel"><i></i><i></i></div>'
+        `<div class="loading"><span class="dots"><i></i><i></i><i></i></span>${view.label ?? '正在翻译'}</div><div class="skel"><i></i><i></i></div>`
     } else if (view.status === 'streaming') {
       latestText = view.text
       renderStreaming(view.text)
       meta.textContent = '生成中…'
     } else if (view.status === 'done') {
       latestText = view.text
-      if (view.word) {
+      if (view.dictionary) {
+        dictOpen = true
+        latestWord = view.dictionary.word
+        body.innerHTML = ''
+        body.className = 'body dict-body'
+        body.appendChild(buildDictionaryCard(view.dictionary, view.display ?? FULL_DISPLAY))
+        applyWidth()
+      } else if (view.word) {
         renderWordCard(latestSource, view.text)
       } else {
         body.innerHTML = ''
@@ -496,13 +706,21 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
       handlers.onClose()
       return
     }
+    const audioButton = target?.closest?.('[data-audio]') as HTMLElement | null
+    if (audioButton) {
+      const url = audioButton.dataset.audio ?? ''
+      if (url) handlers.onAudio(url, latestWord)
+      else handlers.onSpeak(latestWord, 'en')
+      return
+    }
     const action = (target?.closest?.('[data-action]') as HTMLElement | null)?.dataset.action
     if (action === 'copy') {
       handlers.onCopy(latestText)
       return
     }
     if (action === 'speak') {
-      handlers.onSpeak(latestText)
+      if (dictOpen) handlers.onSpeak(latestWord, 'en')
+      else handlers.onSpeak(latestText)
       return
     }
     if (action === 'save') {
@@ -543,6 +761,7 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
       anchor = nextAnchor
       open = true
       host.setAttribute('data-open', '1')
+      applyWidth()
       schedulePosition()
     },
     reposition: schedulePosition,

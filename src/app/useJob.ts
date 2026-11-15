@@ -3,6 +3,8 @@ import type { ErrorCode } from '../core/errors'
 import type {
   CheckJobResult,
   CheckJobRequest,
+  DictJobRequest,
+  DictJobResult,
   JobRequest,
   JobResult,
   PolishJobRequest,
@@ -11,18 +13,20 @@ import type {
 } from '../core/messaging'
 import { isJobEvent, YUYI_PORT } from '../core/messaging'
 
-export type JobKind = 'translate' | 'check' | 'polish'
+export type JobKind = 'translate' | 'check' | 'polish' | 'dict'
 
 export type JobState =
   | { status: 'idle' }
   | { status: 'running'; kind: JobKind; text: string; progress: { done: number; total: number } | null }
   | { status: 'done'; kind: 'translate'; text: string; result: JobResult }
+  | { status: 'done'; kind: 'dict'; result: DictJobResult }
   | { status: 'done'; kind: 'check'; result: CheckJobResult }
   | { status: 'done'; kind: 'polish'; result: PolishJobResult }
   | { status: 'error'; kind: JobKind | null; code: ErrorCode; message: string }
 
 export type RunInput =
   | { kind: 'translate'; segments: string[]; sourceLang: string; targetLang: string; context?: string }
+  | { kind: 'dict'; word: string; sourceLang: string; targetLang: string; context?: string }
   | { kind: 'check'; text: string }
   | { kind: 'polish'; text: string; instruction: string }
 
@@ -71,6 +75,10 @@ export function useJob(): {
         })
         return
       }
+      if (event.kind === 'dictDone') {
+        setState({ status: 'done', kind: 'dict', result: event.result })
+        return
+      }
       if (event.kind === 'checkDone') {
         setState({ status: 'done', kind: 'check', result: event.result })
         return
@@ -116,6 +124,16 @@ export function useJob(): {
             kind: 'translate',
             requestId,
             segments: input.segments,
+            sourceLang: input.sourceLang,
+            targetLang: input.targetLang,
+            context: input.context,
+          }
+          port.postMessage(payload satisfies JobRequest)
+        } else if (input.kind === 'dict') {
+          const payload: DictJobRequest = {
+            kind: 'dict',
+            requestId,
+            word: input.word,
             sourceLang: input.sourceLang,
             targetLang: input.targetLang,
             context: input.context,

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildContextWindow,
   calculatePlacement,
+  clampBubbleWidth,
   clampIconPosition,
   composeContext,
   isBlockElement,
@@ -117,6 +118,32 @@ describe('clampIconPosition', () => {
     const position = clampIconPosition({ x: -50, y: -50 }, size, viewport)
     expect(position.left).toBe(6)
     expect(position.top).toBe(6)
+  })
+})
+
+describe('clampBubbleWidth', () => {
+  it('贴合选区宽度', () => {
+    expect(clampBubbleWidth(300, 1200)).toBe(300)
+    expect(clampBubbleWidth(300.6, 1200)).toBe(301)
+  })
+
+  it('上限是视口宽度的三分之一', () => {
+    expect(clampBubbleWidth(720, 1200)).toBe(400)
+    expect(clampBubbleWidth(400, 1200)).toBe(400)
+  })
+
+  it('短选区有下限，避免压成窄条', () => {
+    expect(clampBubbleWidth(40, 1200)).toBe(200)
+  })
+
+  it('拿不到选区宽度时用默认宽度', () => {
+    expect(clampBubbleWidth(undefined, 1200)).toBe(340)
+    expect(clampBubbleWidth(0, 1200)).toBe(340)
+  })
+
+  it('窄视口下三分之一不足下限时保留下限', () => {
+    expect(clampBubbleWidth(400, 480)).toBe(200)
+    expect(clampBubbleWidth(400, 300)).toBe(200)
   })
 })
 

@@ -1,4 +1,7 @@
 import { AppError, isAbortError, toAppError } from '../core/errors'
+import { entryText } from '../core/dictionary/format'
+import { lookupWord } from '../core/dictionary/lookup'
+import { isDictionaryWord } from '../core/dictionary/word'
 import { translateText } from '../core/engine'
 import { resolveTargetLang } from '../core/lang'
 import { testAiProvider } from '../core/providers/ai/openai-compatible'
@@ -11,6 +14,7 @@ import type { CheckChunk, LocatedIssue } from '../core/check'
 import type {
   CheckJobRequest,
   CheckJobResult,
+  DictJobRequest,
   JobEvent,
   JobRequest,
   PolishJobRequest,
@@ -18,6 +22,7 @@ import type {
   TranslateJobRequest,
 } from '../core/messaging'
 import { loadSettings } from '../storage/settings'
+import type { Settings } from '../storage/settings'
 import { addHistory } from '../storage/history'
 
 type Job = {
@@ -48,47 +53,118 @@ function sendError(job: Job, requestId: string, error: unknown): void {
   })
 }
 
+async function translateAndReport(
+  request: TranslateJobRequest,
+  settings: Settings,
+  job: Job,
+  notice?: string,
+): Promise<void> {
+  const engineId = request.engineId?.trim() ? request.engineId : settings.translateEngine
+  const targetLang = resolveTargetLang(request.targetLang, request.segments.join('\n'))
+  const result = await translateText(
+    {
+      segments: request.segments,
+      sourceLang: request.sourceLang,
+      targetLang,
+      context: request.context,
+      glossary: settings.glossary,
+      signal: job.controller.signal,
+    },
+    settings,
+    engineId,
+    (delta) => sendTo(job, { kind: 'delta', requestId: request.requestId, text: delta }),
+  )
+
+  sendTo(job, {
+    kind: 'done',
+    requestId: request.requestId,
+    result: {
+      segments: result.segments,
+      engineLabel: result.engineLabel,
+      cached: result.cached,
+      elapsedMs: result.elapsedMs,
+      detectedLang: result.detectedLang,
+      notice: notice || undefined,
+    },
+  })
+
+  if (!request.silent) {
+    await addHistory({
+      mode: 'translate',
+      sourceText: request.segments.join('\n\n'),
+      resultText: result.segments.join('\n\n'),
+      engineLabel: result.engineLabel,
+      sourceLang: request.sourceLang,
+      targetLang,
+    })
+  }
+}
+
 async function runTranslate(request: TranslateJobRequest, job: Job): Promise<void> {
   try {
     const settings = await loadSettings()
-    const engineId = request.engineId?.trim() ? request.engineId : settings.translateEngine
-    const targetLang = resolveTargetLang(request.targetLang, request.segments.join('\n'))
-    const result = await translateText(
+    await translateAndReport(request, settings, job)
+  } catch (error) {
+    sendError(job, request.requestId, error)
+  } finally {
+    jobs.delete(request.requestId)
+  }
+}
+
+async function runDict(request: DictJobRequest, job: Job): Promise<void> {
+  try {
+    const settings = await loadSettings()
+    let notice = ''
+    if (settings.dictionary.enabled && isDictionaryWord(request.word)) {
+      try {
+        const lookup = await lookupWord({
+          word: request.word,
+          service: settings.dictionary.service,
+          signal: job.controller.signal,
+        })
+        if (lookup.entry) {
+          sendTo(job, {
+            kind: 'dictDone',
+            requestId: request.requestId,
+            result: {
+              entry: lookup.entry,
+              engineLabel: lookup.engineLabel,
+              elapsedMs: lookup.elapsedMs,
+              cached: lookup.cached,
+            },
+          })
+          if (!request.silent) {
+            await addHistory({
+              mode: 'translate',
+              sourceText: lookup.entry.word || request.word,
+              resultText: entryText(lookup.entry),
+              engineLabel: lookup.engineLabel,
+              sourceLang: request.sourceLang,
+              targetLang: resolveTargetLang(request.targetLang, request.word),
+            })
+          }
+          return
+        }
+        notice = '词典未收录，已改用翻译'
+      } catch (error) {
+        if (isAbortError(error)) throw error
+        if (!(error instanceof AppError && error.code === 'config')) notice = '词典查询失败，已改用翻译'
+      }
+    }
+    await translateAndReport(
       {
-        segments: request.segments,
+        kind: 'translate',
+        requestId: request.requestId,
+        segments: [request.word],
         sourceLang: request.sourceLang,
-        targetLang,
+        targetLang: request.targetLang,
         context: request.context,
-        glossary: settings.glossary,
-        signal: job.controller.signal,
+        silent: request.silent,
       },
       settings,
-      engineId,
-      (delta) => sendTo(job, { kind: 'delta', requestId: request.requestId, text: delta }),
+      job,
+      notice,
     )
-
-    sendTo(job, {
-      kind: 'done',
-      requestId: request.requestId,
-      result: {
-        segments: result.segments,
-        engineLabel: result.engineLabel,
-        cached: result.cached,
-        elapsedMs: result.elapsedMs,
-        detectedLang: result.detectedLang,
-      },
-    })
-
-    if (!request.silent) {
-      await addHistory({
-        mode: 'translate',
-        sourceText: request.segments.join('\n\n'),
-        resultText: result.segments.join('\n\n'),
-        engineLabel: result.engineLabel,
-        sourceLang: request.sourceLang,
-        targetLang,
-      })
-    }
   } catch (error) {
     sendError(job, request.requestId, error)
   } finally {
@@ -246,6 +322,11 @@ export function handleJobMessage(port: chrome.runtime.Port, request: JobRequest)
 
   if (request.kind === 'translate') {
     void runTranslate(request, job)
+    return
+  }
+
+  if (request.kind === 'dict') {
+    void runDict(request, job)
     return
   }
 

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { POLISH_CHIPS, buildPolishInstruction } from '../core/polish'
+import { entryText } from '../core/dictionary/format'
+import { dictionaryQueryFor } from '../core/dictionary/query'
 import { resolveTargetLang } from '../core/lang'
 import { listEngines } from '../core/providers/registry'
 import { splitSegments } from '../core/text'
@@ -8,6 +10,7 @@ import { saveCard } from '../storage/learning'
 import { useJob } from './useJob'
 import { openOptions } from '../ui/nav'
 import { CheckView } from './CheckView'
+import { DictCard } from './DictCard'
 import { LangBar } from './LangBar'
 import { PolishView } from './PolishView'
 
@@ -69,6 +72,16 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
     setSubmitted(text)
     setSaved(false)
     setRunSeq((value) => value + 1)
+    const query = dictionaryQueryFor(settings.dictionary, text)
+    if (query) {
+      job.run({
+        kind: 'dict',
+        word: query.word,
+        sourceLang: settings.sourceLang,
+        targetLang: resolveTargetLang(settings.targetLang, text),
+      })
+      return
+    }
     job.run({
       kind: 'translate',
       segments,
@@ -111,19 +124,25 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
     void onPatch({ sourceLang: settings.targetLang, targetLang: settings.sourceLang })
   }
 
+  const dictEntry = state.status === 'done' && state.kind === 'dict' ? state.result.entry : null
+  const dictText = dictEntry ? entryText(dictEntry) : ''
+
   const translateText =
-    state.status === 'done' && state.kind === 'translate'
+    dictText ||
+    (state.status === 'done' && state.kind === 'translate'
       ? state.text
       : state.status === 'idle' && manual
         ? manual.result
-        : ''
+        : '')
 
   const saveSource =
     translateText === ''
       ? ''
-      : state.status === 'done' && state.kind === 'translate'
+      : dictEntry
         ? submitted
-        : (manual?.source ?? '')
+        : state.status === 'done' && state.kind === 'translate'
+          ? submitted
+          : (manual?.source ?? '')
 
   const saveTranslation = async () => {
     if (!saveSource.trim() || !translateText) return
@@ -251,7 +270,13 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
               <>
                 <span className="dot running" />
                 <span>
-                  {state.kind === 'translate' ? '正在翻译…' : state.kind === 'check' ? '正在检查…' : '正在润色…'}
+                  {state.kind === 'translate'
+                    ? '正在翻译…'
+                    : state.kind === 'dict'
+                      ? '正在查词…'
+                      : state.kind === 'check'
+                        ? '正在检查…'
+                        : '正在润色…'}
                 </span>
                 {progressLabel ? <span className="tag">{progressLabel}</span> : null}
               </>
@@ -261,6 +286,17 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
               <>
                 <span className="dot done" />
                 <span>{state.result.engineLabel}</span>
+                <span className="tag">{Math.max(1, Math.round(state.result.elapsedMs / 100) / 10)}s</span>
+                {state.result.cached ? <span className="tag ok">缓存命中</span> : null}
+                {state.result.notice ? <span className="tag">{state.result.notice}</span> : null}
+              </>
+            ) : null}
+
+            {state.status === 'done' && state.kind === 'dict' ? (
+              <>
+                <span className="dot done" />
+                <span>{state.result.engineLabel}</span>
+                <span className="tag brand">词典</span>
                 <span className="tag">{Math.max(1, Math.round(state.result.elapsedMs / 100) / 10)}s</span>
                 {state.result.cached ? <span className="tag ok">缓存命中</span> : null}
               </>
@@ -292,7 +328,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
             </div>
           ) : null}
 
-          {state.status === 'running' && state.kind !== 'check' ? (
+          {state.status === 'running' && state.kind !== 'check' && (state.kind !== 'dict' || state.text !== '') ? (
             <pre className="result-text">{state.text}</pre>
           ) : null}
 
@@ -314,6 +350,10 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
 
           {state.status === 'done' && state.kind === 'translate' ? (
             <pre className="result-text">{state.text}</pre>
+          ) : null}
+
+          {state.status === 'done' && state.kind === 'dict' ? (
+            <DictCard entry={state.result.entry} sections={settings.dictionary.sections} />
           ) : null}
 
           {state.status === 'idle' && manual ? <pre className="result-text">{manual.result}</pre> : null}

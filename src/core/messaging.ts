@@ -1,4 +1,5 @@
 import type { ErrorCode } from './errors'
+import type { DictionaryEntry } from './dictionary/types'
 import type { IssueCategory, IssueSeverity } from './check'
 import type { AiProviderConfig, MtServiceConfig, MtServiceId, PageMode } from '../storage/settings'
 
@@ -12,6 +13,16 @@ export type TranslateJobRequest = {
   targetLang: string
   context?: string
   engineId?: string
+  silent?: boolean
+}
+
+export type DictJobRequest = {
+  kind: 'dict'
+  requestId: string
+  word: string
+  sourceLang: string
+  targetLang: string
+  context?: string
   silent?: boolean
 }
 
@@ -41,6 +52,7 @@ export type TestJobRequest =
 
 export type JobRequest =
   | TranslateJobRequest
+  | DictJobRequest
   | CheckJobRequest
   | PolishJobRequest
   | CancelJobRequest
@@ -52,6 +64,14 @@ export type JobResult = {
   cached: boolean
   elapsedMs: number
   detectedLang?: string
+  notice?: string
+}
+
+export type DictJobResult = {
+  entry: DictionaryEntry
+  engineLabel: string
+  elapsedMs: number
+  cached: boolean
 }
 
 export type CheckIssuePayload = {
@@ -84,12 +104,13 @@ export type JobEvent =
   | { kind: 'delta'; requestId: string; text: string }
   | { kind: 'progress'; requestId: string; done: number; total: number; label?: string }
   | { kind: 'done'; requestId: string; result: JobResult }
+  | { kind: 'dictDone'; requestId: string; result: DictJobResult }
   | { kind: 'checkDone'; requestId: string; result: CheckJobResult }
   | { kind: 'polishDone'; requestId: string; result: PolishJobResult }
   | { kind: 'testDone'; requestId: string; latencyMs: number; sample: string }
   | { kind: 'error'; requestId: string; code: ErrorCode; message: string }
 
-const EVENT_KINDS = new Set(['delta', 'progress', 'done', 'checkDone', 'polishDone', 'testDone', 'error'])
+const EVENT_KINDS = new Set(['delta', 'progress', 'done', 'dictDone', 'checkDone', 'polishDone', 'testDone', 'error'])
 
 export function isJobEvent(value: unknown): value is JobEvent {
   if (!value || typeof value !== 'object') return false

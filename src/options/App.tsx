@@ -8,12 +8,14 @@ import { clearHistory } from '../storage/history'
 import { applyTheme } from '../ui/apply-theme'
 import { extensionVersion } from '../ui/version'
 import { SectionTitle } from '../app/SectionTitle'
+import { DictSection } from './DictSection'
 import { EnginesSection } from './EnginesSection'
 import { ServicesSection } from './ServicesSection'
 
 const TABS = [
   { id: 'general', label: '通用' },
   { id: 'translate', label: '翻译' },
+  { id: 'dict', label: '词典' },
   { id: 'engines', label: '引擎' },
   { id: 'services', label: '服务' },
   { id: 'misc', label: '其它' },
@@ -314,6 +316,8 @@ export default function App() {
             </section>
           </>
         ) : null}
+
+        {tab === 'dict' ? <DictSection settings={settings} onPatch={patch} /> : null}
 
         {tab === 'engines' ? (
           <EnginesSection settings={settings} onPatch={patch} onOpenService={openService} />

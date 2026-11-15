@@ -1,5 +1,6 @@
-import type { TranslateJobRequest } from '../core/messaging'
+import type { DictJobRequest, TranslateJobRequest } from '../core/messaging'
 import { isJobEvent, YUYI_PORT } from '../core/messaging'
+import type { DictionaryEntry } from '../core/dictionary/types'
 
 export type TextTranslation = {
   segments: string[]
@@ -19,6 +20,16 @@ export type SelectionTranslation = {
 export type TextHandlers = {
   onDelta?: (delta: string) => void
   onDone?: (result: TextTranslation) => void
+  onError?: (message: string) => void
+}
+
+export type WordLookupResult =
+  | { kind: 'dictionary'; entry: DictionaryEntry; engineLabel: string; elapsedMs: number; cached: boolean }
+  | { kind: 'translation'; text: string; engineLabel: string; elapsedMs: number; notice: string }
+
+export type WordLookupHandlers = {
+  onDelta?: (delta: string) => void
+  onResult?: (result: WordLookupResult) => void
   onError?: (message: string) => void
 }
 
@@ -148,4 +159,96 @@ export function requestSelectionTranslation(
       onError: handlers.onError,
     },
   )
+}
+
+export function requestWordLookup(
+  input: { word: string; sourceLang: string; targetLang: string; context?: string },
+  handlers: WordLookupHandlers,
+): () => void {
+  const requestId = newRequestId()
+  let finished = false
+  let port: chrome.runtime.Port
+
+  try {
+    port = chrome.runtime.connect({ name: YUYI_PORT })
+  } catch {
+    handlers.onError?.('无法连接到扩展后台，请重新加载页面或扩展')
+    return () => undefined
+  }
+
+  const finish = () => {
+    if (finished) return
+    finished = true
+    try {
+      port.disconnect()
+    } catch {
+      // 端口可能已经断开
+    }
+  }
+
+  port.onMessage.addListener((event: unknown) => {
+    if (!isJobEvent(event) || event.requestId !== requestId) return
+    if (event.kind === 'delta') {
+      handlers.onDelta?.(event.text)
+      return
+    }
+    if (event.kind === 'done') {
+      handlers.onResult?.({
+        kind: 'translation',
+        text: event.result.segments.join('\n\n'),
+        engineLabel: event.result.engineLabel,
+        elapsedMs: event.result.elapsedMs,
+        notice: event.result.notice ?? '',
+      })
+      finish()
+      return
+    }
+    if (event.kind === 'dictDone') {
+      handlers.onResult?.({
+        kind: 'dictionary',
+        entry: event.result.entry,
+        engineLabel: event.result.engineLabel,
+        elapsedMs: event.result.elapsedMs,
+        cached: event.result.cached,
+      })
+      finish()
+      return
+    }
+    if (event.kind === 'error') {
+      handlers.onError?.(event.message)
+      finish()
+    }
+  })
+
+  port.onDisconnect.addListener(() => {
+    if (!finished) {
+      finished = true
+      handlers.onError?.('与扩展后台的连接中断了，请刷新页面后再试')
+    }
+  })
+
+  try {
+    const payload: DictJobRequest = {
+      kind: 'dict',
+      requestId,
+      word: input.word,
+      sourceLang: input.sourceLang,
+      targetLang: input.targetLang,
+      context: input.context || undefined,
+    }
+    port.postMessage(payload)
+  } catch {
+    handlers.onError?.('发送查词请求失败，请刷新页面后再试')
+    finish()
+  }
+
+  return () => {
+    if (finished) return
+    try {
+      port.postMessage({ kind: 'cancel', requestId })
+    } catch {
+      // 忽略发送失败
+    }
+    finish()
+  }
 }

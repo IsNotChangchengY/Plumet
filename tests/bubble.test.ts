@@ -1,17 +1,27 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { createBubble } from '../src/content/bubble'
+import { clampBubbleWidth } from '../src/content/context'
 
 type Bubble = ReturnType<typeof createBubble>
 
 const calls: string[] = []
 let copied = ''
+let spoken: { text: string; lang?: string } | null = null
+let played = ''
 
 const handlers = {
   onCopy: (text: string) => {
     copied = text
     calls.push('copy')
   },
-  onSpeak: () => calls.push('speak'),
+  onSpeak: (text: string, lang?: string) => {
+    spoken = { text, lang }
+    calls.push('speak')
+  },
+  onAudio: (url: string) => {
+    played = url
+    calls.push('audio')
+  },
   onSave: () => calls.push('save'),
   onRetry: () => calls.push('retry'),
   onClose: () => calls.push('close'),
@@ -47,6 +57,8 @@ afterEach(() => {
   bubble = null
   calls.length = 0
   copied = ''
+  spoken = null
+  played = ''
   document.documentElement.querySelectorAll('[data-yuyi-ui="bubble"]').forEach((node) => node.remove())
 })
 
@@ -106,6 +118,127 @@ describe('selection bubble', () => {
     expect(partOf<HTMLElement>(view, '.word-def').textContent).toBe('短暂的')
   })
 
+  it('词典卡展示音标、释义与词形，按设置裁剪', () => {
+    const view = mount()
+    view.setSource('hello')
+    view.showAt({ top: 200, bottom: 220, left: 100 })
+    view.render({
+      status: 'done',
+      text: 'int. 喂，你好',
+      engineLabel: '有道词典',
+      elapsedMs: 800,
+      word: true,
+      dictionary: {
+        word: 'hello',
+        direction: 'en-zh',
+        phonetics: [{ label: '英', text: 'həˈləʊ', audio: 'https://dict.youdao.com/dictvoice?audio=hello&type=1' }],
+        translations: [{ pos: 'int.', text: '喂，你好' }],
+        definitions: [],
+        forms: [{ name: '复数', value: 'hellos' }],
+        examples: [],
+        phrases: [],
+      },
+      display: {
+        phonetic: true,
+        translation: true,
+        definition: true,
+        forms: true,
+        examples: true,
+        phrases: true,
+      },
+    })
+    expect(partOf<HTMLElement>(view, '.dict-word').textContent).toBe('hello')
+    expect(partOf<HTMLElement>(view, '.dict-phon').textContent).toContain('həˈləʊ')
+    expect(partOf<HTMLElement>(view, '.dict-tr').textContent).toBe('int.喂，你好')
+    expect(partOf<HTMLElement>(view, '.dict-form').textContent).toContain('hellos')
+    expect(rootOf(view).querySelector('.dict-def')).toBe(null)
+  })
+
+  it('词典卡点音标按钮播放发音，底栏朗读读单词', () => {
+    const view = mount()
+    view.setSource('hello')
+    view.showAt({ top: 200, bottom: 220, left: 100 })
+    view.render({
+      status: 'done',
+      text: 'int. 喂，你好',
+      engineLabel: '有道词典',
+      elapsedMs: 800,
+      word: true,
+      dictionary: {
+        word: 'hello',
+        direction: 'en-zh',
+        phonetics: [{ label: '英', text: 'həˈləʊ', audio: 'https://dict.youdao.com/dictvoice?audio=hello&type=1' }],
+        translations: [{ pos: 'int.', text: '喂，你好' }],
+        definitions: [],
+        forms: [],
+        examples: [],
+        phrases: [],
+      },
+    })
+    const phon = partOf<HTMLElement>(view, '.dict-phon')
+    phon.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(played).toBe('https://dict.youdao.com/dictvoice?audio=hello&type=1')
+    buttonOf(view, 'speak').click()
+    expect(spoken).toEqual({ text: 'hello', lang: 'en' })
+  })
+
+  it('中文词气泡卡片的释义标题是英文释义', () => {
+    const view = mount()
+    view.setSource('你好')
+    view.showAt({ top: 200, bottom: 220, left: 100 })
+    view.render({
+      status: 'done',
+      text: 'hello',
+      engineLabel: '有道词典',
+      elapsedMs: 800,
+      word: true,
+      dictionary: {
+        word: '你好',
+        direction: 'zh-en',
+        phonetics: [{ label: '拼音', text: 'nǐ hǎo', audio: '' }],
+        translations: [{ pos: '', text: 'hello' }],
+        definitions: [],
+        forms: [],
+        examples: [],
+        phrases: [],
+      },
+    })
+    expect(partOf<HTMLElement>(view, '.dict-sec h4').textContent).toBe('英文释义')
+    expect(partOf<HTMLElement>(view, '.dict-tr').textContent).toBe('hello')
+  })
+
+  it('关闭全部展示项时给出设置提示', () => {
+    const view = mount()
+    view.setSource('hello')
+    view.showAt({ top: 200, bottom: 220, left: 100 })
+    view.render({
+      status: 'done',
+      text: 'hello',
+      engineLabel: '有道词典',
+      elapsedMs: 500,
+      word: true,
+      dictionary: {
+        word: 'hello',
+        direction: 'en-zh',
+        phonetics: [],
+        translations: [{ pos: '', text: '你好' }],
+        definitions: [],
+        forms: [],
+        examples: [],
+        phrases: [],
+      },
+      display: {
+        phonetic: false,
+        translation: false,
+        definition: false,
+        forms: false,
+        examples: false,
+        phrases: false,
+      },
+    })
+    expect(partOf<HTMLElement>(view, '.dict-hint').textContent).toContain('设置')
+  })
+
   it('点关闭图标里的 svg 也能关掉', () => {
     const view = mount()
     view.showAt({ top: 200, bottom: 220, left: 100 })
@@ -145,6 +278,44 @@ describe('selection bubble', () => {
     view.render({ status: 'streaming', text: 'xyz' })
     expect(partOf<HTMLElement>(view, '.text')).not.toBe(pre)
     expect(partOf<HTMLElement>(view, '.text').textContent).toBe('xyz')
+  })
+
+  it('气泡宽度贴合选区宽度', () => {
+    const view = mount()
+    view.showAt({ top: 200, bottom: 220, left: 100, width: 300 })
+    view.render({ status: 'done', text: '已推迟发布。', engineLabel: 'DeepSeek', elapsedMs: 1400, word: false })
+    expect(partOf<HTMLElement>(view, '.panel').style.width).toBe('300px')
+  })
+
+  it('选区过宽时按视口三分之一截断', () => {
+    const view = mount()
+    view.showAt({ top: 200, bottom: 220, left: 100, width: 2000 })
+    view.render({ status: 'done', text: '已推迟发布。', engineLabel: 'DeepSeek', elapsedMs: 1400, word: false })
+    expect(partOf<HTMLElement>(view, '.panel').style.width).toBe(`${clampBubbleWidth(2000, window.innerWidth)}px`)
+  })
+
+  it('词典卡用默认宽度，不跟短选区收窄', () => {
+    const view = mount()
+    view.setSource('hello')
+    view.showAt({ top: 200, bottom: 220, left: 100, width: 90 })
+    view.render({
+      status: 'done',
+      text: 'int. 喂，你好',
+      engineLabel: '有道词典',
+      elapsedMs: 800,
+      word: true,
+      dictionary: {
+        word: 'hello',
+        direction: 'en-zh',
+        phonetics: [],
+        translations: [{ pos: 'int.', text: '喂，你好' }],
+        definitions: [],
+        forms: [],
+        examples: [],
+        phrases: [],
+      },
+    })
+    expect(partOf<HTMLElement>(view, '.panel').style.width).toBe(`${clampBubbleWidth(undefined, window.innerWidth)}px`)
   })
 
   it('默认出现在选区下方', async () => {

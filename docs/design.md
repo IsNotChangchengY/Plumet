@@ -1,6 +1,6 @@
 # 羽译 设计大纲
 
-> 状态：M0–M5 全部实现。本文件是产品与技术的总纲；工程约定见根目录 `AGENTS.md`，服务商对接细节见 `providers.md`。维护与同步规则见 [README.md](README.md)。
+> 状态：M0–M7 全部实现。本文件是产品与技术的总纲；工程约定见根目录 `AGENTS.md`，服务商对接细节见 `providers.md`。维护与同步规则见 [README.md](README.md)。
 
 ## 1. 定位
 
@@ -42,9 +42,10 @@
 ### 2.4 划词翻译（已实现 M3；选区来源已统一）
 - 触发：选中出现小图标（可关）/ `Alt+T` / 右键菜单。触发信号汇合到一处：`mouseup`（立即）、`selectionchange`（140ms 防抖，键盘与触摸选区靠它）、`pointerdown`（指针按住期间不响应，避免拖选途中乱闪）。所以鼠标拖选、双击、三击、`Shift+方向键`、触摸长按都能出图标。
 - 选区来源：三种读法按顺序尝试，共用同一条管线——原生 `window.getSelection()` 的 Range / Shadow DOM（拖动过程中从 `pointerdown`、`pointermove`、`mouseup` 的 `composedPath` 累计 open `ShadowRoot`，用 `getComposedRanges()` 重建 Range；重建不出文字时用 `selection.toString()` 兜底，位置退回鼠标点）/ `<input>`·`<textarea>` 的 `selectionStart/End`。输入框与 `contenteditable` 编辑器都参与，`type=password` 与数字/日期类控件不参与。iframe 里也生效：content script 注入所有框架（`all_frames: true`），每个帧各自处理自己的选区；网页翻译仍只在主框架执行。
-- 气泡：Shadow DOM 挂载、`all: initial` 隔离；译文、原词、复制、朗读、失败重试；关闭只保留右上角一个入口，头部整条可拖动。正文可拖选复制（`user-select: text`，不受宿主页 `user-select: none` 影响），选中高亮也由气泡自己声明（宿主页的 `::selection` 会漏进 Shadow DOM）；选区文本保留换行（行内空白压成单空格、最多留一个空行），译文与原文分段对齐；流式只追加节点，边生成边选不被打断。
+- 气泡：Shadow DOM 挂载、`all: initial` 隔离；译文、原词、复制、朗读、失败重试；关闭只保留右上角一个入口，头部整条可拖动。正文可拖选复制（`user-select: text`，不受宿主页 `user-select: none` 影响），选中高亮也由气泡自己声明（宿主页的 `::selection` 会漏进 Shadow DOM）；选区文本保留换行（行内空白压成单空格、最多留一个空行），译文与原文分段对齐；流式只追加节点，边生成边选不被打断。宽度按选区矩形宽自适应：贴合原文，下限 200、上限视口宽度的三分之一（视口窄到 1/3 不足 200 时保留下限；拿不到宽度时 340），滚动与缩放时随选区重算，所以同一段的译文行宽与原文接近。查词命中词典时气泡改用默认宽度 340（短词选区不把词卡挤窄），见 2.8。
+- 视觉分层：卡片底是 `--surface`，译文区垫 `--brand-soft`（深浅两套都走主题变量），让译文内容从头部与底栏里分出来；错误态不铺底，交给 `--danger-soft` 图标表达。
 - 上下文：页面标题 + 网站 + 选区所在块前后各约 N 字符（默认 600，可在设置里改），上下文会进入翻译请求与缓存键。输入框来源没有段落可读，退回占位符 / `aria-label`。
-- 单词与句子共用一套气泡，单词模式放大原词显示；气泡底栏有「收藏」把词句连同上下文收进生词本（M5）；词典卡（音标/词性）与 AI 讲解不做——服务商不返回这些字段。
+- 单词与句子共用一套气泡，单词模式放大原词显示；气泡底栏有「收藏」把词句连同上下文收进生词本（M5）。单词在词典服务可用时直接查词典、展示音标与释义（见 2.8），不再把词当句子翻译；AI 讲解不做。
 - 定位：图标出现在光标右下角，键盘/触摸选区没有光标时取选区末端；气泡默认贴在选区下方、不遮挡原文，放不下才翻到上方并贴边修正；滚动 / 缩放时跟随，拖动后改为固定位置（关闭重开恢复跟随），选区失效就关闭。全屏时图标与气泡改挂到 `document.fullscreenElement` 里，否则 top layer 之外的元素不会渲染。
 - 边界（拿不到选区，不覆盖）：closed shadow root、canvas 自绘文字（Google Docs / Figma / Office 网页版）、`edge://` 等浏览器内置页与内置 PDF 查看器、扩展商店、以及站点自己禁止选择或清空选区的页面。
 
@@ -68,7 +69,15 @@
 - 拍板结论：**词与句都能收**（学习目标兼顾背词与积累表达）；**不做 AI 例句**（v1 不额外花 Key）；复习强度固定 20 张、四档评分；不做云同步。词典卡（音标/词性）不做——服务商不返回这些字段。
 
 ### 2.7 设置页（已实现，v4 顶栏分类）
-顶栏 5 个分类，一屏只显示一类：**通用**（主题/语言/历史）、**翻译**（划词触发与上下文/网页翻译呈现方式）、**引擎**（四个槽位分配 + 可用状态 + 去配置）、**服务**（免费通道开关、百度/微软凭证、AI 服务增删改与测试；点进单个服务看申请步骤与额度）、**其它**（清缓存/历史、恢复默认、快捷键、版本）。引擎与服务分离：引擎只做分配，服务只做配置。
+顶栏 6 个分类，一屏只显示一类：**通用**（主题/语言/历史）、**翻译**（划词触发与上下文/网页翻译呈现方式）、**词典**（单词查词典开关、词典服务、六项展示内容）、**引擎**（四个槽位分配 + 可用状态 + 去配置）、**服务**（免费通道开关、百度/微软凭证、AI 服务增删改与测试；点进单个服务看申请步骤与额度）、**其它**（清缓存/历史、恢复默认、快捷键、版本）。引擎与服务分离：引擎只做分配，服务只做配置。
+
+### 2.8 词典查询（已实现 M7）
+- 判据：输入或选区是单个词——1–40 个拉丁字母（可带撇号与连字符）或 1–4 个汉字，两端标点先裁掉（`parseDictionaryQuery()` 返回 `en-zh` / `zh-en` 方向）；开关关闭、或当前服务不支持该方向（英英词典查中文词）时走翻译，长句与段落始终走翻译。
+- 服务：`src/core/providers/dict/` 下两个免 Key 实现——有道词典 `dict.youdao.com/jsonapi`（英→中走 `ec`：音标 + 英美发音、中文释义、英英释义、词形变化、双语例句、常用词组；中→英走 `ce`：拼音 + 发音、英文对应词）与 Free Dictionary API（英英释义、音标、例句，仅英→中）。服务定义在 `providers/dict/services.ts`，各自带 `capabilities` 与 `supportsChinese`，设置页据此禁用当前服务不提供的展示项。
+- 数据：`DictionaryEntry`（`direction` + `phonetics / translations / definitions / forms / examples / phrases`）+ `settings.dictionary`（开关、服务、六个展示开关）；展示开关只影响呈现，不影响抓取。中文词条复用同一结构：`direction: 'zh-en'`，`translations` 放英文对应词，`phonetics` 是拼音，例句是「中文原句 + 英文译文」，所以卡片只需把释义标题从「中文释义」换成「英文释义」。
+- 回退：词典未收录（适配器返回 `null`）或请求失败时，静默改用 `settings.translateEngine` 翻译，并在 `JobResult.notice` 里带一句说明；这是唯一允许的降级，只作用于查词。
+- 缓存：SW 内存 Map，键 `服务:小写词`，TTL 24 小时、上限 200 条，不落盘（词条体量大，且丢了重查成本低）。
+- 发音：有道用 `dictvoice?audio=<词>&type=1|2`（英式 / 美式）直接播；无音频或播放失败时退回 `speechSynthesis`。气泡里的播放受宿主页 CSP 影响，弹窗不受影响（待验证：`media-src` 白名单站点）。
 
 ## 3. 荧光笔标注规范（M2 的核心）
 
@@ -92,19 +101,20 @@ Mark = { kind: 'equal'|'del'|'ins'|'warn', text, issueId?, severity?, state? }
 - 视觉语言（v1「柔光」）：白纸卡片 + 柔和阴影 + 大圆角（10/14/20），主色羽蓝 `#4F6BF0` 只用于品牌标记、主按钮、选区与激活态；深色是独立配色（降饱和、主色提亮、输入框比卡片更暗、主按钮改深字）。气泡是唯一保留轻微回弹的动效，其余动效只表达状态。完整规范（变量表、组件、三处界面尺寸、动效与验收清单）见 [ui-design.md](ui-design.md)。
 - 主题：`settings.theme`（auto/light/dark）→ 扩展页面写 `data-theme`；页面内的气泡、触发图标、状态条是 Shadow DOM，变量由 `src/content/theme.ts` 在 `:host` 上重新声明，所以 `theme.css` 与它必须同步修改。
 - 交互底线：所有请求有 loading / 失败 / 取消三态；失败文案中文且给「去设置 / 重试」；快捷键在设置页只读展示并指引到扩展快捷键页。
+- 词典卡（弹窗与气泡共用同一套排版节奏）：单词 + 可点发音的音标胶囊 → 中文释义 / 英英释义 / 词形变化 / 例句 / 词组，六个区块由设置裁剪；服务不提供的区块自动不渲染。
 
 ## 5. 技术架构
 
 - Service Worker：唯一联网方；消息路由、右键菜单、快捷键、任务表、缓存、写历史。
 - Content Script：页面 DOM 读写（划词/网页翻译），不发网络请求。
 - 扩展页面（弹窗/设置/生词本）：React 渲染，直接用 `chrome.storage`。
-- 通信：Port 协议（`translate` / `check` / `polish` / `cancel` / `test` → `delta` / `progress` / `done` / `checkDone` / `polishDone` / `testDone` / `error`），`requestId` 对齐；网页翻译的控制走一次性消息：弹窗 → `runtime.sendMessage` → SW 取当前标签页 → `tabs.sendMessage` → content script，进度反方向 `runtime.sendMessage` 广播回弹窗。
+- 通信：Port 协议（`translate` / `dict` / `check` / `polish` / `cancel` / `test` → `delta` / `progress` / `done` / `dictDone` / `checkDone` / `polishDone` / `testDone` / `error`），`requestId` 对齐；网页翻译的控制走一次性消息：弹窗 → `runtime.sendMessage` → SW 取当前标签页 → `tabs.sendMessage` → content script，进度反方向 `runtime.sendMessage` 广播回弹窗。
 - 构建：一个 `scripts/build.mjs` 连跑三次 Vite（页面多入口三条：`popup` / `options` / `learning`、background ESM、content IIFE）。
 - 权限：`storage / unlimitedStorage / scripting / activeTab / contextMenus`；`<all_urls>` 内容脚本；内置服务商（谷歌、MyMemory、百度、Azure、OpenAI、Gemini、xAI 等固定域名）写进 `host_permissions`，自定义 / 本地端点仍走 `optional_host_permissions` + 点击授权。
 
 ## 6. 服务商策略
 
-服务分三类：**免费通道**（谷歌、MyMemory）、**需要密钥的机器翻译**（百度、微软 / 必应 Azure v3）、**AI 服务**（OpenAI 兼容，含 Gemini 兼容层与 Grok）。
+服务分三类：**免费通道**（谷歌、MyMemory）、**需要密钥的机器翻译**（百度、微软 / 必应 Azure v3）、**AI 服务**（OpenAI 兼容，含 Gemini 兼容层与 Grok）；另有一组独立的**词典接口**（有道、Free Dictionary API，都免 Key），只服务单个单词的查询。
 
 - 只用**启用且就绪**的服务：引擎下拉只列可用的，未就绪的选中项标红并给「去配置」。
 - **没有失败降级**：主引擎未配置或运行失败都直接报错，不会悄悄换成免费通道（早期版本有自动降级与「已自动降级」标记，已移除）。
@@ -114,7 +124,7 @@ Mark = { kind: 'equal'|'del'|'ins'|'warn', text, issueId?, severity?, state? }
 
 ## 7. 数据与存储
 
-全部 `chrome.storage.local`：`settings.v1`（载荷 version 2：`services` 凭证表 + `aiProviders`；旧的 `mtEnabled` 在读取时自动迁移）、`history.v1`（最多 200 条，网页翻译不写入）、`cache.v1`（分片缓存，TTL 7 天，网页翻译按批命中）、`learning.v1`（生词卡片 + 每日复习次数 + 正确次数；卡片量小，暂不迁 IndexedDB）。
+全部 `chrome.storage.local`：`settings.v1`（载荷 version 2：`services` 凭证表 + `dictionary` 词典开关/服务/展示项 + `aiProviders`；旧的 `mtEnabled` 在读取时自动迁移）、`history.v1`（最多 200 条，网页翻译不写入）、`cache.v1`（分片缓存，TTL 7 天，网页翻译按批命中）、`learning.v1`（生词卡片 + 每日复习次数 + 正确次数；卡片量小，暂不迁 IndexedDB）。
 
 ## 8. 里程碑与状态
 
@@ -128,6 +138,7 @@ Mark = { kind: 'equal'|'del'|'ins'|'warn', text, issueId?, severity?, state? }
 | 工具栏弹窗 | ✅ | 点图标弹出 340×600 单界面：翻译/检查/润色/历史都在弹窗里，`Enter` 即译、翻译本页可用；`pnpm check` 全绿 |
 | M5 学习 + 打包 | ✅ | 收藏→复习→统计自洽，zip 可安装 |
 | M6 多服务 + 设置页重设计 | ✅ | 百度 / 微软适配器可用（需自备密钥），Gemini / Grok / ChatGPT 预设可添加；引擎只用就绪服务、失败不降级；设置页顶栏 5 分类，服务页列表 + 详情；`pnpm check` 全绿 |
+| M7 词典接口 | ✅ | 单个英文词或 1–4 个汉字走词典（有道 / Free Dictionary API，中英双向），弹窗与气泡展示音标/拼音发音、释义、词形变化、例句与词组；设置页可按内容逐项开关；词典未收录时回退翻译并标注；`pnpm check` 全绿 |
 
 ## 9. 明确不做（v1）
 

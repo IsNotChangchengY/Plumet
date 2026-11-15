@@ -1,13 +1,16 @@
 import type { Settings } from '../storage/settings'
 import { SETTINGS_KEY, loadSettings } from '../storage/settings'
 import { saveCard } from '../storage/learning'
+import { entryText } from '../core/dictionary/format'
+import { playPronunciation } from '../core/dictionary/audio'
+import { dictionaryQueryFor } from '../core/dictionary/query'
 import { resolveTargetLang } from '../core/lang'
-import type { Bubble } from './bubble'
+import type { Bubble, BubbleAnchor } from './bubble'
 import { createBubble } from './bubble'
 import { DEFAULT_CONTEXT_CHARS, clampIconPosition, looksLikeWord } from './context'
 import type { SelectionHit, SelectionProbe } from './selection-hit'
 import { endPointOf, readSelection, rectOf } from './selection-hit'
-import { requestSelectionTranslation } from './translate-client'
+import { requestSelectionTranslation, requestWordLookup } from './translate-client'
 import { applyHostTheme, CONTENT_THEME_CSS } from './theme'
 import { isYuyiNode, isYuyiPath, markUiHost } from './ui-mark'
 
@@ -171,8 +174,11 @@ function ensureBubble(): Bubble {
     onCopy: (text) => {
       void navigator.clipboard.writeText(text).catch(() => undefined)
     },
-    onSpeak: (text) => {
-      speak(text)
+    onSpeak: (text, lang) => {
+      speak(text, lang)
+    },
+    onAudio: (url, word) => {
+      playPronunciation(url, word)
     },
     onSave: () => {
       void saveCurrentSelection()
@@ -208,10 +214,11 @@ async function saveCurrentSelection(): Promise<void> {
   }
 }
 
-function speak(text: string): void {
+function speak(text: string, lang?: string): void {
   try {
     const utterance = new SpeechSynthesisUtterance(text)
-    if (lastTargetLang) utterance.lang = lastTargetLang
+    const code = lang || lastTargetLang
+    if (code) utterance.lang = code
     window.speechSynthesis.cancel()
     window.speechSynthesis.speak(utterance)
   } catch {
@@ -229,6 +236,51 @@ function startTranslation(hit: SelectionHit): void {
   const word = looksLikeWord(hit.text)
   const targetLang = resolveTargetLang(settings.targetLang, hit.text)
   lastTargetLang = targetLang
+  const query = dictionaryQueryFor(settings.dictionary, hit.text)
+  if (query) {
+    const dictionary = settings.dictionary
+    bubble?.render({ status: 'loading', label: '正在查词' })
+    let streamed = ''
+    cancelRequest = requestWordLookup(
+      { word: query.word, sourceLang: settings.sourceLang, targetLang, context: hit.context },
+      {
+        onDelta(delta) {
+          streamed += delta
+          bubble?.render({ status: 'streaming', text: streamed })
+        },
+        onResult(result) {
+          cancelRequest = null
+          if (result.kind === 'dictionary') {
+            const text = entryText(result.entry)
+            lastTranslation = text
+            bubble?.render({
+              status: 'done',
+              text,
+              engineLabel: result.engineLabel,
+              elapsedMs: result.elapsedMs,
+              word: true,
+              dictionary: result.entry,
+              display: dictionary.sections,
+            })
+            return
+          }
+          lastTranslation = result.text
+          bubble?.render({
+            status: 'done',
+            text: result.text,
+            engineLabel: result.engineLabel,
+            elapsedMs: result.elapsedMs,
+            word,
+          })
+        },
+        onError(message) {
+          cancelRequest = null
+          bubble?.render({ status: 'error', message })
+        },
+      },
+    )
+    return
+  }
   let streamed = ''
   cancelRequest = requestSelectionTranslation(
     {
@@ -274,9 +326,9 @@ async function openBubble(hit: SelectionHit): Promise<void> {
   startTranslation(hit)
 }
 
-function anchorOf(hit: SelectionHit): { top: number; bottom: number; left: number } {
+function anchorOf(hit: SelectionHit): BubbleAnchor {
   const rect = rectOf(hit)
-  if (rect) return { top: rect.top, bottom: rect.bottom, left: rect.left }
+  if (rect) return { top: rect.top, bottom: rect.bottom, left: rect.left, width: rect.right - rect.left }
   if (hit.point) return { top: hit.point.y, bottom: hit.point.y, left: hit.point.x }
   return { top: window.innerHeight / 2, bottom: window.innerHeight / 2, left: window.innerWidth / 2 }
 }
@@ -389,7 +441,7 @@ function onViewportChange(): void {
       return
     }
     current = { ...current, rect }
-    bubble.showAt({ top: rect.top, bottom: rect.bottom, left: rect.left })
+    bubble.showAt({ top: rect.top, bottom: rect.bottom, left: rect.left, width: rect.right - rect.left })
   })
 }
 

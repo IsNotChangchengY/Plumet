@@ -25,7 +25,9 @@
     "https://api.siliconflow.cn/*",
     "https://api.moonshot.cn/*",
     "https://open.bigmodel.cn/*",
-    "https://dashscope.aliyuncs.com/*"
+    "https://dashscope.aliyuncs.com/*",
+    "https://dict.youdao.com/*",
+    "https://api.dictionaryapi.dev/*"
   ],
   "optional_host_permissions": [
     "https://*/*",

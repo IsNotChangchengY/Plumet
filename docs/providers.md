@@ -24,6 +24,8 @@ interface TranslateProvider {
 
 引擎层（`src/core/engine.ts`）只做三件事：查缓存 → 取主引擎 → 写缓存。**没有失败降级**。
 
+词典是另一套契约（`src/core/dictionary/types.ts` 的 `DictionaryProvider`：`lookup(word, signal)` 返回 `DictionaryEntry | null`，`null` = 词典未收录），不参与引擎路由、不带凭证字段；见第 10 节。
+
 ## 2. 引擎就绪与错误策略
 
 服务是否可用由 `src/core/providers/services.ts` 判定，UI 与运行时共用同一份结果：
@@ -48,6 +50,8 @@ interface TranslateProvider {
 2. 在 `src/core/providers/services.ts` 里加服务定义（显示名、标签、凭证字段、申请入口、额度说明、申请步骤），并在 `missingMtFields()` / `createMtProvider()` 里补判定与工厂。
 3. `registry.ts` 的 `listEngines()` / `resolveEngine()` 会自动带出它；设置页 `src/options/ServicesSection.tsx` 会自动渲染凭证表单与「测试连接」。
    需要新凭证字段时，在 `src/storage/settings.ts` 的 `MtServiceConfig` 加字段并补 `normalizeSettings()` 的收敛。
+
+新增词典服务同理，见第 10 节末尾。
 
 请求统一用 `src/core/providers/http.ts` 的 `fetchWithTimeout()`（90 秒超时 + 取消联动）与 `ensureOk()`（把 HTTP 状态映射成中文错误）。
 
@@ -111,6 +115,10 @@ interface TranslateProvider {
 | `transmart.qq.com/api/imt` | `Auth-Failed` | ❌ 需要鉴权 |
 | LibreTranslate 公共实例 | 403 | ❌ |
 | DeepSeek `api.deepseek.com/v1` | 401（无 Key）→ 网络可达 | ✅ 走用户 Key |
+| `dict.youdao.com/jsonapi?q=hello` | 200；返回 `simple` / `ec` / `ee` / `wfs` / `blng_sents_part` / `phrs`；未收录的词只回 `input/meta` | ✅ 词典主通道 |
+| `dict.youdao.com/dictvoice?audio=hello&type=1` | 200 `audio/mpeg`（约 11.5 KB） | ✅ 英式发音 |
+| `dict.youdao.com/dictvoice?audio=hello&type=2` | 200 `audio/mpeg`（约 10.6 KB） | ✅ 美式发音 |
+| `api.dictionaryapi.dev/api/v2/entries/en/hello` | 200；不存在的词 404 + `{"title":"No Definitions Found"}` | ✅ 英英词典 |
 
 谷歌免费通道细节：
 
@@ -146,3 +154,57 @@ MyMemory 细节：
 - 划词翻译复用 `settings.translateEngine`；上下文（页面标题 + 网站 + 段落）会进入缓存键，所以同一个词在不同段落会各请求一次，这是刻意行为。
 - 网页翻译刻意**不带** context（只带语言对）：一批 8 段本身已经提供局部连贯性，而按页面语境写缓存会让同一句话在每个网站各存一份，浪费空间与额度。
 - 没有失败降级后，「省额度」只能靠缓存与手动切引擎；关掉的免费通道不会再被悄悄使用。
+## 10. 词典接口
+
+单词查词走独立于翻译引擎的一条链路：`src/core/providers/dict/` 下每个服务实现 `DictionaryProvider`，由 `src/core/dictionary/lookup.ts` 统一调用并做内存缓存（键 `服务:小写词`，TTL 24 小时、上限 200 条，不落盘）。
+
+### 10.1 契约
+
+```ts
+interface DictionaryProvider {
+  id: 'youdao' | 'freedict'
+  label: string
+  capabilities: DictionaryCapabilities
+  lookup(word: string, signal?: AbortSignal): Promise<DictionaryEntry | null>
+}
+```
+
+- 返回 `null` 表示**词典未收录**（不是错误），调用方回退翻译。
+- 查询词分两个方向：`en-zh`（英文词查中文）与 `zh-en`（1–4 个汉字查英文）；`DictionaryEntry.direction` 标明结果方向，`supportsChinese` 标明服务能不能查中文词（Free Dictionary 不能，`lookupWord()` 对这种组合直接抛 `config`，调用方不显示「词典查询失败」）。
+- 网络、HTTP、解析失败抛 `AppError`；调用方同样回退翻译并带 `notice`——查词是增强功能，这是唯一允许的降级。
+- `DictionaryEntry` 的六个字段与 `settings.dictionary.sections` 一一对应：`phonetics / translations / definitions / forms / examples / phrases`。
+- 展示开关只影响渲染；抓取始终取全量字段，切换开关不用重新请求。
+
+### 10.2 有道词典（`src/core/providers/dict/youdao.ts`）
+
+- 端点：`GET https://dict.youdao.com/jsonapi?q=<词>`，免 Key、无凭证。
+- 字段映射（英→中 `en-zh`）：
+  - 音标：`simple.word[0].ukphone / usphone`，缺了退回 `ec.word[0]` 同名字段。
+  - 发音：`https://dict.youdao.com/dictvoice?audio=<词>&type=1|2`（1 英 2 美）。
+  - 中文释义：`ec.word[0].trs[].tr[].l.i`，字符串自带词性前缀（`int. …` / `【名】…`），解析时拆成 `pos` + `text`。
+  - 词形变化：`ec.word[0].wfs[].wf`（`{name, value}`，复数 / 过去式 / 现在分词等）。
+  - 英英释义：优先 `collins_primary.gramcat[].senses[].definition`（柯林斯，例句在 `senses[].examples[].example`），没有再退回 `ee.word.trs[].tr[].l.i`（WordNet；`ee.source.name` 为 Wikipedia 时这条是百科句子，不适合当释义）。
+  - 双语例句：`blng_sents_part['sentence-pair'][].sentence / sentence-translation`。
+  - 词组：`phrs.phrs[].phr.headword.l.i` + `phr.trs[].tr.l.i`。
+- 未收录判定：HTTP 仍是 200，响应只有 `input / meta / le / lang`（`meta.isHasSimpleDict === "0"`）。**判据是中文释义或英英释义非空**，不能只看状态码。
+- 词条字段多、体积大（hello 约 48 KB，长词条可到几十 KB），所以只取需要的六类并各自截断（释义 8 条、例句 3 条、词组 6 条）。
+- 中→英（`zh-en`）字段映射：
+  - 英文对应词：`ce.word[].trs[].tr[].l`；单词藏在 `l.i` 的节点数组里（`{"#text":"hello"}`、`{"#text":"hi"}`，中间夹空格字符串），按顺序拼成文本；词性在 `l.pos`（如 `vi.`）；`l.#tran` 是这条英文词的中文解释，不用。
+  - 拼音：`ce.word[].phone`，缺了退回 `simple.word[].phone` 或 `ce_new.word[].phone`（实测 `苹果` 只有 `ce_new` 有 `píng guǒ`）。
+  - 发音：同样走 `dictvoice?audio=<中文词>&type=1`（实测 200 audio/mpeg）。
+  - 例句：`blng_sents_part['sentence-pair']` 的 `sentence` 是中文原句、`sentence-translation` 是英文译文，仍按 `{source: 中文, target: 英文}` 存。
+  - 没有 `ec` 的中文查询（如 `阿巴阿巴`）返回 `null`，调用方回退翻译。
+- 性质：非官方公开接口，可能限流或改结构；解析失败按「查词失败」回退翻译。
+
+### 10.3 免费英英词典（`src/core/providers/dict/freedict.ts`）
+
+- 端点：`GET https://api.dictionaryapi.dev/api/v2/entries/en/<词>`，免 Key。
+- 返回数组，每个元素含 `word / phonetic / phonetics[] / meanings[].definitions[]`；取 `phonetics[].text + audio`、`meanings[].partOfSpeech` 与 `definitions[].definition / example`。
+- **404 = 未收录**：必须在 `ensureOk()` 之前判断，否则会被映射成 `config` 错误。
+- 能力表：只有音标、英英释义、例句；没有中文释义、词形变化与词组，设置页会把对应开关置灰。`supportsChinese: false`，中文词不会走这家（界面侧 `dictionaryQueryFor()` 直接跳过，SW 侧 `lookupWord()` 兜底抛 `config`）。
+
+### 10.4 新增词典服务三步
+
+1. 在 `src/core/providers/dict/` 新建文件，导出解析函数与 `createXxxDictionary()`（实现 `supportsChinese`）。
+2. 在 `src/storage/settings.ts` 的 `DictionaryServiceId` 里加 id（并补 `normalizeSettings()` 的合法值判定），在 `src/core/providers/dict/services.ts` 加服务定义（名称、标签、说明、测试词、能力表、`supportsChinese`），在 `registry.ts` 的工厂里接到新实现。
+3. 设置页「词典」分类与 `src/core/dictionary/lookup.ts` 会自动带出它；记得把新域名加进 `public/manifest.json` 的 `host_permissions`，并补 `tests/dictionary.test.ts` 的解析用例。
