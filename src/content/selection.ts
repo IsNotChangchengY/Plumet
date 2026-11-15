@@ -175,7 +175,11 @@ function ensureBubble(): Bubble {
   if (bubble) return bubble
   bubble = createBubble({
     onCopy: (text) => {
-      void navigator.clipboard.writeText(text).catch(() => undefined)
+      if (!navigator.clipboard) return
+      void navigator.clipboard.writeText(text).then(
+        () => bubble?.setCopied(),
+        () => undefined,
+      )
     },
     onSpeak: (text, lang) => {
       speak(text, lang)

@@ -35,6 +35,7 @@ export type Bubble = {
   isOpen: () => boolean
   setSource: (text: string) => void
   setSaved: (saved: boolean) => void
+  setCopied: () => void
   setTheme: (theme: ThemeMode) => void
   render: (view: BubbleView) => void
   showAt: (anchor: BubbleAnchor) => void
@@ -263,6 +264,7 @@ const STYLE = `
   .act:hover { background: var(--surface-3); color: var(--text); }
   .act[hidden] { display: none; }
   .act:disabled { color: var(--text-faint); cursor: default; background: transparent; }
+  .act.copied { color: var(--brand); background: var(--brand-soft); }
   .act svg { width: 11px; height: 11px; }
 
   @keyframes yy-pop {
@@ -344,6 +346,8 @@ const ICON_SPEAK =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H3v6h3l5 4z"/><path d="M15.5 8.5a4.5 4.5 0 0 1 0 7"/></svg>'
 const ICON_COPY =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M6 15H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v1"/></svg>'
+const ICON_CHECK =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>'
 const ICON_RETRY =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.4 5.7"/><path d="M20 5.5V11h-5.6"/></svg>'
 const ICON_SAVE =
@@ -564,7 +568,23 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
     saveButton.hidden = true
     retryButton.hidden = true
     applySaved(false)
+    applyCopied(false)
     meta.textContent = ''
+  }
+
+  let copiedTimer = 0
+
+  function applyCopied(copied: boolean): void {
+    window.clearTimeout(copiedTimer)
+    copiedTimer = 0
+    copyButton.classList.toggle('copied', copied)
+    copyButton.innerHTML = `${copied ? ICON_CHECK : ICON_COPY}${copied ? '已复制' : '复制'}`
+    if (copied) {
+      copiedTimer = window.setTimeout(() => {
+        copiedTimer = 0
+        applyCopied(false)
+      }, 1500)
+    }
   }
 
   function applySaved(saved: boolean): void {
@@ -750,6 +770,9 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
     },
     setSaved(saved: boolean) {
       applySaved(saved)
+    },
+    setCopied() {
+      applyCopied(true)
     },
     setTheme(theme: ThemeMode) {
       applyHostTheme(host, theme)

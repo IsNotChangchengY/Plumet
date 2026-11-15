@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createBubble } from '../src/content/bubble'
 import { clampBubbleWidth } from '../src/content/context'
 
@@ -255,6 +255,26 @@ describe('selection bubble', () => {
     path?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     expect(calls).toEqual(['copy'])
     expect(copied).toBe('已推迟发布。')
+  })
+
+  it('复制成功后按钮短暂显示已复制，重渲染恢复原样', () => {
+    vi.useFakeTimers()
+    try {
+      const view = mount()
+      view.showAt({ top: 200, bottom: 220, left: 100 })
+      view.render({ status: 'done', text: '已推迟发布。', engineLabel: 'DeepSeek', elapsedMs: 1400, word: false })
+      view.setCopied()
+      expect(buttonOf(view, 'copy').textContent).toContain('已复制')
+      expect(buttonOf(view, 'copy').classList.contains('copied')).toBe(true)
+      vi.advanceTimersByTime(1600)
+      expect(buttonOf(view, 'copy').textContent).not.toContain('已复制')
+      view.setCopied()
+      view.render({ status: 'loading' })
+      expect(buttonOf(view, 'copy').textContent).not.toContain('已复制')
+      expect(buttonOf(view, 'copy').classList.contains('copied')).toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('流式只追加文本节点，不重建正文', () => {

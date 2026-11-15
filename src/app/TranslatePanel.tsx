@@ -36,6 +36,8 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
   const [chips, setChips] = useState<string[]>(() => settings.polishChips)
   const [direction, setDirection] = useState(() => settings.polishDirection)
   const [saved, setSaved] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const copyTimer = useRef(0)
   const engines = useMemo(() => listEngines(settings), [settings])
   const readyEngines = useMemo(() => engines.filter((engine) => engine.ready), [engines])
   const currentEngine = engines.find((engine) => engine.id === settings.translateEngine)
@@ -52,6 +54,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
     setSubmitted(external.source)
     setManual(external)
     setSaved(false)
+    setCopied(false)
     job.reset()
   }, [external])
 
@@ -71,6 +74,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
     setManual(null)
     setSubmitted(text)
     setSaved(false)
+    setCopied(false)
     setRunSeq((value) => value + 1)
     const query = dictionaryQueryFor(settings.dictionary, text)
     if (query) {
@@ -94,6 +98,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
     if (!text.trim()) return
     setManual(null)
     setSubmitted(text)
+    setCopied(false)
     setRunSeq((value) => value + 1)
     job.run({ kind: 'check', text })
   }
@@ -102,6 +107,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
     if (!text.trim()) return
     setManual(null)
     setSubmitted(text.trim())
+    setCopied(false)
     setRunSeq((value) => value + 1)
     void onPatch({ polishChips: chips, polishDirection: direction })
     job.run({ kind: 'polish', text: text.trim(), instruction: buildPolishInstruction(chips, direction) })
@@ -109,7 +115,14 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
 
   const copyText = (value: string) => {
     if (!value) return
-    void navigator.clipboard.writeText(value)
+    void navigator.clipboard
+      .writeText(value)
+      .then(() => {
+        window.clearTimeout(copyTimer.current)
+        setCopied(true)
+        copyTimer.current = window.setTimeout(() => setCopied(false), 1500)
+      })
+      .catch(() => undefined)
   }
 
   const clear = () => {
@@ -117,6 +130,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
     setManual(null)
     setSubmitted('')
     setSaved(false)
+    setCopied(false)
     job.reset()
   }
 
@@ -393,7 +407,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
               ) : null}
               {translateText ? (
                 <button type="button" className="btn ghost small" onClick={() => copyText(translateText)}>
-                  复制
+                  {copied ? '已复制' : '复制'}
                 </button>
               ) : null}
               <button type="button" className="btn ghost small" onClick={clear}>
