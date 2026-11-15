@@ -70,16 +70,6 @@
   word-break: break-word;
 }
 
-.learn-context {
-  margin: 0;
-  padding-left: 9px;
-  border-left: 2px solid var(--border);
-  font-size: 12px;
-  line-height: 1.7;
-  color: var(--text-muted);
-  word-break: break-word;
-}
-
 .learn-meta {
   display: flex;
   align-items: center;
@@ -120,14 +110,6 @@
   font-size: 28px;
   font-weight: 700;
   line-height: 1.35;
-  word-break: break-word;
-}
-
-.review-context {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.7;
-  color: var(--text-muted);
   word-break: break-word;
 }
 

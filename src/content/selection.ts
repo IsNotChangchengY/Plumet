@@ -202,7 +202,6 @@ async function saveCurrentSelection(): Promise<void> {
     await saveCard({
       text: current.text,
       translation: lastTranslation,
-      context: current.context,
       sourceUrl: location.href,
       sourceTitle: document.title,
       sourceLang: settings?.sourceLang ?? 'auto',

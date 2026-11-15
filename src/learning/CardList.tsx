@@ -54,7 +54,6 @@ export function CardList({ cards, onRemove }: Props) {
               </button>
             </div>
             {card.translation ? <p className="learn-card-trans">{card.translation}</p> : null}
-            {card.context ? <p className="learn-context">{card.context}</p> : null}
             <div className="learn-meta">
               {card.sourceUrl ? (
                 <a className="learn-source" href={card.sourceUrl} target="_blank" rel="noreferrer">

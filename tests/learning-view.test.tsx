@@ -9,7 +9,6 @@ const card: LearningCard = {
   id: 'c1',
   text: 'serendipity',
   translation: '意外的幸运',
-  context: 'Finding this cafe was pure serendipity.',
   sourceUrl: 'https://example.com/post',
   sourceTitle: 'Example',
   sourceLang: 'en',
@@ -31,11 +30,10 @@ describe('CardList 渲染', () => {
     expect(html).toContain('气泡底栏')
   })
 
-  it('卡片显示原文、译文、上下文与来源', () => {
+  it('卡片显示原文、译文与来源', () => {
     const html = renderToStaticMarkup(<CardList cards={[card]} onRemove={() => undefined} />)
     expect(html).toContain('serendipity')
     expect(html).toContain('意外的幸运')
-    expect(html).toContain('pure serendipity')
     expect(html).toContain('example.com')
     expect(html).toContain('待复习')
     expect(html).toContain('删除')
@@ -43,7 +41,7 @@ describe('CardList 渲染', () => {
 })
 
 describe('ReviewSession 渲染', () => {
-  it('未揭示时只给原文与上下文，不出现评分档位', () => {
+  it('未揭示时只给原文，不出现评分档位', () => {
     const html = renderToStaticMarkup(
       <ReviewSession cards={[card]} onGrade={async () => undefined} onExit={() => undefined} />,
     )

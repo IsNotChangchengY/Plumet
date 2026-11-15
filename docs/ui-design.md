@@ -272,8 +272,8 @@
 - 布局沿用设置页：`.container`（`max-width: 880px`、`padding: 32px 24px 56px`）、页头 `.opts-head`、卡片 `.card` + `.section`。页头只放标题与副标题，右侧不放状态胶囊。
 - 统计卡：4 列网格 `.learn-stats`，每格 `.learn-stat`（`--surface-2` 底、圆角 14、内边距 12/14）里一个大数字（22px/700、tabular-nums）与一行 11.5px 说明；窄屏（≤720px）退化为 2 列。
 - 工具条：主操作「开始复习」（`.btn.primary`，显示 `（N 张）`）靠左，其余「导出 JSON / 导入 JSON / 清空」靠右；清空是 `.btn.danger` 且保留 `window.confirm`。
-- 卡片列表 `.learn-list` / `.learn-card`：原文 15px/600、译文 13px、上下文左侧 2px 竖线引文（12px `--text-muted`）、元信息一行 11px（来源域名链接、日期、语言对、复习次数、忘记次数）。到期显示 `.tag.brand`「待复习」，未到期显示「N 天后」。
-- 复习台 `.review-stage`：进度行（`第 i/N 张` + 「结束复习」）→ 进度轨 → 原文卡（`--surface-2` 底，28px/700 原文 + 上下文）→「显示答案」→ 答案块（17px，`--dur-base` 淡入）→ 四档评分格（`.review-grade`：46px 高、两行 = 档位名 + 10.5px 提示，`记得` 用 `.btn.primary`）。窄屏评分格退化为 2 列。
+- 卡片列表 `.learn-list` / `.learn-card`：原文 15px/600、译文 13px、元信息一行 11px（来源域名链接、日期、语言对、复习次数、忘记次数）。到期显示 `.tag.brand`「待复习」，未到期显示「N 天后」。
+- 复习台 `.review-stage`：进度行（`第 i/N 张` + 「结束复习」）→ 进度轨 → 原文卡（`--surface-2` 底，28px/700 原文）→「显示答案」→ 答案块（17px，`--dur-base` 淡入）→ 四档评分格（`.review-grade`：46px 高、两行 = 档位名 + 10.5px 提示，`记得` 用 `.btn.primary`）。窄屏评分格退化为 2 列。
 - 复习完成态：`.review-done` 居中，44px `--ok-soft` 圆形勾图标 + 本轮统计 +「返回列表」。
 - 空态复用 `.empty` + `.re-icon` + `.re-title` + `.re-hint`，提示从气泡与弹窗两处收藏。
 

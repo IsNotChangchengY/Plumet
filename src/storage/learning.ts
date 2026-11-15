@@ -6,7 +6,6 @@ export type LearningCard = {
   id: string
   text: string
   translation: string
-  context: string
   sourceUrl: string
   sourceTitle: string
   sourceLang: string
@@ -31,7 +30,6 @@ export type LearningBook = {
 export type NewCardInput = {
   text: string
   translation: string
-  context?: string
   sourceUrl?: string
   sourceTitle?: string
   sourceLang?: string
@@ -98,7 +96,6 @@ function normalizeCard(raw: unknown): LearningCard | null {
     id: typeof card.id === 'string' && card.id ? card.id : newId(),
     text: body,
     translation: text(card.translation),
-    context: text(card.context),
     sourceUrl: text(card.sourceUrl),
     sourceTitle: text(card.sourceTitle),
     sourceLang: text(card.sourceLang) || 'auto',
@@ -189,7 +186,6 @@ function buildCard(input: NewCardInput, now: number): LearningCard {
     id: newId(),
     text: input.text.trim(),
     translation: input.translation.trim(),
-    context: input.context?.trim() ?? '',
     sourceUrl: input.sourceUrl?.trim() ?? '',
     sourceTitle: input.sourceTitle?.trim() ?? '',
     sourceLang: input.sourceLang || 'auto',
@@ -205,25 +201,18 @@ function buildCard(input: NewCardInput, now: number): LearningCard {
   }
 }
 
+function cardKey(text: string, targetLang: string): string {
+  return `${targetLang}\u0000${text}`
+}
+
 export async function saveCard(input: NewCardInput, now = Date.now()): Promise<SaveCardResult> {
   const body = input.text.trim()
   if (!body) throw new Error('卡片原文为空')
-  const book = await loadBook()
   const targetLang = input.targetLang || 'zh-CN'
-  const existing = book.cards.find((card) => card.text === body && card.targetLang === targetLang)
-  if (existing) {
-    const next: LearningCard = {
-      ...existing,
-      translation: input.translation.trim() || existing.translation,
-      context: input.context?.trim() || existing.context,
-      sourceUrl: input.sourceUrl?.trim() || existing.sourceUrl,
-      sourceTitle: input.sourceTitle?.trim() || existing.sourceTitle,
-      tags: input.tags && input.tags.length > 0 ? Array.from(new Set([...existing.tags, ...input.tags])) : existing.tags,
-    }
-    book.cards = book.cards.map((card) => (card.id === existing.id ? next : card))
-    await saveBook(book)
-    return { card: next, created: false }
-  }
+  const book = await loadBook()
+  const key = cardKey(body, targetLang)
+  const existing = book.cards.find((card) => cardKey(card.text, card.targetLang) === key)
+  if (existing) return { card: existing, created: false }
   const card = buildCard(input, now)
   book.cards = [card, ...book.cards]
   await saveBook(book)
@@ -305,7 +294,7 @@ export async function importCards(raw: unknown): Promise<ImportResult> {
       : null
   if (!list) throw new Error('文件里没有 cards 数组')
   const book = await loadBook()
-  const seen = new Set(book.cards.map((card) => `${card.text}\u0000${card.targetLang}`))
+  const seen = new Set(book.cards.map((card) => cardKey(card.text, card.targetLang)))
   let added = 0
   let skipped = 0
   for (const item of list) {
@@ -314,7 +303,7 @@ export async function importCards(raw: unknown): Promise<ImportResult> {
       skipped += 1
       continue
     }
-    const key = `${card.text}\u0000${card.targetLang}`
+    const key = cardKey(card.text, card.targetLang)
     if (seen.has(key)) {
       skipped += 1
       continue

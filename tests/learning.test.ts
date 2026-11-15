@@ -25,7 +25,6 @@ function baseCard(patch: Partial<LearningCard> = {}): LearningCard {
     id: 'c1',
     text: 'serendipity',
     translation: '意外的幸运',
-    context: 'It was pure serendipity.',
     sourceUrl: 'https://example.com/a',
     sourceTitle: 'Example',
     sourceLang: 'en',
@@ -93,9 +92,9 @@ describe('SM-2 简化排程', () => {
 })
 
 describe('卡片存储', () => {
-  it('新建卡片记为到期，重复收藏只更新上下文不重置进度', async () => {
+  it('新建卡片记为到期，同词同语言重复收藏被阻止且不改动已有卡', async () => {
     const first = await saveCard(
-      { text: 'serendipity', translation: '意外的幸运', context: '第一处上下文', targetLang: 'zh-CN' },
+      { text: 'serendipity', translation: '意外的幸运', targetLang: 'zh-CN' },
       NOW,
     )
     expect(first.created).toBe(true)
@@ -105,15 +104,38 @@ describe('卡片存储', () => {
     expect(graded?.reps).toBe(1)
 
     const again = await saveCard(
-      { text: 'serendipity', translation: '幸运的相遇', context: '第二处上下文', targetLang: 'zh-CN' },
+      { text: 'serendipity', translation: '幸运的相遇', targetLang: 'zh-CN' },
       NOW + 1000,
     )
     expect(again.created).toBe(false)
     expect(again.card.id).toBe(first.card.id)
-    expect(again.card.translation).toBe('幸运的相遇')
-    expect(again.card.context).toBe('第二处上下文')
+    expect(again.card.translation).toBe('意外的幸运')
     expect(again.card.reps).toBe(1)
     expect(again.card.interval).toBe(1)
+
+    const otherLang = await saveCard(
+      { text: 'serendipity', translation: 'serendipity', targetLang: 'ja' },
+      NOW + 2000,
+    )
+    expect(otherLang.created).toBe(true)
+    expect(otherLang.card.id).not.toBe(first.card.id)
+    expect(otherLang.card.targetLang).toBe('ja')
+
+    const otherLangAgain = await saveCard(
+      { text: 'serendipity', translation: '別の訳', targetLang: 'ja' },
+      NOW + 3000,
+    )
+    expect(otherLangAgain.created).toBe(false)
+    expect(otherLangAgain.card.id).toBe(otherLang.card.id)
+    expect(otherLangAgain.card.translation).toBe('serendipity')
+    expect((await loadBook()).cards).toHaveLength(2)
+  })
+
+  it('旧数据里的上下文在规范化时被丢弃', () => {
+    const legacy = { ...baseCard(), context: '旧上下文' }
+    const book = normalizeBook({ version: 1, cards: [legacy], days: {}, correct: 0 })
+    expect(book.cards).toHaveLength(1)
+    expect('context' in book.cards[0]).toBe(false)
   })
 
   it('空原文不建卡', async () => {
@@ -202,6 +224,20 @@ describe('导入导出', () => {
     const twice = await importCards(JSON.parse(payload))
     expect(twice.added).toBe(0)
     expect(twice.skipped).toBe(1)
+
+    const crossLang = await importCards({
+      version: 1,
+      cards: [{ text: 'alpha', translation: 'Alpha 日语', targetLang: 'ja' }],
+    })
+    expect(crossLang.added).toBe(1)
+    expect(crossLang.skipped).toBe(0)
+
+    const crossLangAgain = await importCards({
+      version: 1,
+      cards: [{ text: 'alpha', translation: 'Alpha 日语', targetLang: 'ja' }],
+    })
+    expect(crossLangAgain.added).toBe(0)
+    expect(crossLangAgain.skipped).toBe(1)
   })
 
   it('坏条目被跳过，非数组结构直接报错', async () => {

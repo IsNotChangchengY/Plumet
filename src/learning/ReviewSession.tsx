@@ -83,7 +83,6 @@ export function ReviewSession({ cards, onGrade, onExit }: Props) {
 
       <div className="review-card">
         <div className="review-word">{card.text}</div>
-        {card.context ? <p className="review-context">{card.context}</p> : null}
         {card.sourceUrl ? (
           <a className="learn-source" href={card.sourceUrl} target="_blank" rel="noreferrer">
             {card.sourceTitle || hostOf(card.sourceUrl) || '来源'}
