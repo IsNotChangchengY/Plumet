@@ -14,6 +14,7 @@ const config: AiProviderConfig = {
   apiKey: 'sk-test',
   model: 'mock-model',
   temperature: 0.2,
+  reasoningEffort: '',
 }
 
 function jsonResponse(content: string): Response {
@@ -74,6 +75,22 @@ describe('AI 检查链路（mock 服务）', () => {
     const raw = await runCheckChunk(config, 'hello world')
     expect(attempt).toBe(2)
     expect(raw).toEqual([])
+  })
+})
+
+describe('AI 请求体（思考强度）', () => {
+  it('只有选了档位才下发 reasoning_effort', async () => {
+    const bodies: Array<Record<string, unknown>> = []
+    vi.stubGlobal('fetch', async (_url: string, init: RequestInit) => {
+      bodies.push(JSON.parse(String(init.body)) as Record<string, unknown>)
+      return jsonResponse('{"issues":[]}')
+    })
+
+    await runCheckChunk(config, 'hello world')
+    await runCheckChunk({ ...config, reasoningEffort: 'high' }, 'hello world')
+
+    expect(bodies[0]?.reasoning_effort).toBeUndefined()
+    expect(bodies[1]?.reasoning_effort).toBe('high')
   })
 })
 

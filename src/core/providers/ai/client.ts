@@ -26,17 +26,19 @@ export async function postChat(
   messages: ChatMessage[],
   options: { stream: boolean; signal?: AbortSignal },
 ): Promise<Response> {
+  const body: Record<string, unknown> = {
+    model: config.model,
+    messages,
+    stream: options.stream,
+    temperature: typeof config.temperature === 'number' ? config.temperature : 0.3,
+  }
+  if (config.reasoningEffort) body.reasoning_effort = config.reasoningEffort
   const response = await fetchWithTimeout(
     chatUrl(config.baseUrl),
     {
       method: 'POST',
       headers: authHeaders(config.apiKey),
-      body: JSON.stringify({
-        model: config.model,
-        messages,
-        stream: options.stream,
-        temperature: typeof config.temperature === 'number' ? config.temperature : 0.3,
-      }),
+      body: JSON.stringify(body),
     },
     options.signal,
   )

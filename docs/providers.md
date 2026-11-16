@@ -75,6 +75,7 @@ interface TranslateProvider {
 - 内置预设（`src/core/providers/ai/presets.ts`）：OpenAI / ChatGPT、Gemini、Grok（xAI）、DeepSeek、硅基流动、Moonshot、智谱、通义兼容模式、Ollama、LM Studio、自定义。
 - Gemini 走 Google 官方的 OpenAI 兼容层：Base URL `https://generativelanguage.googleapis.com/v1beta/openai`，不需要单独适配器（待实测：流式与批量 JSON 的稳定性）。
 - Grok 用 `https://api.x.ai/v1`；ChatGPT 即 OpenAI 官方接口，必须自备 API Key（网页版没有公开接口）。
+- 思考强度：`AiProviderConfig.reasoningEffort` 取 `'' | 'low' | 'medium' | 'high'`，空串（设置页显示「跟随模型默认」）时**请求体里不带 `reasoning_effort`**，只有选了档位才下发。OpenAI 兼容层对它支持不一致（不支持的模型或网关直接 400），所以默认不下发；档位对该服务的翻译、检查、润色与「授权并测试」都生效。
 
 **权限**：固定厂商域名已写进 `public/manifest.json` 的 `host_permissions`，装好即可用；自定义 / 本地端点仍走 `optional_host_permissions` + 设置页点击「授权并测试」触发 `chrome.permissions.request()`（浏览器要求用户手势；模式里不能带端口）。
 

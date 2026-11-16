@@ -198,6 +198,7 @@ describe('引擎就绪判定', () => {
       apiKey: '',
       model: 'm',
       temperature: 0.3,
+      reasoningEffort: '',
     }
     const local: AiProviderConfig = { ...cloud, id: 'l', baseUrl: 'http://localhost:11434/v1' }
     expect(aiProviderMissing(cloud)).toEqual(['API Key'])

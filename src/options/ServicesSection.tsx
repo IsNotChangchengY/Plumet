@@ -8,7 +8,13 @@ import {
   KEY_SERVICES,
   missingMtFields,
 } from '../core/providers/services'
-import type { AiProviderConfig, MtServiceConfig, MtServiceId, Settings } from '../storage/settings'
+import type {
+  AiProviderConfig,
+  MtServiceConfig,
+  MtServiceId,
+  ReasoningEffort,
+  Settings,
+} from '../storage/settings'
 import { newId } from '../storage/local'
 import { SectionTitle } from '../app/SectionTitle'
 import { openLink, requestHostPermission, testAiService, testMtService } from './test'
@@ -51,6 +57,7 @@ export function ServicesSection({ settings, onPatch, detail, onOpenDetail, onClo
       apiKey: '',
       model: preset.models[0] ?? '',
       temperature: 0.3,
+      reasoningEffort: '',
     }
     onPatch({ aiProviders: [...settings.aiProviders, provider] })
     onOpenDetail(`ai:${provider.id}`)
@@ -287,17 +294,17 @@ export function ServicesSection({ settings, onPatch, detail, onOpenDetail, onClo
               onChange={(event) => setProvider(provider.id, { baseUrl: event.target.value })}
             />
           </label>
+          <label className="field">
+            <span className="field-label">API Key</span>
+            <input
+              className="input mono"
+              type="password"
+              value={provider.apiKey}
+              placeholder="sk-..."
+              onChange={(event) => setProvider(provider.id, { apiKey: event.target.value })}
+            />
+          </label>
           <div className="grid-2">
-            <label className="field">
-              <span className="field-label">API Key</span>
-              <input
-                className="input mono"
-                type="password"
-                value={provider.apiKey}
-                placeholder="sk-..."
-                onChange={(event) => setProvider(provider.id, { apiKey: event.target.value })}
-              />
-            </label>
             <label className="field">
               <span className="field-label">温度</span>
               <input
@@ -312,7 +319,26 @@ export function ServicesSection({ settings, onPatch, detail, onOpenDetail, onClo
                 }
               />
             </label>
+            <label className="field">
+              <span className="field-label">思考强度</span>
+              <select
+                className="select"
+                style={{ width: '100%' }}
+                value={provider.reasoningEffort}
+                onChange={(event) =>
+                  setProvider(provider.id, { reasoningEffort: event.target.value as ReasoningEffort })
+                }
+              >
+                <option value="">跟随模型默认</option>
+                <option value="low">低</option>
+                <option value="medium">中</option>
+                <option value="high">高</option>
+              </select>
+            </label>
           </div>
+          <p className="hint">
+            越高想得越久、结果更稳，也更慢更贵；对该服务的翻译、检查、润色都生效。只对支持这个参数的模型有效，报错就改回「跟随模型默认」（此时请求里不带它）。
+          </p>
           <div className="row wrap">
             <button
               type="button"

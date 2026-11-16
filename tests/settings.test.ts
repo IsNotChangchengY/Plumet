@@ -40,6 +40,17 @@ describe('normalizeSettings', () => {
     expect(settings.aiProviders[0]?.presetId).toBe('custom')
   })
 
+  it('aiProviders 的思考强度只认已知档位，其余收敛成空', () => {
+    const settings = normalizeSettings({
+      aiProviders: [
+        { id: 'a', label: 'A', baseUrl: 'https://a', model: 'm', reasoningEffort: 'high' },
+        { id: 'b', label: 'B', baseUrl: 'https://a', model: 'm', reasoningEffort: 'extreme' },
+        { id: 'c', label: 'C', baseUrl: 'https://a', model: 'm' },
+      ],
+    })
+    expect(settings.aiProviders.map((provider) => provider.reasoningEffort)).toEqual(['high', '', ''])
+  })
+
   it('多引擎列表会去重并剔除空值', () => {
     const settings = normalizeSettings({
       translateEngines: ['mt:baidu', '', '  ', 'mt:baidu', 'ai:abc', 42],

@@ -1,6 +1,8 @@
 import { newId, readLocal, writeLocal } from './local'
 import { SMART_TARGET_LANG } from '../core/lang'
 
+export type ReasoningEffort = '' | 'low' | 'medium' | 'high'
+
 export type AiProviderConfig = {
   id: string
   label: string
@@ -9,6 +11,7 @@ export type AiProviderConfig = {
   apiKey: string
   model: string
   temperature: number
+  reasoningEffort: ReasoningEffort
 }
 
 export type MtServiceId = 'google-free' | 'mymemory' | 'baidu' | 'microsoft'
@@ -138,6 +141,10 @@ function asBoolean(value: unknown, fallback: boolean): boolean {
   return typeof value === 'boolean' ? value : fallback
 }
 
+function asReasoningEffort(value: unknown): ReasoningEffort {
+  return value === 'low' || value === 'medium' || value === 'high' ? value : ''
+}
+
 function normalizeServices(stored: Record<string, unknown>, legacy: unknown): Record<MtServiceId, MtServiceConfig> {
   const defaults = defaultServices()
   const legacyEnabled = legacy && typeof legacy === 'object' ? (legacy as Record<string, unknown>) : null
@@ -224,6 +231,7 @@ export function normalizeSettings(raw: unknown): Settings {
           apiKey: asString(provider.apiKey),
           model: asString(provider.model),
           temperature: typeof provider.temperature === 'number' ? provider.temperature : 0.3,
+          reasoningEffort: asReasoningEffort(provider.reasoningEffort),
         }))
       : [],
     glossary: Array.isArray(stored.glossary) ? (stored.glossary as GlossaryEntry[]) : [],
