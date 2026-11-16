@@ -3,9 +3,11 @@ import { describe, expect, it } from 'vitest'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { CheckView } from '../src/app/CheckView'
 import { DictCard } from '../src/app/DictCard'
+import { EnginePicker } from '../src/app/EnginePicker'
 import { PolishView } from '../src/app/PolishView'
 import type { DictionaryEntry } from '../src/core/dictionary/types'
 import type { CheckJobResult } from '../src/core/messaging'
+import type { EngineOption } from '../src/core/providers/registry'
 import type { DictionarySections } from '../src/storage/settings'
 
 const checkResult: CheckJobResult = {
@@ -115,6 +117,50 @@ describe('DictCard 渲染', () => {
     )
     expect(html).toContain('设置')
     expect(html).not.toContain('dict-sec')
+  })
+})
+
+const engineOptions: EngineOption[] = [
+  { id: 'mt:google-free', label: 'Google 翻译 · 免费通道', kind: 'mt', group: 'free', ready: true, missing: [] },
+  { id: 'ai:deepseek', label: 'DeepSeek 主力 · deepseek-chat', kind: 'ai', group: 'ai', ready: true, missing: [] },
+  { id: 'mt:baidu', label: '百度翻译', kind: 'mt', group: 'mt', ready: false, missing: ['App ID', '密钥'] },
+]
+
+describe('EnginePicker 渲染', () => {
+  it('多选时摘要只显示第一个引擎与计数，title 给全量名称', () => {
+    const html = renderToStaticMarkup(
+      <EnginePicker engines={engineOptions} selected={['mt:google-free', 'ai:deepseek']} onChange={() => undefined} />,
+    )
+    expect(html).toContain('title="Google 翻译 · 免费通道 · DeepSeek 主力 · deepseek-chat"')
+    expect(html).toMatch(
+      /<summary title="[^"]*"><span class="engine-picker-current">Google 翻译 · 免费通道<\/span><span class="engine-picker-count">2<\/span><\/summary>/,
+    )
+  })
+
+  it('单选时摘要显示完整名称且没有计数', () => {
+    const html = renderToStaticMarkup(
+      <EnginePicker engines={engineOptions} selected={['ai:deepseek']} onChange={() => undefined} />,
+    )
+    expect(html).toContain('DeepSeek 主力 · deepseek-chat')
+    expect(html).not.toContain('engine-picker-count')
+  })
+
+  it('只剩一个勾选时该项不可取消', () => {
+    const html = renderToStaticMarkup(
+      <EnginePicker engines={engineOptions} selected={['mt:google-free']} onChange={() => undefined} />,
+    )
+    expect(html).toContain('disabled=""')
+  })
+
+  it('已选但不可用的引擎显示原因，未选的不可用引擎不出现', () => {
+    const selected = renderToStaticMarkup(
+      <EnginePicker engines={engineOptions} selected={['mt:baidu']} onChange={() => undefined} />,
+    )
+    expect(selected).toContain('App ID、密钥')
+    const hidden = renderToStaticMarkup(
+      <EnginePicker engines={engineOptions} selected={['mt:google-free']} onChange={() => undefined} />,
+    )
+    expect(hidden).not.toContain('百度翻译')
   })
 })
 

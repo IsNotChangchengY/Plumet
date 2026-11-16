@@ -5,6 +5,7 @@ import type {
   CheckJobRequest,
   DictJobRequest,
   DictJobResult,
+  EngineRunResult,
   JobRequest,
   JobResult,
   PolishJobRequest,
@@ -15,17 +16,39 @@ import { isJobEvent, YUYI_PORT } from '../core/messaging'
 
 export type JobKind = 'translate' | 'check' | 'polish' | 'dict'
 
+export type EngineRun = {
+  engineId: string
+  label: string
+  text: string
+  done: boolean
+  result: JobResult | null
+  error: { code: ErrorCode; message: string } | null
+}
+
 export type JobState =
   | { status: 'idle' }
-  | { status: 'running'; kind: JobKind; text: string; progress: { done: number; total: number } | null }
-  | { status: 'done'; kind: 'translate'; text: string; result: JobResult }
+  | { status: 'running'; kind: 'translate'; parts: EngineRun[] }
+  | {
+      status: 'running'
+      kind: 'dict' | 'check' | 'polish'
+      text: string
+      progress: { done: number; total: number } | null
+    }
+  | { status: 'done'; kind: 'translate'; parts: EngineRun[] }
   | { status: 'done'; kind: 'dict'; result: DictJobResult }
   | { status: 'done'; kind: 'check'; result: CheckJobResult }
   | { status: 'done'; kind: 'polish'; result: PolishJobResult }
   | { status: 'error'; kind: JobKind | null; code: ErrorCode; message: string }
 
 export type RunInput =
-  | { kind: 'translate'; segments: string[]; sourceLang: string; targetLang: string; context?: string }
+  | {
+      kind: 'translate'
+      segments: string[]
+      sourceLang: string
+      targetLang: string
+      context?: string
+      engines: { id: string; label: string }[]
+    }
   | { kind: 'dict'; word: string; sourceLang: string; targetLang: string; context?: string }
   | { kind: 'check'; text: string }
   | { kind: 'polish'; text: string; instruction: string }
@@ -33,6 +56,78 @@ export type RunInput =
 function newRequestId(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID()
   return `job-${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+function newEngineRun(engineId: string, label: string): EngineRun {
+  return { engineId, label, text: '', done: false, result: null, error: null }
+}
+
+function applyEngineResult(parts: EngineRun[], result: EngineRunResult): EngineRun[] {
+  if (!result.ok) {
+    const failed: EngineRun = {
+      engineId: result.engineId,
+      label: result.engineLabel,
+      text: '',
+      done: true,
+      result: null,
+      error: { code: result.code, message: result.message },
+    }
+    return replacePart(parts, result.engineId, (part) => ({ ...part, ...failed, text: part.text }))
+  }
+  const translated: EngineRun = {
+    engineId: result.engineId,
+    label: result.engineLabel,
+    text: result.segments.join('\n\n'),
+    done: true,
+    result: {
+      segments: result.segments,
+      engineLabel: result.engineLabel,
+      cached: result.cached,
+      elapsedMs: result.elapsedMs,
+      detectedLang: result.detectedLang,
+      notice: result.notice,
+    },
+    error: null,
+  }
+  return replacePart(parts, result.engineId, () => translated)
+}
+
+function replacePart(
+  parts: EngineRun[],
+  engineId: string,
+  update: (part: EngineRun) => EngineRun,
+): EngineRun[] {
+  const index = parts.findIndex((part) => part.engineId === engineId)
+  if (index >= 0) return parts.map((part, at) => (at === index ? update(part) : part))
+  const pending = parts.findIndex((part) => !part.done && part.engineId === '')
+  if (pending >= 0) return parts.map((part, at) => (at === pending ? update(part) : part))
+  return [...parts, update(newEngineRun(engineId, engineId))]
+}
+
+function appendDelta(parts: EngineRun[], text: string, engineId?: string): EngineRun[] {
+  let index = engineId ? parts.findIndex((part) => part.engineId === engineId) : -1
+  if (index < 0) index = parts.findIndex((part) => !part.done)
+  if (index < 0) return parts
+  return parts.map((part, at) => (at === index ? { ...part, text: part.text + text } : part))
+}
+
+function finishTranslate(parts: EngineRun[], result: JobResult): EngineRun[] {
+  if (parts.length === 0) {
+    return [
+      {
+        engineId: result.engineLabel,
+        label: result.engineLabel,
+        text: result.segments.join('\n\n'),
+        done: true,
+        result,
+        error: null,
+      },
+    ]
+  }
+  if (parts.length === 1 && !parts[0].result && !parts[0].error) {
+    return [{ ...parts[0], text: result.segments.join('\n\n'), done: true, result }]
+  }
+  return parts.map((part) => (part.done ? part : { ...part, done: true }))
 }
 
 export function useJob(): {
@@ -53,25 +148,35 @@ export function useJob(): {
       if (!isJobEvent(event)) return
       if (event.requestId !== requestIdRef.current) return
       if (event.kind === 'delta') {
+        setState((previous) => {
+          if (previous.status !== 'running') return previous
+          if (previous.kind === 'translate') {
+            return { ...previous, parts: appendDelta(previous.parts, event.text, event.engineId) }
+          }
+          return { ...previous, text: previous.text + event.text }
+        })
+        return
+      }
+      if (event.kind === 'engineDone') {
         setState((previous) =>
-          previous.status === 'running' ? { ...previous, text: previous.text + event.text } : previous,
+          previous.status === 'running' && previous.kind === 'translate'
+            ? { ...previous, parts: applyEngineResult(previous.parts, event.result) }
+            : previous,
         )
         return
       }
       if (event.kind === 'progress') {
         setState((previous) =>
-          previous.status === 'running'
+          previous.status === 'running' && previous.kind !== 'translate'
             ? { ...previous, progress: { done: event.done, total: event.total } }
             : previous,
         )
         return
       }
       if (event.kind === 'done') {
-        setState({
-          status: 'done',
-          kind: 'translate',
-          text: event.result.segments.join('\n\n'),
-          result: event.result,
+        setState((previous) => {
+          const parts = previous.status === 'running' && previous.kind === 'translate' ? previous.parts : []
+          return { status: 'done', kind: 'translate', parts: finishTranslate(parts, event.result) }
         })
         return
       }
@@ -116,10 +221,20 @@ export function useJob(): {
       const requestId = newRequestId()
       requestIdRef.current = requestId
       kindRef.current = input.kind
-      setState({ status: 'running', kind: input.kind, text: '', progress: null })
+      if (input.kind === 'translate') {
+        const engines = input.engines.length > 0 ? input.engines : [{ id: '', label: '翻译引擎' }]
+        setState({
+          status: 'running',
+          kind: 'translate',
+          parts: engines.map((engine) => newEngineRun(engine.id, engine.label)),
+        })
+      } else {
+        setState({ status: 'running', kind: input.kind, text: '', progress: null })
+      }
       try {
         const port = ensurePort()
         if (input.kind === 'translate') {
+          const engines = input.engines.filter((engine) => engine.id)
           const payload: TranslateJobRequest = {
             kind: 'translate',
             requestId,
@@ -127,6 +242,7 @@ export function useJob(): {
             sourceLang: input.sourceLang,
             targetLang: input.targetLang,
             context: input.context,
+            engineIds: engines.map((engine) => engine.id),
           }
           port.postMessage(payload satisfies JobRequest)
         } else if (input.kind === 'dict') {

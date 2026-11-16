@@ -10,7 +10,7 @@
 
 | 维度 | 竞品常见做法 | 羽译取舍 |
 |---|---|---|
-| 多引擎 | 十几个引擎 + 对比 | 沿用「多引擎抽象」，但默认只保留可靠的 AI + 两个免费兜底 |
+| 多引擎 | 十几个引擎 + 对比 | 默认只保留可靠的 AI + 两个免费兜底；翻译面板可勾选多个引擎并列对照 |
 | 检查/润色 | 另开工具或不做 | 和翻译在同一个面板里做完，修改用荧光笔 diff 展示 |
 | 划词 | 词典卡为主 | 默认带上下文（所在段落 + 标题 + 域名）交给 AI 理解 |
 | 学习 | 生词本 | 收藏即进复习闭环（SRS），把翻译变成学习入口 |
@@ -21,7 +21,7 @@
 - 语言栏：源语言自动检测 → 目标语言；目标默认「智能」（其他语言译成中文、中文译成英文，按书写系统判断），也可固定某个语言，固定时才可互换；语言选择持久化。
 - 输入：多行文本；`Enter` 直接翻译（`Shift+Enter` 换行），超过 2500 字符按段落自动切段；打开弹窗即聚焦输入框。
 - 三动作：翻译 / 检查 / 润色，共用同一份输入。
-- 结果：AI 流式输出；显示引擎、耗时、缓存命中；复制、清空、历史回看。
+- 结果：AI 流式输出；显示引擎、耗时、缓存命中；引擎可多选，句子翻译时每家的译文并列成卡（查词典仍只出一张词典卡）；复制、清空、历史回看。
 - 术语表：设置里维护 `原文 → 译文`，注入提示词。
 
 ### 2.2 语法检查（已实现 M2）
@@ -69,13 +69,13 @@
 - 拍板结论：**词与句都能收**（学习目标兼顾背词与积累表达）；**不做 AI 例句**（v1 不额外花 Key）；复习强度固定 20 张、四档评分；不做云同步。生词本单词卡直接展示词典服务返回的音标、词性与例句（存的是收藏时的结构化快照，旧卡无法回填）。
 
 ### 2.7 设置页（已实现，v4 顶栏分类）
-顶栏 6 个分类，一屏只显示一类：**通用**（主题/语言/历史）、**翻译**（划词触发与上下文/网页翻译呈现方式）、**词典**（单词查词典开关、词典服务、六项展示内容）、**引擎**（四个槽位分配 + 可用状态 + 去配置）、**服务**（免费通道开关、百度/微软凭证、AI 服务增删改与测试；点进单个服务看申请步骤与额度）、**其它**（清缓存/历史、恢复默认、快捷键、版本）。引擎与服务分离：引擎只做分配，服务只做配置。
+顶栏 6 个分类，一屏只显示一类：**通用**（主题/语言/历史）、**翻译**（划词触发与上下文/网页翻译呈现方式）、**词典**（单词查词典开关、词典服务、六项展示内容）、**引擎**（四个槽位分配：翻译面板可多选、其余单选，旁边标可用状态与去配置）、**服务**（免费通道开关、百度/微软凭证、AI 服务增删改与测试；点进单个服务看申请步骤与额度）、**其它**（清缓存/历史、恢复默认、快捷键、版本）。引擎与服务分离：引擎只做分配，服务只做配置。
 
 ### 2.8 词典查询（已实现 M7）
 - 判据：输入或选区是单个词——1–40 个拉丁字母（可带撇号与连字符）或 1–4 个汉字，两端标点先裁掉（`parseDictionaryQuery()` 返回 `en-zh` / `zh-en` 方向）；开关关闭、或当前服务不支持该方向（英英词典查中文词）时走翻译，长句与段落始终走翻译。
 - 服务：`src/core/providers/dict/` 下两个免 Key 实现——有道词典 `dict.youdao.com/jsonapi`（英→中走 `ec`：音标 + 英美发音、中文释义、英英释义、词形变化、双语例句、常用词组；中→英走 `ce`：拼音 + 发音、英文对应词）与 Free Dictionary API（英英释义、音标、例句，仅英→中）。服务定义在 `providers/dict/services.ts`，各自带 `capabilities` 与 `supportsChinese`，设置页据此禁用当前服务不提供的展示项。
 - 数据：`DictionaryEntry`（`direction` + `phonetics / translations / definitions / forms / examples / phrases`）+ `settings.dictionary`（开关、服务、六个展示开关）；展示开关只影响呈现，不影响抓取。中文词条复用同一结构：`direction: 'zh-en'`，`translations` 放英文对应词，`phonetics` 是拼音，例句是「中文原句 + 英文译文」，所以卡片只需把释义标题从「中文释义」换成「英文释义」。
-- 回退：词典未收录（适配器返回 `null`）或请求失败时，静默改用 `settings.translateEngine` 翻译，并在 `JobResult.notice` 里带一句说明；这是唯一允许的降级，只作用于查词。
+- 回退：词典未收录（适配器返回 `null`）或请求失败时，静默改用主引擎（`primaryTranslateEngine()`）翻译，并在 `JobResult.notice` 里带一句说明；这是唯一允许的降级，只作用于查词。
 - 缓存：SW 内存 Map，键 `服务:小写词`，TTL 24 小时、上限 200 条，不落盘（词条体量大，且丢了重查成本低）。
 - 发音：有道用 `dictvoice?audio=<词>&type=1|2`（英式 / 美式）直接播；无音频或播放失败时退回 `speechSynthesis`。气泡里的播放受宿主页 CSP 影响，弹窗不受影响（待验证：`media-src` 白名单站点）。
 
@@ -96,7 +96,7 @@ Mark = { kind: 'equal'|'del'|'ins'|'warn', text, issueId?, severity?, state? }
 ## 4. UI/UX
 
 - 载体：**只有工具栏弹窗一个界面**（`action.default_popup`，340×600，点到别处就关），设置页与生词本仍是新标签页；划词气泡与网页译文注入在页面内，网页翻译的进度条固定在页面右下角（Shadow DOM，`data-yuyi-ui="pill"`）。
-- 弹窗布局：头部（品牌 · 翻译/历史 tab · 生词本 · 设置）→ 设置条（语言两枚胶囊 + 交换 + 引擎行）→ 输入卡（三个动作在框内右下角：检查 / 润色 / 翻译）→「润色方向」折叠块 → 结果卡片（内部滚动，复制/清空沉到卡片底部）→ 底部（翻译本页 · 版本）。
+- 弹窗布局：头部（品牌 · 翻译/历史 tab · 生词本 · 设置）→ 设置条（语言两枚胶囊 + 交换 + 引擎多选）→ 输入卡（三个动作在框内右下角：检查 / 润色 / 翻译）→「润色方向」折叠块 → 结果卡片（内部滚动，复制/清空沉到卡片底部）→ 底部（翻译本页 · 版本）。
 - 高度固定、内容自己滚：检查的高亮/列表/终稿与润色 diff 都塞进结果卡片里滚，不再另开页面；代价是弹窗一关就看不到过程（任务会跑完并进历史），且「并排对照」需要 560px 以上宽度，在 340px 的弹窗里始终不可用。
 - 视觉语言（v1「柔光」）：白纸卡片 + 柔和阴影 + 大圆角（10/14/20），主色羽蓝 `#4F6BF0` 只用于品牌标记、主按钮、选区与激活态；深色是独立配色（降饱和、主色提亮、输入框比卡片更暗、主按钮改深字）。气泡是唯一保留轻微回弹的动效，其余动效只表达状态。完整规范（变量表、组件、三处界面尺寸、动效与验收清单）见 [ui-design.md](ui-design.md)。
 - 主题：`settings.theme`（auto/light/dark）→ 扩展页面写 `data-theme`；页面内的气泡、触发图标、状态条是 Shadow DOM，变量由 `src/content/theme.ts` 在 `:host` 上重新声明，所以 `theme.css` 与它必须同步修改。
@@ -108,7 +108,7 @@ Mark = { kind: 'equal'|'del'|'ins'|'warn', text, issueId?, severity?, state? }
 - Service Worker：唯一联网方；消息路由、右键菜单、快捷键、任务表、缓存、写历史。
 - Content Script：页面 DOM 读写（划词/网页翻译），不发网络请求。
 - 扩展页面（弹窗/设置/生词本）：React 渲染，直接用 `chrome.storage`。
-- 通信：Port 协议（`translate` / `dict` / `check` / `polish` / `cancel` / `test` → `delta` / `progress` / `done` / `dictDone` / `checkDone` / `polishDone` / `testDone` / `error`），`requestId` 对齐；网页翻译的控制走一次性消息：弹窗 → `runtime.sendMessage` → SW 取当前标签页 → `tabs.sendMessage` → content script，进度反方向 `runtime.sendMessage` 广播回弹窗。
+- 通信：Port 协议（`translate` / `dict` / `check` / `polish` / `cancel` / `test` → `delta`（多引擎时带 `engineId`）/ `progress` / `engineDone` / `done` / `dictDone` / `checkDone` / `polishDone` / `testDone` / `error`），`requestId` 对齐；网页翻译的控制走一次性消息：弹窗 → `runtime.sendMessage` → SW 取当前标签页 → `tabs.sendMessage` → content script，进度反方向 `runtime.sendMessage` 广播回弹窗。
 - 构建：一个 `scripts/build.mjs` 连跑三次 Vite（页面多入口三条：`popup` / `options` / `learning`、background ESM、content IIFE）。
 - 权限：`storage / unlimitedStorage / scripting / activeTab / contextMenus`；`<all_urls>` 内容脚本；内置服务商（谷歌、MyMemory、百度、Azure、OpenAI、Gemini、xAI 等固定域名）写进 `host_permissions`，自定义 / 本地端点仍走 `optional_host_permissions` + 点击授权。
 
@@ -116,15 +116,17 @@ Mark = { kind: 'equal'|'del'|'ins'|'warn', text, issueId?, severity?, state? }
 
 服务分三类：**免费通道**（谷歌、MyMemory）、**需要密钥的机器翻译**（百度、微软 / 必应 Azure v3）、**AI 服务**（OpenAI 兼容，含 Gemini 兼容层与 Grok）；另有一组独立的**词典接口**（有道、Free Dictionary API，都免 Key），只服务单个单词的查询。
 
-- 只用**启用且就绪**的服务：引擎下拉只列可用的，未就绪的选中项标红并给「去配置」。
-- **没有失败降级**：主引擎未配置或运行失败都直接报错，不会悄悄换成免费通道（早期版本有自动降级与「已自动降级」标记，已移除）。
-- 检查 / 润色只能用 AI，自动模式 = 翻译引擎是可用 AI 就用它，否则用第一个可用 AI。
+- 只用**启用且就绪**的服务：引擎列表只列可用的，未就绪的选中项标出并给「去配置」；翻译面板可多选，其余槽位单选。
+- 多引擎只作用于翻译面板的句子翻译：勾几个就并发请求几个，每完成一个先回来一张结果卡；单个失败只影响自己那张卡，全部失败才整体报错。查词典、划词、网页翻译仍是单引擎。
+- 翻译面板的第一个勾选引擎是主引擎（`primaryTranslateEngine()`）：划词、网页翻译与历史都没显式指定引擎时用它，历史只记这一条。
+- **没有失败降级**：引擎未配置或运行失败都直接报错，不会悄悄换成免费通道（早期版本有自动降级与「已自动降级」标记，已移除）。
+- 检查 / 润色只能用 AI，自动模式 = 按勾选顺序找第一个可用 AI（翻译引擎是 AI 就用它），否则用第一个可用 AI。
 - 网页翻译按量最大，默认走免费通道；切到 AI 时按段计费。
 - 实测结论见 `providers.md`。
 
 ## 7. 数据与存储
 
-全部 `chrome.storage.local`：`settings.v1`（载荷 version 2：`services` 凭证表 + `dictionary` 词典开关/服务/展示项 + `aiProviders`；旧的 `mtEnabled` 在读取时自动迁移）、`history.v1`（最多 200 条，网页翻译不写入）、`cache.v1`（分片缓存，TTL 7 天，网页翻译按批命中）、`learning.v1`（生词卡片 + 每日复习次数 + 正确次数；卡片量小，暂不迁 IndexedDB）。
+全部 `chrome.storage.local`：`settings.v1`（载荷 version 2：`translateEngines` 多选引擎 + `services` 凭证表 + `dictionary` 词典开关/服务/展示项 + `aiProviders`；旧的 `mtEnabled` 与单个 `translateEngine` 在读取时自动迁移）、`history.v1`（最多 200 条，网页翻译不写入）、`cache.v1`（分片缓存，TTL 7 天，网页翻译按批命中）、`learning.v1`（生词卡片 + 每日复习次数 + 正确次数；卡片量小，暂不迁 IndexedDB）。
 
 ## 8. 里程碑与状态
 

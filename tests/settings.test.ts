@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { DEFAULT_SETTINGS, defaultServices, normalizeSettings } from '../src/storage/settings'
+import { DEFAULT_SETTINGS, defaultServices, normalizeSettings, primaryTranslateEngine } from '../src/storage/settings'
 
 describe('normalizeSettings', () => {
   it('空数据返回默认值', () => {
@@ -18,8 +18,9 @@ describe('normalizeSettings', () => {
     })
     expect(settings.services['google-free'].enabled).toBe(false)
     expect(settings.services.mymemory.enabled).toBe(true)
-    expect(settings.translateEngine).toBe('mt:mymemory')
+    expect(settings.translateEngines).toEqual(['mt:mymemory'])
     expect('mtEnabled' in (settings as unknown as Record<string, unknown>)).toBe(false)
+    expect('translateEngine' in (settings as unknown as Record<string, unknown>)).toBe(false)
   })
 
   it('保留已存凭证，非法字段收敛成空串', () => {
@@ -37,6 +38,34 @@ describe('normalizeSettings', () => {
     expect(settings.aiProviders[0]?.apiKey).toBe('')
     expect(settings.aiProviders[0]?.temperature).toBe(0.3)
     expect(settings.aiProviders[0]?.presetId).toBe('custom')
+  })
+
+  it('多引擎列表会去重并剔除空值', () => {
+    const settings = normalizeSettings({
+      translateEngines: ['mt:baidu', '', '  ', 'mt:baidu', 'ai:abc', 42],
+    })
+    expect(settings.translateEngines).toEqual(['mt:baidu', 'ai:abc'])
+  })
+
+  it('旧版 translateEngine 迁移成单元素列表', () => {
+    const settings = normalizeSettings({ translateEngine: ' mt:microsoft ' })
+    expect(settings.translateEngines).toEqual(['mt:microsoft'])
+  })
+
+  it('空列表回退到默认引擎', () => {
+    expect(normalizeSettings({ translateEngines: [] }).translateEngines).toEqual(['mt:google-free'])
+  })
+
+  it('默认设置里的 translateEngines 是独立副本', () => {
+    const first = normalizeSettings(undefined)
+    first.translateEngines.push('mt:baidu')
+    expect(DEFAULT_SETTINGS.translateEngines).toEqual(['mt:google-free'])
+  })
+
+  it('主引擎取列表首个，列表为空时回退默认', () => {
+    const settings = { ...DEFAULT_SETTINGS, translateEngines: [] }
+    expect(primaryTranslateEngine(settings)).toBe('mt:google-free')
+    expect(primaryTranslateEngine({ ...DEFAULT_SETTINGS, translateEngines: ['ai:x', 'mt:baidu'] })).toBe('ai:x')
   })
 
   it('默认设置里的 services 是独立副本', () => {

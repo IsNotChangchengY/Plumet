@@ -3,12 +3,13 @@ import { entryText } from '../core/dictionary/format'
 import { lookupWord } from '../core/dictionary/lookup'
 import { isDictionaryWord } from '../core/dictionary/word'
 import { translateText } from '../core/engine'
+import type { EngineResult } from '../core/engine'
 import { resolveTargetLang } from '../core/lang'
 import { testAiProvider } from '../core/providers/ai/openai-compatible'
 import { createMtProvider } from '../core/providers/services'
 import { runCheckChunk } from '../core/providers/ai/check'
 import { runPolish } from '../core/providers/ai/polish'
-import { aiEngineLabel, resolveAiProviderConfig } from '../core/providers/registry'
+import { aiEngineLabel, engineLabel, resolveAiProviderConfig } from '../core/providers/registry'
 import { applyIssues, locateIssues, mergeIssues, splitForCheck } from '../core/check'
 import type { CheckChunk, LocatedIssue } from '../core/check'
 import type {
@@ -21,7 +22,7 @@ import type {
   TestJobRequest,
   TranslateJobRequest,
 } from '../core/messaging'
-import { loadSettings } from '../storage/settings'
+import { loadSettings, primaryTranslateEngine } from '../storage/settings'
 import type { Settings } from '../storage/settings'
 import { addHistory } from '../storage/history'
 
@@ -53,37 +54,98 @@ function sendError(job: Job, requestId: string, error: unknown): void {
   })
 }
 
+type EngineSuccess = { ok: true; engineId: string; result: EngineResult }
+type EngineFailure = { ok: false; engineId: string; error: AppError }
+type EngineOutcome = EngineSuccess | EngineFailure
+
+function resolveEngineIds(request: TranslateJobRequest, settings: Settings): string[] {
+  const explicit = Array.isArray(request.engineIds) ? request.engineIds : []
+  const seen = new Set<string>()
+  const ids: string[] = []
+  for (const item of explicit) {
+    const id = typeof item === 'string' ? item.trim() : ''
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    ids.push(id)
+  }
+  if (ids.length > 0) return ids
+  const legacy = request.engineId?.trim()
+  return [legacy || primaryTranslateEngine(settings)]
+}
+
 async function translateAndReport(
   request: TranslateJobRequest,
   settings: Settings,
   job: Job,
   notice?: string,
 ): Promise<void> {
-  const engineId = request.engineId?.trim() ? request.engineId : settings.translateEngine
+  const engineIds = resolveEngineIds(request, settings)
   const targetLang = resolveTargetLang(request.targetLang, request.segments.join('\n'))
-  const result = await translateText(
-    {
-      segments: request.segments,
-      sourceLang: request.sourceLang,
-      targetLang,
-      context: request.context,
-      glossary: settings.glossary,
-      signal: job.controller.signal,
-    },
-    settings,
-    engineId,
-    (delta) => sendTo(job, { kind: 'delta', requestId: request.requestId, text: delta }),
+  const outcomes = await Promise.all(
+    engineIds.map(async (engineId): Promise<EngineOutcome> => {
+      try {
+        const result = await translateText(
+          {
+            segments: request.segments,
+            sourceLang: request.sourceLang,
+            targetLang,
+            context: request.context,
+            glossary: settings.glossary,
+            signal: job.controller.signal,
+          },
+          settings,
+          engineId,
+          (delta) =>
+            sendTo(job, { kind: 'delta', requestId: request.requestId, text: delta, engineId }),
+        )
+        sendTo(job, {
+          kind: 'engineDone',
+          requestId: request.requestId,
+          result: {
+            engineId,
+            engineLabel: result.engineLabel,
+            ok: true,
+            segments: result.segments,
+            cached: result.cached,
+            elapsedMs: result.elapsedMs,
+            detectedLang: result.detectedLang,
+          },
+        })
+        return { ok: true, engineId, result }
+      } catch (error) {
+        if (isAbortError(error) || job.controller.signal.aborted) throw error
+        const appError = toAppError(error)
+        sendTo(job, {
+          kind: 'engineDone',
+          requestId: request.requestId,
+          result: {
+            engineId,
+            engineLabel: engineLabel(engineId, settings),
+            ok: false,
+            code: appError.code,
+            message: appError.message,
+          },
+        })
+        return { ok: false, engineId, error: appError }
+      }
+    }),
   )
+
+  const primary = outcomes.find((outcome): outcome is EngineSuccess => outcome.ok)
+  if (!primary) {
+    const first = outcomes[0]
+    throw first && !first.ok ? first.error : new AppError('unknown', '翻译失败')
+  }
 
   sendTo(job, {
     kind: 'done',
     requestId: request.requestId,
     result: {
-      segments: result.segments,
-      engineLabel: result.engineLabel,
-      cached: result.cached,
-      elapsedMs: result.elapsedMs,
-      detectedLang: result.detectedLang,
+      segments: primary.result.segments,
+      engineLabel: primary.result.engineLabel,
+      cached: primary.result.cached,
+      elapsedMs: primary.result.elapsedMs,
+      detectedLang: primary.result.detectedLang,
       notice: notice || undefined,
     },
   })
@@ -92,8 +154,8 @@ async function translateAndReport(
     await addHistory({
       mode: 'translate',
       sourceText: request.segments.join('\n\n'),
-      resultText: result.segments.join('\n\n'),
-      engineLabel: result.engineLabel,
+      resultText: primary.result.segments.join('\n\n'),
+      engineLabel: primary.result.engineLabel,
       sourceLang: request.sourceLang,
       targetLang,
     })

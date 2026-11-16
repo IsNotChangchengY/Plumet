@@ -13,6 +13,7 @@ export type TranslateJobRequest = {
   targetLang: string
   context?: string
   engineId?: string
+  engineIds?: string[]
   silent?: boolean
 }
 
@@ -67,6 +68,19 @@ export type JobResult = {
   notice?: string
 }
 
+export type EngineRunResult =
+  | {
+      engineId: string
+      engineLabel: string
+      ok: true
+      segments: string[]
+      cached: boolean
+      elapsedMs: number
+      detectedLang?: string
+      notice?: string
+    }
+  | { engineId: string; engineLabel: string; ok: false; code: ErrorCode; message: string }
+
 export type DictJobResult = {
   entry: DictionaryEntry
   engineLabel: string
@@ -101,7 +115,8 @@ export type PolishJobResult = {
 }
 
 export type JobEvent =
-  | { kind: 'delta'; requestId: string; text: string }
+  | { kind: 'delta'; requestId: string; text: string; engineId?: string }
+  | { kind: 'engineDone'; requestId: string; result: EngineRunResult }
   | { kind: 'progress'; requestId: string; done: number; total: number; label?: string }
   | { kind: 'done'; requestId: string; result: JobResult }
   | { kind: 'dictDone'; requestId: string; result: DictJobResult }
@@ -110,7 +125,17 @@ export type JobEvent =
   | { kind: 'testDone'; requestId: string; latencyMs: number; sample: string }
   | { kind: 'error'; requestId: string; code: ErrorCode; message: string }
 
-const EVENT_KINDS = new Set(['delta', 'progress', 'done', 'dictDone', 'checkDone', 'polishDone', 'testDone', 'error'])
+const EVENT_KINDS = new Set([
+  'delta',
+  'engineDone',
+  'progress',
+  'done',
+  'dictDone',
+  'checkDone',
+  'polishDone',
+  'testDone',
+  'error',
+])
 
 export function isJobEvent(value: unknown): value is JobEvent {
   if (!value || typeof value !== 'object') return false

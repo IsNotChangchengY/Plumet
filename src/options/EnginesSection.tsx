@@ -2,21 +2,24 @@ import type { ReactNode } from 'react'
 import { engineReadiness, listEngines } from '../core/providers/registry'
 import { serviceKeyOf } from '../core/providers/services'
 import type { Settings } from '../storage/settings'
+import { EnginePicker } from '../app/EnginePicker'
 
-type SlotKey = 'translateEngine' | 'pageEngine' | 'checkEngine' | 'polishEngine'
+type SlotKey = 'translateEngines' | 'pageEngine' | 'checkEngine' | 'polishEngine'
 
 type SlotDef = {
   key: SlotKey
   label: string
   onlyAi: boolean
+  multi?: boolean
   icon: ReactNode
 }
 
 const SLOTS: SlotDef[] = [
   {
-    key: 'translateEngine',
+    key: 'translateEngines',
     label: '翻译面板',
     onlyAi: false,
+    multi: true,
     icon: (
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
         <path d="M4 6h16M4 12h10M4 18h7" />
@@ -57,6 +60,11 @@ const SLOTS: SlotDef[] = [
   },
 ]
 
+type SlotStatus = {
+  state: 'ready' | 'partial' | 'unready'
+  serviceKey: string
+}
+
 type Props = {
   settings: Settings
   onPatch: (patch: Partial<Settings>) => void
@@ -67,13 +75,26 @@ export function EnginesSection({ settings, onPatch, onOpenService }: Props) {
   const engines = listEngines(settings)
   const aiReady = engines.some((engine) => engine.kind === 'ai' && engine.ready)
 
-  const slotReady = (slot: SlotDef): boolean => {
-    const value = settings[slot.key]
-    if (!value) return slot.onlyAi && aiReady
+  const slotStatus = (slot: SlotDef): SlotStatus => {
+    if (slot.multi) {
+      const missing = settings.translateEngines.filter((id) => !engineReadiness(settings, id).ready)
+      if (missing.length === 0) return { state: 'ready', serviceKey: '' }
+      return {
+        state: missing.length === settings.translateEngines.length ? 'unready' : 'partial',
+        serviceKey: serviceKeyOf(missing[0]),
+      }
+    }
+    const singleKey = slot.key as 'pageEngine' | 'checkEngine' | 'polishEngine'
+    const value = settings[singleKey]
+    if (!value) {
+      return slot.onlyAi && aiReady ? { state: 'ready', serviceKey: '' } : { state: 'unready', serviceKey: '' }
+    }
     return engineReadiness(settings, value).ready
+      ? { state: 'ready', serviceKey: '' }
+      : { state: 'unready', serviceKey: serviceKeyOf(value) }
   }
 
-  const readyCount = SLOTS.filter(slotReady).length
+  const readyCount = SLOTS.filter((slot) => slotStatus(slot).state !== 'unready').length
 
   return (
     <>
@@ -91,11 +112,11 @@ export function EnginesSection({ settings, onPatch, onOpenService }: Props) {
         </div>
 
         {SLOTS.map((slot) => {
-          const value = settings[slot.key]
+          const status = slotStatus(slot)
           const options = engines.filter((engine) => engine.ready && (!slot.onlyAi || engine.kind === 'ai'))
+          const singleKey = slot.key as 'pageEngine' | 'checkEngine' | 'polishEngine'
+          const value = settings[singleKey]
           const current = engines.find((engine) => engine.id === value)
-          const ready = slotReady(slot)
-          const serviceKey = current ? serviceKeyOf(current.id) : ''
 
           return (
             <div className="slot" key={slot.key}>
@@ -108,38 +129,46 @@ export function EnginesSection({ settings, onPatch, onOpenService }: Props) {
               </div>
 
               <div className="slot-eng">
-                <select
-                  className="select"
-                  value={value}
-                  aria-label={`${slot.label}引擎`}
-                  onChange={(event) => onPatch({ [slot.key]: event.target.value } as Partial<Settings>)}
-                >
-                  {slot.onlyAi ? <option value="">自动（优先用翻译引擎）</option> : null}
-                  {value && !current ? <option value={value}>{value}（已删除）</option> : null}
-                  {current && !current.ready ? (
-                    <option value={current.id}>{current.label}（未配置）</option>
-                  ) : null}
-                  {options.map((engine) => (
-                    <option key={engine.id} value={engine.id}>
-                      {engine.label}
-                    </option>
-                  ))}
-                </select>
+                {slot.multi ? (
+                  <EnginePicker
+                    engines={engines}
+                    selected={settings.translateEngines}
+                    onChange={(ids) => onPatch({ translateEngines: ids })}
+                  />
+                ) : (
+                  <select
+                    className="select"
+                    value={value}
+                    aria-label={`${slot.label}引擎`}
+                    onChange={(event) => onPatch({ [singleKey]: event.target.value } as Partial<Settings>)}
+                  >
+                    {slot.onlyAi ? <option value="">自动（优先用翻译引擎）</option> : null}
+                    {value && !current ? <option value={value}>{value}（已删除）</option> : null}
+                    {current && !current.ready ? (
+                      <option value={current.id}>{current.label}（未配置）</option>
+                    ) : null}
+                    {options.map((engine) => (
+                      <option key={engine.id} value={engine.id}>
+                        {engine.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <div className="slot-side">
-                {ready ? (
+                {status.state === 'ready' ? (
                   <span className="st ok">
                     <i />
                     可用
                   </span>
                 ) : (
                   <>
-                    <span className="st err">
+                    <span className={`st ${status.state === 'partial' ? 'warn' : 'err'}`}>
                       <i />
-                      不可用
+                      {status.state === 'partial' ? '部分不可用' : '不可用'}
                     </span>
-                    <button type="button" className="btn small" onClick={() => onOpenService(serviceKey)}>
+                    <button type="button" className="btn small" onClick={() => onOpenService(status.serviceKey)}>
                       去配置
                     </button>
                   </>

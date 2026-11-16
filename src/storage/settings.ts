@@ -52,7 +52,7 @@ export type Settings = {
   version: 2
   sourceLang: string
   targetLang: string
-  translateEngine: string
+  translateEngines: string[]
   checkEngine: string
   polishEngine: string
   pageEngine: string
@@ -71,6 +71,8 @@ export type Settings = {
 }
 
 export const SETTINGS_KEY = 'settings.v1'
+
+export const DEFAULT_TRANSLATE_ENGINE = 'mt:google-free'
 
 export const MT_SERVICE_IDS: MtServiceId[] = ['google-free', 'mymemory', 'baidu', 'microsoft']
 
@@ -110,7 +112,7 @@ export const DEFAULT_SETTINGS: Settings = {
   version: 2,
   sourceLang: 'auto',
   targetLang: SMART_TARGET_LANG,
-  translateEngine: 'mt:google-free',
+  translateEngines: [DEFAULT_TRANSLATE_ENGINE],
   checkEngine: '',
   polishEngine: '',
   pageEngine: 'mt:google-free',
@@ -177,19 +179,40 @@ function normalizeDictionary(raw: unknown): DictionarySettings {
   }
 }
 
+function normalizeTranslateEngines(raw: unknown, legacy: unknown): string[] {
+  const list = Array.isArray(raw) ? raw : []
+  const seen = new Set<string>()
+  const engines: string[] = []
+  for (const item of list) {
+    const id = asString(item).trim()
+    if (!id || seen.has(id)) continue
+    seen.add(id)
+    engines.push(id)
+  }
+  if (engines.length > 0) return engines
+  const fallback = asString(legacy).trim()
+  return [fallback || DEFAULT_TRANSLATE_ENGINE]
+}
+
 export function normalizeSettings(raw: unknown): Settings {
   if (!raw || typeof raw !== 'object') {
-    return { ...DEFAULT_SETTINGS, services: defaultServices(), dictionary: defaultDictionary() }
+    return {
+      ...DEFAULT_SETTINGS,
+      translateEngines: [...DEFAULT_SETTINGS.translateEngines],
+      services: defaultServices(),
+      dictionary: defaultDictionary(),
+    }
   }
   const stored = raw as Record<string, unknown>
   const servicesRaw =
     stored.services && typeof stored.services === 'object'
       ? (stored.services as Record<string, unknown>)
       : {}
-  const next: Settings & { mtEnabled?: unknown } = {
+  const next: Settings & { mtEnabled?: unknown; translateEngine?: unknown } = {
     ...DEFAULT_SETTINGS,
     ...(stored as Partial<Settings>),
     version: 2,
+    translateEngines: normalizeTranslateEngines(stored.translateEngines, stored.translateEngine),
     services: normalizeServices(servicesRaw, stored.mtEnabled),
     dictionary: normalizeDictionary(stored.dictionary),
     aiProviders: Array.isArray(stored.aiProviders)
@@ -210,7 +233,12 @@ export function normalizeSettings(raw: unknown): Settings {
     polishEngine: asString(stored.polishEngine),
   }
   delete next.mtEnabled
+  delete next.translateEngine
   return next
+}
+
+export function primaryTranslateEngine(settings: Settings): string {
+  return settings.translateEngines[0] || DEFAULT_TRANSLATE_ENGINE
 }
 
 export async function loadSettings(): Promise<Settings> {

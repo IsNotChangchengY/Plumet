@@ -117,8 +117,9 @@ export function resolveAiProviderConfig(settings: Settings, preferredEngineId: s
     return config
   }
 
-  if (settings.translateEngine.startsWith('ai:')) {
-    const config = findAiProvider(settings, settings.translateEngine)
+  for (const engineId of settings.translateEngines) {
+    if (!engineId.startsWith('ai:')) continue
+    const config = findAiProvider(settings, engineId)
     if (config && aiProviderMissing(config).length === 0) return config
   }
 

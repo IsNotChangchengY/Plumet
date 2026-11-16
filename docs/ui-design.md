@@ -149,8 +149,9 @@
 
 - `.input` / `.select`：高 36、圆角 10、`--field` 底、1px 边框；聚焦边框转主色 + 3px `--brand-soft` 环。
 - `.select` 用内联 SVG 背景画下拉箭头（12px，`right 10px center`），不依赖系统箭头。
-- **原生下拉列表（`<option>` 弹出层）不吃 CSS 变量**：它的深浅皮肤跟随 `color-scheme`，底色取控件自身背景。因此：① 深色分支必须声明 `color-scheme: dark`（否则变量是深色、UA 仍按浅色画弹层）；② **select 的背景不能是 `transparent`**，必须给不透明底色（`.sb-eval` 用 `var(--surface)`，`.select` 用 `var(--field)`），透明底会让弹层回落到浅色；③ 在 `theme.css` 里给 `select option` 显式补 `background-color: var(--field)` 与 `color: var(--text)` 兜底。
-- 弹窗内的语言胶囊 `.sb-chip` 是 **原生 select 伪装成胶囊**：无边框、居中文字、`--raised` 底、`--shadow-sm`；引擎行 `.sb-engine` 是「label + select + 箭头」的一整行，整行 hover 才出现主色环。目标语言下拉第一项是「智能（中⇄英）」（其他语言→中文，中文→英文），选中时交换按钮禁用（`.sb-swap:disabled`），`title` 说明完整规则。
+- **原生下拉列表（`<option>` 弹出层）不吃 CSS 变量**：它的深浅皮肤跟随 `color-scheme`，底色取控件自身背景。因此：① 深色分支必须声明 `color-scheme: dark`（否则变量是深色、UA 仍按浅色画弹层）；② **select 的背景不能是 `transparent`**，必须给不透明底色（`.select` 用 `var(--field)`），透明底会让弹层回落到浅色；③ 在 `theme.css` 里给 `select option` 显式补 `background-color: var(--field)` 与 `color: var(--text)` 兜底。
+- 弹窗内的语言胶囊 `.sb-chip` 是 **原生 select 伪装成胶囊**：无边框、居中文字、`--raised` 底、`--shadow-sm`；引擎行 `.sb-engine` 是「label + 多选控件」的一整行，整行 hover 才出现主色环。
+- 引擎多选 `.engine-picker`（`details/summary` 自绘，`src/app/EnginePicker.tsx`）：summary 28px 高（弹窗里压到 26）、无边框透明底；只选一个时显示它的名称，选了多个时只显示第一个（按勾选顺序）并在右侧挂 17px 主色计数胶囊，summary 的 `title` 给全量名称。菜单绝对定位在下方 4px、`--raised` 底 + 边框 + 圆角 + `--shadow-md`、最多 220px 内部滚动；`.engine-option` 是 30px 高的勾选行（14px checkbox + 名称省略 + 未配置原因 10.5px `--warn`），只剩一项勾选时该项禁用；一个可用引擎都没有时给 `.engine-picker-empty` 一行 11.5px 提示。设置页的 `.slot-eng .engine-picker` 把 summary 升到 36px、套 `.input` 外观（1px 边框、`--field` 底、聚焦主色环），最大 380px。目标语言下拉第一项是「智能（中⇄英）」（其他语言→中文，中文→英文），选中时交换按钮禁用（`.sb-swap:disabled`），`title` 说明完整规则。
 - `.textarea` 只用于设置页以外的长文本场景；弹窗输入框用 `.composer` 容器 + 无边框 `.composer-input`，聚焦环画在容器上。
 
 ### 6.6 开关
@@ -163,6 +164,7 @@
 - 弹窗结果卡 `.result-card`：圆角 14、1px 边框、`--shadow-sm`、内部滚动、底部分隔线（`.result-actions`）。
 - 内嵌服务卡 `.provider-card`：`--surface-2` 底 + 边框 + 圆角 14 + 内边距 16；里面的输入框改回 `--surface` 底以形成层次。
 - 空态 `.empty`：在结果卡里是 `--surface-2` 圆角块，居中图标座（38×38 `--raised` + 主色图标）+ 标题 + 一句提示。
+- 多引擎对照 `.engine-results` / `.engine-result`：一叠 `.engine-result` 小卡（`--surface-2` 底、1px 边框、圆角 10、间距 8）。卡头一行放 6px 状态点 + 引擎名（550 字重、单行省略、`flex: 1`）+ 单卡复制按钮；耗时/缓存/说明标签另起一行 `.engine-result-meta`（11.5px `--text-muted`，与引擎名左对齐），卡内 `.result-text` 13px。单个引擎时不套这一层，仍是原来的平铺译文。
 
 ### 6.8 荧光笔标记
 
@@ -190,7 +192,7 @@
 - `.card.list` / `.svc-row`：服务行列表，行高约 48（11px 上下内边距 + 1px 分隔线），左侧 26px 图标座、名称、10px 类型胶囊，右侧状态与动作。
 - `.st`：状态点，`i` 是 6px 实心圆；`ok` / `warn` / `err` 取 `--ok` / `--warn` / `--danger`，默认 `--text-faint`。用于服务与引擎槽位的「就绪 / 未配置」。
 - `.grid-svc` / `.svc`：AI 服务卡片网格（3 列，窄屏 2 列），卡片分 `.svc-top`（图标 + 名称 + 状态）与 `.svc-foot`（等宽模型名 + 动作）。
-- `.slot`：引擎槽位行，三列 `190px / 1fr / auto`；`.slot-id` 放 26px 图标座 + 名称（检查 / 润色额外挂 `仅 AI` 胶囊），`.slot-eng` 放 select（最大 380），`.slot-side` 放状态与「去配置」。
+- `.slot`：引擎槽位行，三列 `190px / 1fr / auto`；`.slot-id` 放 26px 图标座 + 名称（检查 / 润色额外挂 `仅 AI` 胶囊），`.slot-eng` 放引擎选择控件（单选 select 或多选 `.engine-picker`，最大 380），`.slot-side` 放状态与「去配置」。
 - `.detail-head` / `.detail-grid`：服务详情，左侧凭证卡 + 右侧 292px 说明栏（`.aside-card`：`.steps` 编号步骤、`.quota` 额度）。`.back` 返回「全部服务」。
 - `.kbd` / `.kv-row`：「其它」页的键帽与键值行。
 
@@ -241,9 +243,10 @@
 | 主体 `.popup-body` | 508 | 内边距 `0 12px 12px`，纵向 stack，间距 8 |
 | 底部 `.popup-footer` | 52 | 1px 上边框 + 主按钮「翻译本页 / 重译本页」占满剩余宽度 + 版本号（11px `--text-faint`） |
 
-主体自上而下：设置条 `.setbar`（语言两枚胶囊 + 交换 + 引擎行）→ 输入卡 `.composer`（输入区 + 右下动作：检查 / 润色 / 翻译）→ 折叠项 `.polish-config`（28px 高的「润色方向」条）→ 结果卡 `.result-card`（`flex: 1`、内部滚动）。弹窗打开时输入框自动聚焦（`TranslatePanel` 挂载时 focus，从「历史」tab 切回也会重新聚焦），点图标即可直接打字。
+主体自上而下：设置条 `.setbar`（语言两枚胶囊 + 交换 + 引擎多选）→ 输入卡 `.composer`（输入区 + 右下动作：检查 / 润色 / 翻译）→ 折叠项 `.polish-config`（28px 高的「润色方向」条）→ 结果卡 `.result-card`（`flex: 1`、内部滚动）。弹窗打开时输入框自动聚焦（`TranslatePanel` 挂载时 focus，从「历史」tab 切回也会重新聚焦），点图标即可直接打字。
 
 - 结果卡状态行 `.result-meta` 只放状态与元信息；可用动作（复制/清空）沉到卡片底部 `.result-actions`，用 1px 分隔线与正文分开。查词结果在状态行里多一枚 `词典` 胶囊（`.tag.brand`）；回退翻译时多一枚说明胶囊（如「词典未收录，已改用翻译」）。点击「复制」后按钮短暂显示「已复制」，1.5 秒后恢复。
+- 多引擎对照（翻译面板勾了多个引擎时）：状态行显示「已用 N 个引擎」+ 成功/失败计数标签，正文变成 §6.7 的 `.engine-result` 小卡堆叠，每张卡单独复制、失败的卡只在自己的卡里报错；查词结果仍只出词典卡。
 - 检查结果：状态行（处数/保留/忽略/引擎/耗时 + 三视图切换）→ 高亮块（`.card.flat` + `.marks-view`）→ 问题卡列表（`.issue-item`）。列表可滚动，不压缩行高。
 - 历史 tab：`最近 N 条` + 清空 → 卡片列表（原文一行 + 译文一行 + 类型标签 17×17 + 时间 + 引擎 + 删除）。
 - 弹窗只有 340px 宽，润色的「并排」视图始终不可用（需要 560px 以上），这是既有约束，不在本次改动范围内。
@@ -295,6 +298,7 @@ Shadow DOM 的限制：页面里的 `:root` 变量不会自动带进来，所以
 | 弹窗尺寸与内部区块 | `src/popup/popup.css` |
 | 弹窗头部与 tab 指示器 | `src/popup/App.tsx` |
 | 设置条、输入卡、结果卡结构 | `src/app/TranslatePanel.tsx`、`src/app/LangBar.tsx` |
+| 引擎多选控件 | `src/app/EnginePicker.tsx` |
 | 分区标题图标 | `src/app/SectionTitle.tsx` |
 | 设置页顶栏、分类、通用/翻译/其它分区 | `src/options/App.tsx` |
 | 引擎槽位与就绪状态 | `src/options/EnginesSection.tsx` |
@@ -323,7 +327,7 @@ Shadow DOM 的限制：页面里的 `:root` 变量不会自动带进来，所以
 7. 340px 弹窗内无横向溢出、无按钮文字竖排、结果卡可滚动。
 8. 图标全部内联 SVG（`stroke-width: 1.7`），没有 emoji 混排。
 9. 新颜色进变量，两处主题文件同步。
-10. 设置页六个分类逐一点开（浅色与深色各一遍）：顶栏徽标数与不可用槽位数一致；不可用槽位点「去配置」能落到对应服务；服务详情能返回列表；删掉一个 AI 服务后引擎下拉不再出现它；「词典」里切换服务后，不支持的展示项变灰。
+10. 设置页六个分类逐一点开（浅色与深色各一遍）：顶栏徽标数与不可用槽位数一致；翻译面板多选勾两个引擎后弹窗并列两张结果卡、部分不可用时显示「部分不可用」；不可用槽位点「去配置」能落到对应服务；服务详情能返回列表；删掉一个 AI 服务后引擎下拉不再出现它；「词典」里切换服务后，不支持的展示项变灰。
 11. 划词气泡的译文区有品牌淡色底、与头部/底栏分层，浅色与深色各看一次；加载骨架在同色底上仍可见；错误态不铺底。
 12. `pnpm check` 全绿。
 

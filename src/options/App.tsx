@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { Settings } from '../storage/settings'
-import { DEFAULT_SETTINGS, defaultServices, loadSettings, saveSettings } from '../storage/settings'
+import { DEFAULT_SETTINGS, loadSettings, normalizeSettings, saveSettings } from '../storage/settings'
 import { engineReadiness, listEngines } from '../core/providers/registry'
 import { LANGUAGES, SMART_TARGET_LANG, TARGET_LANGUAGES } from '../core/lang'
 import { clearCache } from '../core/cache'
@@ -36,8 +36,9 @@ function slotsBadge(settings: Settings): number {
     if (!engineId) return onlyAi && !aiReady ? 1 : 0
     return engineReadiness(settings, engineId).ready ? 0 : 1
   }
+  const translateReady = settings.translateEngines.some((id) => engineReadiness(settings, id).ready)
   return (
-    unready(settings.translateEngine, false) +
+    (translateReady ? 0 : 1) +
     unready(settings.pageEngine, false) +
     unready(settings.checkEngine, true) +
     unready(settings.polishEngine, true)
@@ -107,7 +108,7 @@ export default function App() {
 
   const handleReset = async () => {
     if (!window.confirm('恢复默认设置？服务密钥与 AI 服务配置都会被清除。')) return
-    const next = { ...DEFAULT_SETTINGS, services: defaultServices() }
+    const next = normalizeSettings(DEFAULT_SETTINGS)
     await saveSettings(next)
     setSettings(next)
     setNotice('已恢复默认设置')

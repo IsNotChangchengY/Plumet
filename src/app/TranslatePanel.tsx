@@ -8,9 +8,11 @@ import { splitSegments } from '../core/text'
 import type { Settings } from '../storage/settings'
 import { saveCard } from '../storage/learning'
 import { useJob } from './useJob'
+import type { EngineRun } from './useJob'
 import { openOptions } from '../ui/nav'
 import { CheckView } from './CheckView'
 import { DictCard } from './DictCard'
+import { EnginePicker } from './EnginePicker'
 import { LangBar } from './LangBar'
 import { PolishView } from './PolishView'
 
@@ -26,6 +28,10 @@ type Props = {
   external: ExternalResult
 }
 
+function seconds(ms: number): string {
+  return `${Math.max(1, Math.round(ms / 100) / 10)}s`
+}
+
 export function TranslatePanel({ settings, onPatch, external }: Props) {
   const job = useJob()
   const inputRef = useRef<HTMLTextAreaElement>(null)
@@ -36,11 +42,9 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
   const [chips, setChips] = useState<string[]>(() => settings.polishChips)
   const [direction, setDirection] = useState(() => settings.polishDirection)
   const [saved, setSaved] = useState(false)
-  const [copied, setCopied] = useState(false)
+  const [copiedKey, setCopiedKey] = useState<string | null>(null)
   const copyTimer = useRef(0)
   const engines = useMemo(() => listEngines(settings), [settings])
-  const readyEngines = useMemo(() => engines.filter((engine) => engine.ready), [engines])
-  const currentEngine = engines.find((engine) => engine.id === settings.translateEngine)
   const state = job.state
   const running = state.status === 'running'
 
@@ -54,7 +58,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
     setSubmitted(external.source)
     setManual(external)
     setSaved(false)
-    setCopied(false)
+    setCopiedKey(null)
     job.reset()
   }, [external])
 
@@ -68,13 +72,19 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
     void onPatch({ polishChips: next, polishDirection: direction })
   }
 
+  const engineRuns = (): { id: string; label: string }[] =>
+    settings.translateEngines.map((id) => {
+      const engine = engines.find((item) => item.id === id)
+      return { id, label: engine ? engine.label : `${id}（已删除）` }
+    })
+
   const startTranslate = () => {
     const segments = splitSegments(text)
     if (segments.length === 0) return
     setManual(null)
     setSubmitted(text)
     setSaved(false)
-    setCopied(false)
+    setCopiedKey(null)
     setRunSeq((value) => value + 1)
     const query = dictionaryQueryFor(settings.dictionary, text)
     if (query) {
@@ -91,6 +101,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
       segments,
       sourceLang: settings.sourceLang,
       targetLang: resolveTargetLang(settings.targetLang, text),
+      engines: engineRuns(),
     })
   }
 
@@ -98,7 +109,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
     if (!text.trim()) return
     setManual(null)
     setSubmitted(text)
-    setCopied(false)
+    setCopiedKey(null)
     setRunSeq((value) => value + 1)
     job.run({ kind: 'check', text })
   }
@@ -107,20 +118,20 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
     if (!text.trim()) return
     setManual(null)
     setSubmitted(text.trim())
-    setCopied(false)
+    setCopiedKey(null)
     setRunSeq((value) => value + 1)
     void onPatch({ polishChips: chips, polishDirection: direction })
     job.run({ kind: 'polish', text: text.trim(), instruction: buildPolishInstruction(chips, direction) })
   }
 
-  const copyText = (value: string) => {
+  const copyText = (value: string, key: string) => {
     if (!value) return
     void navigator.clipboard
       .writeText(value)
       .then(() => {
         window.clearTimeout(copyTimer.current)
-        setCopied(true)
-        copyTimer.current = window.setTimeout(() => setCopied(false), 1500)
+        setCopiedKey(key)
+        copyTimer.current = window.setTimeout(() => setCopiedKey(null), 1500)
       })
       .catch(() => undefined)
   }
@@ -130,7 +141,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
     setManual(null)
     setSubmitted('')
     setSaved(false)
-    setCopied(false)
+    setCopiedKey(null)
     job.reset()
   }
 
@@ -140,21 +151,20 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
 
   const dictEntry = state.status === 'done' && state.kind === 'dict' ? state.result.entry : null
   const dictText = dictEntry ? entryText(dictEntry) : ''
+  const finishedParts = state.status === 'done' && state.kind === 'translate' ? state.parts : []
+  const primaryPart = finishedParts.find((part) => part.result) ?? null
 
   const translateText =
     dictText ||
-    (state.status === 'done' && state.kind === 'translate'
-      ? state.text
-      : state.status === 'idle' && manual
-        ? manual.result
-        : '')
+    primaryPart?.text ||
+    (state.status === 'idle' && manual ? manual.result : '')
 
   const saveSource =
     translateText === ''
       ? ''
       : dictEntry
         ? submitted
-        : state.status === 'done' && state.kind === 'translate'
+        : primaryPart
           ? submitted
           : (manual?.source ?? '')
 
@@ -175,6 +185,45 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
       ? `已检查 ${Math.min(state.progress.done, state.progress.total)}/${state.progress.total} 段`
       : ''
 
+  const renderParts = (parts: EngineRun[], active: boolean) => {
+    if (parts.length <= 1) return <pre className="result-text">{parts[0]?.text ?? ''}</pre>
+    return (
+      <div className="engine-results">
+        {parts.map((part) => (
+          <section className="engine-result" key={part.engineId || part.label}>
+            <div className="engine-result-head">
+              <span className={`dot ${part.error ? 'error' : part.done ? 'done' : 'running'}`} />
+              <span className="engine-result-name" title={part.label}>
+                {part.label}
+              </span>
+              {part.text ? (
+                <button
+                  type="button"
+                  className="btn ghost xs"
+                  onClick={() => copyText(part.text, part.engineId)}
+                >
+                  {copiedKey === part.engineId ? '已复制' : '复制'}
+                </button>
+              ) : null}
+            </div>
+            {part.result ? (
+              <div className="engine-result-meta">
+                <span className="tag">{seconds(part.result.elapsedMs)}</span>
+                {part.result.cached ? <span className="tag ok">缓存命中</span> : null}
+                {part.result.notice ? <span className="tag">{part.result.notice}</span> : null}
+              </div>
+            ) : null}
+            {part.error ? (
+              <div className="banner error">{part.error.message}</div>
+            ) : (
+              <pre className="result-text">{part.text || (active ? '翻译中…' : '')}</pre>
+            )}
+          </section>
+        ))}
+      </div>
+    )
+  }
+
   return (
     <div className="stack">
       <div className="setbar">
@@ -186,27 +235,14 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
           onSwap={swap}
         />
 
-        <label className="sb-engine">
+        <div className="sb-engine">
           <span className="sb-elabel">引擎</span>
-          <select
-            className="sb-eval"
-            value={settings.translateEngine}
-            onChange={(event) => void onPatch({ translateEngine: event.target.value })}
-            aria-label="翻译引擎"
-          >
-            {settings.translateEngine && !currentEngine ? (
-              <option value={settings.translateEngine}>{settings.translateEngine}（已删除）</option>
-            ) : null}
-            {currentEngine && !currentEngine.ready ? (
-              <option value={currentEngine.id}>{currentEngine.label}（未配置）</option>
-            ) : null}
-            {readyEngines.map((engine) => (
-              <option key={engine.id} value={engine.id}>
-                {engine.label}
-              </option>
-            ))}
-          </select>
-        </label>
+          <EnginePicker
+            engines={engines}
+            selected={settings.translateEngines}
+            onChange={(ids) => void onPatch({ translateEngines: ids })}
+          />
+        </div>
       </div>
 
       <div className="composer">
@@ -286,7 +322,9 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
                 <span className="dot running" />
                 <span>
                   {state.kind === 'translate'
-                    ? '正在翻译…'
+                    ? state.parts.length > 1
+                      ? `正在用 ${state.parts.length} 个引擎翻译…`
+                      : '正在翻译…'
                     : state.kind === 'dict'
                       ? '正在查词…'
                       : state.kind === 'check'
@@ -297,13 +335,24 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
               </>
             ) : null}
 
-            {state.status === 'done' && state.kind === 'translate' ? (
+            {state.status === 'done' && state.kind === 'translate' && state.parts.length === 1 && primaryPart ? (
               <>
                 <span className="dot done" />
-                <span>{state.result.engineLabel}</span>
-                <span className="tag">{Math.max(1, Math.round(state.result.elapsedMs / 100) / 10)}s</span>
-                {state.result.cached ? <span className="tag ok">缓存命中</span> : null}
-                {state.result.notice ? <span className="tag">{state.result.notice}</span> : null}
+                <span>{primaryPart.result?.engineLabel}</span>
+                {primaryPart.result ? <span className="tag">{seconds(primaryPart.result.elapsedMs)}</span> : null}
+                {primaryPart.result?.cached ? <span className="tag ok">缓存命中</span> : null}
+                {primaryPart.result?.notice ? <span className="tag">{primaryPart.result.notice}</span> : null}
+              </>
+            ) : null}
+
+            {state.status === 'done' && state.kind === 'translate' && state.parts.length > 1 ? (
+              <>
+                <span className="dot done" />
+                <span>已用 {state.parts.length} 个引擎翻译</span>
+                <span className="tag ok">{state.parts.filter((part) => part.result).length} 个成功</span>
+                {state.parts.some((part) => part.error) ? (
+                  <span className="tag error">{state.parts.filter((part) => part.error).length} 个失败</span>
+                ) : null}
               </>
             ) : null}
 
@@ -312,7 +361,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
                 <span className="dot done" />
                 <span>{state.result.engineLabel}</span>
                 <span className="tag brand">词典</span>
-                <span className="tag">{Math.max(1, Math.round(state.result.elapsedMs / 100) / 10)}s</span>
+                <span className="tag">{seconds(state.result.elapsedMs)}</span>
                 {state.result.cached ? <span className="tag ok">缓存命中</span> : null}
               </>
             ) : null}
@@ -344,7 +393,11 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
           ) : null}
 
           {state.status === 'running' && state.kind !== 'check' && (state.kind !== 'dict' || state.text !== '') ? (
-            <pre className="result-text">{state.text}</pre>
+            state.kind === 'translate' ? (
+              renderParts(state.parts, true)
+            ) : (
+              <pre className="result-text">{state.text}</pre>
+            )
           ) : null}
 
           {state.status === 'error' ? <div className="banner error">{state.message}</div> : null}
@@ -363,9 +416,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
             />
           ) : null}
 
-          {state.status === 'done' && state.kind === 'translate' ? (
-            <pre className="result-text">{state.text}</pre>
-          ) : null}
+          {state.status === 'done' && state.kind === 'translate' ? renderParts(state.parts, false) : null}
 
           {state.status === 'done' && state.kind === 'dict' ? (
             <DictCard entry={state.result.entry} sections={settings.dictionary.sections} />
@@ -400,14 +451,18 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
                   className="btn ghost small"
                   onClick={() => void saveTranslation()}
                   disabled={saved}
-                  title="收进生词本，之后在生词本页面复习"
+                  title={
+                    state.status === 'done' && state.kind === 'translate' && state.parts.length > 1
+                      ? '收藏第一个成功的译文，之后在生词本页面复习'
+                      : '收进生词本，之后在生词本页面复习'
+                  }
                 >
                   {saved ? '已收藏' : '收藏'}
                 </button>
               ) : null}
               {translateText ? (
-                <button type="button" className="btn ghost small" onClick={() => copyText(translateText)}>
-                  {copied ? '已复制' : '复制'}
+                <button type="button" className="btn ghost small" onClick={() => copyText(translateText, 'primary')}>
+                  {copiedKey === 'primary' ? '已复制' : '复制'}
                 </button>
               ) : null}
               <button type="button" className="btn ghost small" onClick={clear}>

@@ -97,6 +97,34 @@ describe('查词任务', () => {
     expect(urls.some((url) => url.includes('clients5.google.com'))).toBe(true)
   })
 
+  it('勾选多个翻译引擎时，查词回退仍只走主引擎', async () => {
+    await saveSettings({
+      ...DEFAULT_SETTINGS,
+      services: defaultServices(),
+      translateEngines: ['mt:google-free', 'mt:mymemory'],
+    })
+    const urls: string[] = []
+    vi.stubGlobal('fetch', async (url: string) => {
+      urls.push(url)
+      if (url.includes('dict.youdao.com')) {
+        return new Response(JSON.stringify({ input: 'zzznomulti', meta: { isHasSimpleDict: '0' } }), { status: 200 })
+      }
+      return googleResponse()
+    })
+    const events: JobEvent[] = []
+    handleJobMessage(fakePort(events), {
+      kind: 'dict',
+      requestId: 'dict-5',
+      word: 'zzznomulti',
+      sourceLang: 'en',
+      targetLang: 'zh-CN',
+    })
+    const event = await waitForEvent(events)
+    expect(event.kind).toBe('done')
+    expect(urls.filter((url) => url.includes('clients5.google.com'))).toHaveLength(1)
+    expect(urls.some((url) => url.includes('mymemory'))).toBe(false)
+  })
+
   it('英英词典遇到中文词直接走翻译，不显示词典提示', async () => {
     await saveSettings({
       ...DEFAULT_SETTINGS,
