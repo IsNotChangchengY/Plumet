@@ -46,26 +46,31 @@ describe('looksLikeWord', () => {
 describe('buildContextWindow', () => {
   const block = 'The quick brown fox jumps over the lazy dog. It was a sunny day in the park.'
 
-  it('围绕选区截取前后 N 个字符', () => {
+  it('围绕选区截取前后 N 个字符，被截断的一侧标省略号', () => {
     const context = buildContextWindow(block, 'lazy dog', 10)
     expect(context).toContain('lazy dog')
-    expect(context.startsWith(' over')).toBe(true)
+    expect(context.startsWith('…')).toBe(true)
+    expect(context.endsWith('…')).toBe(true)
     expect(context.length).toBeLessThan(block.length)
   })
 
   it('选区出现在开头时不越界', () => {
     const context = buildContextWindow(block, 'The quick', 10)
     expect(context.startsWith('The quick')).toBe(true)
+    expect(context.startsWith('…')).toBe(false)
   })
 
-  it('原文里找不到选区时退回开头', () => {
-    const context = buildContextWindow(block, 'not here', 5)
-    expect(context.length).toBeLessThanOrEqual(10)
-    expect(context.startsWith('The quick')).toBe(true)
+  it('选区在块里找不到时返回空串，不编造上下文', () => {
+    expect(buildContextWindow(block, 'not here', 5)).toBe('')
   })
 
-  it('上下文长度为 0 时只返回选区本身', () => {
-    expect(buildContextWindow(block, 'lazy dog', 0)).toBe('lazy dog')
+  it('上下文长度为 0 时不带段落窗口', () => {
+    expect(buildContextWindow(block, 'lazy dog', 0)).toBe('')
+  })
+
+  it('选区大小写与原文不一致时仍能定位', () => {
+    const context = buildContextWindow(block, 'LAZY DOG', 10)
+    expect(context).toContain('lazy dog')
   })
 
   it('空原文返回空串', () => {
@@ -76,17 +81,24 @@ describe('buildContextWindow', () => {
 describe('composeContext', () => {
   it('把标题、网站与段落窗口拼起来', () => {
     const context = composeContext({ title: 'Example', host: 'example.com', window: 'lazy dog 附近的一段' })
-    expect(context).toBe('页面标题：Example\n网站：example.com\nlazy dog 附近的一段')
+    expect(context).toBe('页面标题：Example\n网站：example.com\n段落上下文：lazy dog 附近的一段')
   })
 
   it('缺项时跳过对应行', () => {
-    expect(composeContext({ window: 'only window' })).toBe('only window')
+    expect(composeContext({ window: 'only window' })).toBe('段落上下文：only window')
     expect(composeContext({})).toBe('')
   })
 
-  it('超长时截断', () => {
+  it('输入框来源的窗口不加段落标签', () => {
+    expect(composeContext({ title: 'Example', window: '输入框：搜索', windowLabel: '' })).toBe(
+      '页面标题：Example\n输入框：搜索',
+    )
+  })
+
+  it('超长时截断并标出省略号', () => {
     const context = composeContext({ window: 'x'.repeat(5000), maxLength: 100 })
     expect(context.length).toBe(100)
+    expect(context.endsWith('…')).toBe(true)
   })
 })
 

@@ -1,4 +1,4 @@
-import type { Settings } from '../storage/settings'
+import type { ContextScope, Settings } from '../storage/settings'
 import { SETTINGS_KEY, loadSettings } from '../storage/settings'
 import { saveCard } from '../storage/learning'
 import type { DictionaryEntry } from '../core/dictionary/types'
@@ -9,9 +9,10 @@ import { dictionaryQueryFor } from '../core/dictionary/query'
 import { resolveTargetLang } from '../core/lang'
 import type { Bubble, BubbleAnchor } from './bubble'
 import { createBubble } from './bubble'
-import { DEFAULT_CONTEXT_CHARS, clampIconPosition, looksLikeWord } from './context'
+import { DEFAULT_CONTEXT_CHARS, MAX_SELECTION_CHARS, clampIconPosition, looksLikeWord } from './context'
+import { buildStructuredContext } from './structure'
 import type { SelectionHit, SelectionProbe } from './selection-hit'
-import { endPointOf, readSelection, rectOf } from './selection-hit'
+import { endPointOf, pageContext, readSelection, rectOf } from './selection-hit'
 import { requestSelectionTranslation, requestWordLookup } from './translate-client'
 import { applyHostTheme, CONTENT_THEME_CSS } from './theme'
 import { isYuyiNode, isYuyiPath, markUiHost } from './ui-mark'
@@ -81,11 +82,16 @@ function contextChars(): number {
   return settings?.selectionContextChars ?? DEFAULT_CONTEXT_CHARS
 }
 
+function contextScope(): ContextScope {
+  return settings?.selectionContextScope ?? 'section'
+}
+
 function probeFrom(event?: Event): SelectionProbe {
   const source = event as MouseEvent | undefined
   if (event) rememberRoots(shadowRootsOf(event))
   return {
     contextChars: contextChars(),
+    scope: contextScope(),
     point: source && typeof source.clientX === 'number' ? { x: source.clientX, y: source.clientY } : undefined,
     path: event?.composedPath(),
     roots: recentRoots.slice(),
@@ -195,6 +201,9 @@ function ensureBubble(): Bubble {
       bubble?.render({ status: 'loading' })
       startTranslation(current)
     },
+    onMoreContext: () => {
+      expandContext()
+    },
     onClose: () => {
       closeBubble()
     },
@@ -244,6 +253,7 @@ function startTranslation(hit: SelectionHit): void {
   const targetLang = resolveTargetLang(settings.targetLang, hit.text)
   lastTargetLang = targetLang
   const query = dictionaryQueryFor(settings.dictionary, hit.text)
+  const expandable = !word && !query && hit.scope !== 'page' && hit.block !== null && hit.text.length <= MAX_SELECTION_CHARS
   if (query) {
     const dictionary = settings.dictionary
     bubble?.render({ status: 'loading', label: '正在查词' })
@@ -280,6 +290,9 @@ function startTranslation(hit: SelectionHit): void {
             engineLabel: result.engineLabel,
             elapsedMs: result.elapsedMs,
             word,
+            expandable,
+            context: hit.context,
+            cached: result.cached,
           })
         },
         onError(message) {
@@ -313,6 +326,9 @@ function startTranslation(hit: SelectionHit): void {
           engineLabel: result.engineLabel,
           elapsedMs: result.elapsedMs,
           word,
+          expandable,
+          context: hit.context,
+          cached: result.cached,
         })
       },
       onError(message) {
@@ -321,6 +337,29 @@ function startTranslation(hit: SelectionHit): void {
       },
     },
   )
+}
+
+function expandContext(): void {
+  if (!current) return
+  cancelRequest?.()
+  cancelRequest = null
+  const page = pageContext()
+  const expanded: SelectionHit = {
+    ...current,
+    scope: 'page',
+    context: buildStructuredContext({
+      block: current.block,
+      selection: current.text,
+      title: page.title,
+      host: page.host,
+      contextChars: contextChars(),
+      scope: 'page',
+      range: current.range,
+    }),
+  }
+  current = expanded
+  bubble?.render({ status: 'loading', label: '正在带上整页结构重译' })
+  startTranslation(expanded)
 }
 
 async function openBubble(hit: SelectionHit): Promise<void> {
@@ -458,7 +497,7 @@ function onViewportChange(): void {
 }
 
 export function translateCurrentSelection(): boolean {
-  const hit = readSelection({ contextChars: contextChars() })
+  const hit = readSelection({ contextChars: contextChars(), scope: contextScope() })
   if (!hit) return false
   void openBubble(hit)
   return true

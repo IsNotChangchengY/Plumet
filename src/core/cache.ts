@@ -2,7 +2,21 @@ import { readLocal, writeLocal } from '../storage/local'
 
 const STORAGE_KEY = 'cache.v1'
 const TTL_MS = 7 * 24 * 60 * 60 * 1000
-const MEMORY_LIMIT = 300
+export const CACHE_LIMIT = 1000
+
+const ZERO_WIDTH = /[\u200b-\u200d\u2060\ufeff]/g
+const WIDE_SPACES = /[\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]/g
+
+function canonicalSegment(text: string): string {
+  return text
+    .normalize('NFC')
+    .replace(ZERO_WIDTH, '')
+    .replace(WIDE_SPACES, ' ')
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t\f\v]+/g, ' ')
+    .replace(/[ \t]+\n/g, '\n')
+    .trim()
+}
 
 export type CacheEntry = {
   text: string
@@ -39,13 +53,15 @@ export function makeCacheKey(input: {
   targetLang: string
   segments: string[]
   context?: string
+  revision?: string
 }): string {
   return hashKey([
     input.engineId,
+    input.revision ?? '',
     input.sourceLang,
     input.targetLang,
     input.context ?? '',
-    input.segments.join('\u0000'),
+    input.segments.map(canonicalSegment).join('\u0000'),
   ])
 }
 
@@ -73,13 +89,16 @@ export async function getCached(key: string): Promise<CacheEntry | null> {
     scheduleFlush()
     return null
   }
+  map.delete(key)
+  map.set(key, entry)
   return entry
 }
 
 export async function setCached(key: string, text: string, engineLabel: string): Promise<void> {
   const map = await ensureLoaded()
+  map.delete(key)
   map.set(key, { text, at: Date.now(), engineLabel })
-  while (map.size > MEMORY_LIMIT) {
+  while (map.size > CACHE_LIMIT) {
     const oldest = map.keys().next()
     if (oldest.done) break
     map.delete(oldest.value)

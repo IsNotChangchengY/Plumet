@@ -1,8 +1,15 @@
 import { isAbortError, toAppError } from './errors'
 import { getCached, makeCacheKey, setCached } from './cache'
 import { resolveEngine } from './providers/registry'
+import { PROMPT_VERSION } from './providers/ai/prompts'
 import type { TranslateRequest } from './providers/types'
 import type { Settings } from '../storage/settings'
+
+function engineRevision(engineId: string, settings: Settings): string {
+  if (!engineId.startsWith('ai:')) return '2'
+  const provider = settings.aiProviders.find((item) => `ai:${item.id}` === engineId)
+  return `${PROMPT_VERSION}:${provider?.model ?? ''}`
+}
 
 export type EngineResult = {
   segments: string[]
@@ -24,7 +31,8 @@ export async function translateText(
     sourceLang: input.sourceLang,
     targetLang: input.targetLang,
     segments: input.segments,
-    context: input.context,
+    context: engineId.startsWith('ai:') ? input.context : undefined,
+    revision: engineRevision(engineId, settings),
   })
   const cached = await getCached(key)
   if (cached) {

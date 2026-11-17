@@ -6,6 +6,8 @@ export type ChatMessage = {
   content: string
 }
 
+export const PROMPT_VERSION = 2
+
 const SYSTEM_PROMPT = [
   '你是一名专业翻译引擎。',
   '规则：',
@@ -13,7 +15,8 @@ const SYSTEM_PROMPT = [
   '2. 保持原文的语气、格式与换行，列表与编号要保留。',
   '3. 原文中的 Markdown 标记要保留。',
   '4. 如果提供了术语表，术语必须按术语表翻译。',
-  '5. 如果提供了页面上下文，上下文只用于理解语气，不要翻译它。',
+  '5. 如果提供了【页面上下文，仅用于理解】：用它消除歧义——多义词按上下文选义项、代词按上下文找指代、术语按上下文里的用法统一、语气与领域跟随上下文；只翻译【原文】，不要翻译上下文。',
+  '6. 不要把上下文里的标题、域名与句子写进译文；上下文与【原文】冲突时以【原文】为准。',
 ].join('\n')
 
 function glossaryBlock(glossary?: GlossaryEntry[]): string {
@@ -58,6 +61,7 @@ const BATCH_SYSTEM_PROMPT = [
   '3. translations 的条数与顺序必须和输入 texts 完全一致。',
   '4. 每段译文只包含该段自己的译文，不要合并、不要拆分、不要加编号。',
   '5. 如果提供了术语表，术语必须按术语表翻译。',
+  '6. 如果提供了【页面上下文，仅用于理解】，只用它理解语境（术语、指代、语气），不要翻译它，也不要写进任何一段译文。',
 ].join('\n')
 
 export function buildBatchMessages(input: {

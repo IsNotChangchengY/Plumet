@@ -1,10 +1,6 @@
-import {
-  MAX_SELECTION_CHARS,
-  buildContextWindow,
-  composeContext,
-  isBlockElement,
-  normalizeSelectionText,
-} from './context'
+import type { ContextScope } from '../storage/settings'
+import { isBlockElement, normalizeSelectionText } from './context'
+import { buildStructuredContext } from './structure'
 import { isYuyiNode } from './ui-mark'
 
 export type SelectionRect = { top: number; bottom: number; left: number; right: number }
@@ -15,11 +11,14 @@ export type SelectionHit = {
   rect: SelectionRect | null
   range: Range | null
   element: HTMLInputElement | HTMLTextAreaElement | null
+  block: Element | null
+  scope: ContextScope
   point?: { x: number; y: number }
 }
 
 export type SelectionProbe = {
   contextChars: number
+  scope?: ContextScope
   point?: { x: number; y: number }
   path?: EventTarget[]
   roots?: ShadowRoot[]
@@ -43,6 +42,8 @@ export function toRect(rect: { top: number; bottom: number; left: number; right:
 export function readSelection(probe: SelectionProbe): SelectionHit | null {
   const selection = window.getSelection()
   const roots = probe.roots ?? []
+  const scope = probe.scope ?? 'section'
+  const page = pageContext()
   const readers: Array<() => RawHit | null> = [
     () => readTextControl(probe.path),
     () => readRange(selection),
@@ -52,20 +53,25 @@ export function readSelection(probe: SelectionProbe): SelectionHit | null {
     const raw = read()
     if (!raw) continue
     const text = normalizeSelectionText(raw.text)
-    if (!text || text.length > MAX_SELECTION_CHARS) continue
-    const blockText = raw.element ? '' : pickBlockText(raw.range, probe.contextChars)
-    const windowText = blockText ? buildContextWindow(blockText, text, probe.contextChars) : ''
+    if (!text) continue
+    const block = raw.element ? null : pickBlock(raw.range, probe.contextChars)
     return {
       text,
-      context: composeContext({
-        title: document.title,
-        host: location.hostname,
-        window: windowText || raw.extraContext || '',
-        maxLength: 2000,
+      context: buildStructuredContext({
+        block,
+        extra: raw.extraContext,
+        selection: text,
+        title: page.title,
+        host: page.host,
+        contextChars: probe.contextChars,
+        scope,
+        range: raw.range,
       }),
       rect: raw.rect,
       range: raw.range,
       element: raw.element,
+      block,
+      scope,
       point: probe.point,
     }
   }
@@ -76,15 +82,56 @@ function readShadowText(selection: Selection | null, roots: ShadowRoot[], probe:
   if (!selection || roots.length === 0) return null
   if (!touchesRoots(selection, roots)) return null
   const text = normalizeSelectionText(selection.toString())
-  if (!text || text.length > MAX_SELECTION_CHARS) return null
+  if (!text) return null
+  const scope = probe.scope ?? 'section'
+  const page = pageContext()
+  const block = touchedRoot(selection, roots)?.host ?? null
   return {
     text,
-    context: composeContext({ title: document.title, host: location.hostname, maxLength: 2000 }),
+    context: buildStructuredContext({
+      block,
+      selection: text,
+      title: page.title,
+      host: page.host,
+      contextChars: probe.contextChars,
+      scope,
+    }),
     rect: null,
     range: null,
     element: null,
+    block,
+    scope,
     point: probe.point,
   }
+}
+
+function touchedRoot(selection: Selection, roots: ShadowRoot[]): ShadowRoot | null {
+  if (typeof selection.getComposedRanges !== 'function') return null
+  try {
+    for (const range of selection.getComposedRanges({ shadowRoots: roots })) {
+      const start = range.startContainer.getRootNode()
+      if (start instanceof ShadowRoot && roots.includes(start)) return start
+      const end = range.endContainer.getRootNode()
+      if (end instanceof ShadowRoot && roots.includes(end)) return end
+    }
+  } catch {
+    return null
+  }
+  return null
+}
+
+export function pageContext(): { title: string; host: string } {
+  try {
+    const top = window.top
+    if (top && top !== window) {
+      const title = top.document.title.trim()
+      const host = top.location.hostname
+      if (title || host) return { title: title || document.title, host: host || location.hostname }
+    }
+  } catch {
+    return { title: document.title, host: location.hostname }
+  }
+  return { title: document.title, host: location.hostname }
 }
 
 function touchesRoots(selection: Selection, roots: ShadowRoot[]): boolean {
@@ -133,7 +180,7 @@ function readTextControl(path?: EventTarget[]): RawHit | null {
   if (start === null || end === null || end <= start) return null
   const text = element.value.slice(start, end)
   if (!text.trim()) return null
-  const label = element.getAttribute('aria-label') || element.getAttribute('placeholder') || ''
+  const label = controlLabel(element)
   return {
     text,
     range: null,
@@ -141,6 +188,35 @@ function readTextControl(path?: EventTarget[]): RawHit | null {
     rect: toRect(element.getBoundingClientRect()),
     extraContext: label ? `输入框：${label}` : '',
   }
+}
+
+function controlLabel(element: HTMLInputElement | HTMLTextAreaElement): string {
+  const labelledBy = element.getAttribute('aria-labelledby')
+  if (labelledBy) {
+    const text = labelledBy
+      .split(/\s+/)
+      .map((id) => element.ownerDocument.getElementById(id)?.textContent?.trim() ?? '')
+      .filter(Boolean)
+      .join(' ')
+    if (text) return text
+  }
+  const aria = element.getAttribute('aria-label')
+  if (aria?.trim()) return aria.trim()
+  const id = element.id
+  if (id) {
+    for (const label of Array.from(element.ownerDocument.querySelectorAll('label'))) {
+      if ((label as HTMLLabelElement).htmlFor !== id) continue
+      const text = label.textContent?.trim()
+      if (text) return text
+    }
+  }
+  const wrapping = element.closest('label')?.textContent?.trim()
+  if (wrapping) return wrapping
+  const placeholder = element.getAttribute('placeholder')
+  if (placeholder?.trim()) return placeholder.trim()
+  const legend = element.closest('fieldset')?.querySelector('legend')?.textContent?.trim()
+  if (legend) return legend
+  return ''
 }
 
 function readRange(selection: Selection | null): RawHit | null {
@@ -227,17 +303,17 @@ function shadowRootFromSelection(selection: Selection): ShadowRoot | null {
   return root instanceof ShadowRoot ? root : null
 }
 
-function pickBlockText(range: Range | null, maxChars: number): string {
-  if (!range) return ''
+function pickBlock(range: Range | null, maxChars: number): Element | null {
+  if (!range) return null
   let node: Node | null = range.startContainer
-  let best = ''
+  let best: Element | null = null
   while (node && node !== document.body) {
     if (node.nodeType === 1) {
       const element = node as Element
       if (isBlockElement(element)) {
-        const text = ((element as HTMLElement).innerText || element.textContent || '').trim()
+        const text = (element.textContent ?? '').trim()
         if (text) {
-          best = text
+          best = element
           if (text.length >= maxChars * 2) break
         }
       }
@@ -249,6 +325,5 @@ function pickBlockText(range: Range | null, maxChars: number): string {
     }
     node = node.parentNode
   }
-  if (best) return best
-  return document.body ? (document.body.innerText || '').slice(0, maxChars * 2) : ''
+  return best
 }

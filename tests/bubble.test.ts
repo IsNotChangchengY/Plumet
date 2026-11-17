@@ -24,6 +24,7 @@ const handlers = {
   },
   onSave: () => calls.push('save'),
   onRetry: () => calls.push('retry'),
+  onMoreContext: () => calls.push('more'),
   onClose: () => calls.push('close'),
 }
 
@@ -83,6 +84,71 @@ describe('selection bubble', () => {
     expect(buttonOf(view, 'save').hidden).toBe(false)
     expect(rootOf(view).querySelectorAll('.close').length).toBe(1)
     expect(rootOf(view).querySelector('[data-action="close"]')).toBe(null)
+  })
+
+  it('完成态可按需带上更多上下文重译', () => {
+    const view = mount()
+    view.showAt({ top: 200, bottom: 220, left: 100 })
+    view.render({
+      status: 'done',
+      text: '已推迟发布。',
+      engineLabel: 'DeepSeek',
+      elapsedMs: 1400,
+      word: false,
+      expandable: true,
+    })
+    expect(buttonOf(view, 'more').hidden).toBe(false)
+    buttonOf(view, 'more').click()
+    expect(calls).toEqual(['more'])
+    view.render({ status: 'done', text: '已推迟发布。', engineLabel: 'DeepSeek', elapsedMs: 1400, word: false })
+    expect(buttonOf(view, 'more').hidden).toBe(true)
+    view.render({ status: 'loading' })
+    expect(buttonOf(view, 'more').hidden).toBe(true)
+  })
+
+  it('完成态标出缓存命中，并可展开本次实际发出的语境', () => {
+    const view = mount()
+    view.showAt({ top: 200, bottom: 220, left: 100 })
+    const context = '页面标题：Example\n章节：Guide › Setup\n上文：Alpha one.'
+    view.render({
+      status: 'done',
+      text: '已推迟发布。',
+      engineLabel: 'DeepSeek',
+      elapsedMs: 1400,
+      word: false,
+      cached: true,
+      context,
+    })
+    const meta = partOf<HTMLElement>(view, '.meta')
+    expect(meta.textContent).toContain('DeepSeek · 1.4s')
+    expect(meta.textContent).toContain('缓存')
+    const ctx = partOf<HTMLElement>(view, '.ctx')
+    expect(ctx.hidden).toBe(true)
+    meta.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(ctx.hidden).toBe(false)
+    expect(partOf<HTMLElement>(view, '.ctx-text').textContent).toBe(context)
+    expect(meta.getAttribute('aria-expanded')).toBe('true')
+    meta.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    expect(ctx.hidden).toBe(true)
+    view.render({ status: 'loading' })
+    expect(ctx.hidden).toBe(true)
+    expect(meta.hidden).toBe(true)
+  })
+
+  it('单词卡不显示语境展开入口', () => {
+    const view = mount()
+    view.setSource('ephemeral')
+    view.showAt({ top: 200, bottom: 220, left: 100 })
+    view.render({
+      status: 'done',
+      text: '短暂的',
+      engineLabel: 'DeepSeek',
+      elapsedMs: 900,
+      word: true,
+      context: '页面标题：Example',
+    })
+    expect(partOf<HTMLElement>(view, '.ctx').hidden).toBe(true)
+    expect(partOf<HTMLElement>(view, '.meta').dataset.expandable).toBe('')
   })
 
   it('收藏按钮触发 onSave，收藏后按钮变已收藏并禁用', () => {

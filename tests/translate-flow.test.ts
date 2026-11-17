@@ -198,4 +198,42 @@ describe('多引擎翻译任务', () => {
     expect(results).toHaveLength(2)
     expect(results.every((item) => !item.ok)).toBe(true)
   })
+
+  it('MT 引擎的缓存键忽略上下文，同一句跨上下文复用', async () => {
+    await saveMultiEngineSettings()
+    let calls = 0
+    vi.stubGlobal('fetch', async (input: string) => {
+      const url = String(input)
+      if (url.includes('clients5.google.com')) {
+        calls += 1
+        return googleResponse()
+      }
+      throw new Error(`意外的请求 ${url}`)
+    })
+
+    const first: JobEvent[] = []
+    handleJobMessage(fakePort(first), {
+      kind: 'translate',
+      requestId: 'ctx-1',
+      segments: ['hello'],
+      sourceLang: 'en',
+      targetLang: 'zh-CN',
+      context: '页面标题：甲',
+    })
+    expect((await waitForTerminal(first)).kind).toBe('done')
+
+    const second: JobEvent[] = []
+    handleJobMessage(fakePort(second), {
+      kind: 'translate',
+      requestId: 'ctx-2',
+      segments: ['hello'],
+      sourceLang: 'en',
+      targetLang: 'zh-CN',
+      context: '页面标题：乙',
+    })
+    expect((await waitForTerminal(second)).kind).toBe('done')
+
+    expect(calls).toBe(1)
+    expect(engineResults(second)[0]).toMatchObject({ ok: true, cached: true })
+  })
 })

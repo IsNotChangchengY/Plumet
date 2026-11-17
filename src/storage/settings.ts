@@ -50,6 +50,7 @@ export type DictionarySettings = {
 export type ThemeMode = 'auto' | 'light' | 'dark'
 export type SelectionTrigger = 'icon' | 'shortcut' | 'off'
 export type PageMode = 'bilingual' | 'replace'
+export type ContextScope = 'segment' | 'section' | 'page'
 
 export type Settings = {
   version: 2
@@ -65,6 +66,7 @@ export type Settings = {
   theme: ThemeMode
   selectionTrigger: SelectionTrigger
   selectionContextChars: number
+  selectionContextScope: ContextScope
   pageMode: PageMode
   historyEnabled: boolean
   historyLimit: number
@@ -125,6 +127,7 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'auto',
   selectionTrigger: 'icon',
   selectionContextChars: 600,
+  selectionContextScope: 'section',
   pageMode: 'bilingual',
   historyEnabled: true,
   historyLimit: 200,
@@ -143,6 +146,10 @@ function asBoolean(value: unknown, fallback: boolean): boolean {
 
 function asReasoningEffort(value: unknown): ReasoningEffort {
   return value === 'low' || value === 'medium' || value === 'high' ? value : ''
+}
+
+function asContextScope(value: unknown): ContextScope {
+  return value === 'segment' || value === 'page' ? value : 'section'
 }
 
 function normalizeServices(stored: Record<string, unknown>, legacy: unknown): Record<MtServiceId, MtServiceConfig> {
@@ -219,6 +226,7 @@ export function normalizeSettings(raw: unknown): Settings {
     ...DEFAULT_SETTINGS,
     ...(stored as Partial<Settings>),
     version: 2,
+    selectionContextScope: asContextScope(stored.selectionContextScope),
     translateEngines: normalizeTranslateEngines(stored.translateEngines, stored.translateEngine),
     services: normalizeServices(servicesRaw, stored.mtEnabled),
     dictionary: normalizeDictionary(stored.dictionary),

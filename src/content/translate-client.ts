@@ -14,6 +14,7 @@ export type SelectionTranslation = {
   text: string
   engineLabel: string
   elapsedMs: number
+  cached: boolean
   detectedLang?: string
 }
 
@@ -25,7 +26,7 @@ export type TextHandlers = {
 
 export type WordLookupResult =
   | { kind: 'dictionary'; entry: DictionaryEntry; engineLabel: string; elapsedMs: number; cached: boolean }
-  | { kind: 'translation'; text: string; engineLabel: string; elapsedMs: number; notice: string }
+  | { kind: 'translation'; text: string; engineLabel: string; elapsedMs: number; cached: boolean; notice: string }
 
 export type WordLookupHandlers = {
   onDelta?: (delta: string) => void
@@ -153,6 +154,7 @@ export function requestSelectionTranslation(
           text: result.segments.join('\n\n'),
           engineLabel: result.engineLabel,
           elapsedMs: result.elapsedMs,
+          cached: result.cached,
           detectedLang: result.detectedLang,
         })
       },
@@ -198,6 +200,7 @@ export function requestWordLookup(
         text: event.result.segments.join('\n\n'),
         engineLabel: event.result.engineLabel,
         elapsedMs: event.result.elapsedMs,
+        cached: event.result.cached,
         notice: event.result.notice ?? '',
       })
       finish()

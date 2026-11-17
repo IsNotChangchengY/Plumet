@@ -278,6 +278,21 @@ export default function App() {
                   </select>
                 </label>
                 <label className="field">
+                  <span className="field-label">上下文范围</span>
+                  <select
+                    className="select"
+                    style={{ width: '100%' }}
+                    value={settings.selectionContextScope}
+                    onChange={(event) =>
+                      patch({ selectionContextScope: event.target.value as Settings['selectionContextScope'] })
+                    }
+                  >
+                    <option value="segment">仅所在段落</option>
+                    <option value="section">同节（附标题、相邻段与列表）</option>
+                    <option value="page">整页（再加页面大纲与首段）</option>
+                  </select>
+                </label>
+                <label className="field">
                   <span className="field-label">上下文长度（前后各多少字符）</span>
                   <input
                     className="input"
@@ -294,7 +309,9 @@ export default function App() {
                   />
                 </label>
               </div>
-              <p className="hint">选中文字与所在段落会一起发给引擎。</p>
+              <p className="hint">
+                选中的文字会连同上下文一起发给引擎。同节会附上标题链、相邻段落与列表/表格，整页再加页面大纲与首段；长度设为 0 时只带页面标题与网站；超过 2000 字的选区照常翻译，但只带标题与网站。
+              </p>
             </section>
 
             <section className="card section">

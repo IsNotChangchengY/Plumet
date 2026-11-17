@@ -17,6 +17,9 @@ export type BubbleView =
       word: boolean
       dictionary?: DictionaryEntry
       display?: DictionarySections
+      expandable?: boolean
+      cached?: boolean
+      context?: string
     }
   | { status: 'error'; message: string }
 
@@ -26,6 +29,7 @@ export type BubbleHandlers = {
   onAudio: (url: string, word: string) => void
   onSave: () => void
   onRetry: () => void
+  onMoreContext: () => void
   onClose: () => void
 }
 
@@ -236,12 +240,41 @@ const STYLE = `
   .meta {
     flex: 1;
     min-width: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    font-family: inherit;
     font-size: 10.5px;
     color: var(--text-muted);
     font-variant-numeric: tabular-nums;
+    text-align: left;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    cursor: default;
+  }
+  .meta[hidden] { display: none; }
+  .meta[data-expandable="1"] { cursor: pointer; }
+  .meta[data-expandable="1"]:hover { color: var(--text); }
+  .meta-caret { margin-left: 4px; font-size: 9px; }
+  .ctx {
+    padding: 6px 12px 8px;
+    border-top: 1px dashed color-mix(in srgb, var(--brand) 22%, transparent);
+    background: var(--surface-2);
+  }
+  .ctx[hidden] { display: none; }
+  .ctx-text {
+    margin: 0;
+    max-height: 120px;
+    overflow: auto;
+    font-family: inherit;
+    font-size: 11.5px;
+    line-height: 1.55;
+    color: var(--text-muted);
+    white-space: pre-wrap;
+    word-break: break-word;
+    cursor: text;
+    user-select: text;
   }
   .acts { display: flex; align-items: center; gap: 1px; flex: none; }
   .act {
@@ -352,6 +385,8 @@ const ICON_RETRY =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.4 5.7"/><path d="M20 5.5V11h-5.6"/></svg>'
 const ICON_SAVE =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/></svg>'
+const ICON_MORE =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5"/><path d="M20 9V4h-5"/><path d="M4 15v5h5"/><path d="M20 15v5h-5"/></svg>'
 const ICON_CLOSE =
   '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
 const ICON_ERROR =
@@ -492,12 +527,14 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
     `<button class="close" type="button" aria-label="关闭">${ICON_CLOSE}</button>`,
     '</div>',
     '<div class="body"></div>',
+    '<div class="ctx" hidden><pre class="ctx-text"></pre></div>',
     '<div class="foot">',
-    '<span class="meta"></span>',
+    '<button class="meta" type="button" aria-expanded="false"></button>',
     '<div class="acts">',
     `<button class="act" type="button" data-action="speak" hidden>${ICON_SPEAK}朗读</button>`,
     `<button class="act" type="button" data-action="copy" hidden>${ICON_COPY}复制</button>`,
     `<button class="act" type="button" data-action="save" hidden>${ICON_SAVE}收藏</button>`,
+    `<button class="act" type="button" data-action="more" hidden>${ICON_MORE}扩上下文</button>`,
     `<button class="act" type="button" data-action="retry" hidden>${ICON_RETRY}重试</button>`,
     '</div>',
     '</div>',
@@ -506,11 +543,14 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
 
   const head = panel.querySelector('.head') as HTMLElement
   const body = panel.querySelector('.body') as HTMLElement
+  const ctx = panel.querySelector('.ctx') as HTMLElement
+  const ctxText = panel.querySelector('.ctx-text') as HTMLElement
   const foot = panel.querySelector('.foot') as HTMLElement
-  const meta = panel.querySelector('.meta') as HTMLElement
+  const meta = panel.querySelector('.meta') as HTMLButtonElement
   const speakButton = panel.querySelector('[data-action="speak"]') as HTMLButtonElement
   const copyButton = panel.querySelector('[data-action="copy"]') as HTMLButtonElement
   const saveButton = panel.querySelector('[data-action="save"]') as HTMLButtonElement
+  const moreButton = panel.querySelector('[data-action="more"]') as HTMLButtonElement
   const retryButton = panel.querySelector('[data-action="retry"]') as HTMLButtonElement
 
   let open = false
@@ -518,6 +558,7 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
   let latestText = ''
   let latestSource = ''
   let latestWord = ''
+  let latestContext = ''
   let streamedText = ''
   let dictOpen = false
   let frame = 0
@@ -566,9 +607,16 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
     speakButton.hidden = true
     copyButton.hidden = true
     saveButton.hidden = true
+    moreButton.hidden = true
     retryButton.hidden = true
     applySaved(false)
     applyCopied(false)
+    latestContext = ''
+    ctx.hidden = true
+    ctxText.textContent = ''
+    meta.hidden = true
+    meta.dataset.expandable = ''
+    meta.setAttribute('aria-expanded', 'false')
     meta.textContent = ''
   }
 
@@ -594,7 +642,12 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
 
   function syncFoot(): void {
     foot.hidden =
-      !meta.textContent && speakButton.hidden && copyButton.hidden && saveButton.hidden && retryButton.hidden
+      !meta.textContent &&
+      speakButton.hidden &&
+      copyButton.hidden &&
+      saveButton.hidden &&
+      moreButton.hidden &&
+      retryButton.hidden
   }
 
   function renderStreaming(text: string): void {
@@ -667,10 +720,18 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
         pre.textContent = view.text
         body.appendChild(pre)
       }
-      meta.textContent = `${view.engineLabel} · ${Math.max(1, Math.round(view.elapsedMs / 100) / 10)}s`
+      meta.hidden = false
+      meta.textContent = `${view.engineLabel} · ${Math.max(1, Math.round(view.elapsedMs / 100) / 10)}s${view.cached ? ' · 缓存' : ''}`
+      if (!view.word && view.context) {
+        latestContext = view.context
+        ctxText.textContent = view.context
+        meta.dataset.expandable = '1'
+        meta.appendChild(element('span', 'meta-caret', '▾'))
+      }
       speakButton.hidden = false
       copyButton.hidden = false
       saveButton.hidden = false
+      moreButton.hidden = !view.expandable
     } else {
       panel.className = 'panel error-state'
       body.innerHTML = ''
@@ -733,6 +794,15 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
       else handlers.onSpeak(latestWord, 'en')
       return
     }
+    if (target?.closest?.('.meta')) {
+      if (!latestContext) return
+      ctx.hidden = !ctx.hidden
+      meta.setAttribute('aria-expanded', String(!ctx.hidden))
+      const caret = meta.querySelector('.meta-caret')
+      if (caret) caret.textContent = ctx.hidden ? '▾' : '▴'
+      schedulePosition()
+      return
+    }
     const action = (target?.closest?.('[data-action]') as HTMLElement | null)?.dataset.action
     if (action === 'copy') {
       handlers.onCopy(latestText)
@@ -745,6 +815,10 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
     }
     if (action === 'save') {
       handlers.onSave()
+      return
+    }
+    if (action === 'more') {
+      handlers.onMoreContext()
       return
     }
     if (action === 'retry') {
