@@ -110,7 +110,7 @@ export function EnginesSection({ settings, onPatch, onOpenService }: Props) {
             {readyCount} / {SLOTS.length} 可用
           </span>
         </div>
-        <p className="slot-note">翻译与划词共用这一组引擎；勾选多个时，划词会同时运行它们并逐条给出译文。</p>
+        <p className="slot-note">翻译与划词共用这一组引擎；勾选多个后可拖动左侧把手调整顺序，排在第一位的作为主引擎，划词会按这个顺序逐条给出译文。</p>
 
         {SLOTS.map((slot) => {
           const status = slotStatus(slot)

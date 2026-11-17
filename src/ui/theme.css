@@ -559,16 +559,86 @@ select option:checked {
 .engine-option {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 2px;
   min-height: 30px;
-  padding: 0 6px;
+  padding: 0 4px 0 1px;
   border-radius: 6px;
   font-size: 12px;
-  cursor: pointer;
+  cursor: default;
 }
 
 .engine-option:hover {
   background: var(--surface-2);
+}
+
+.engine-option.dragging {
+  opacity: 0.55;
+}
+
+.engine-option.drop-before {
+  box-shadow: inset 0 2px 0 var(--brand);
+}
+
+.engine-picker-menu.drop-end::after {
+  content: '';
+  flex: none;
+  height: 2px;
+  margin: 2px 4px 0;
+  border-radius: 1px;
+  background: var(--brand);
+}
+
+.engine-grip,
+.engine-grip-empty {
+  flex: none;
+  width: 18px;
+  height: 24px;
+}
+
+.engine-grip {
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: grab;
+  touch-action: none;
+  transition:
+    color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease);
+}
+
+.engine-grip svg {
+  width: 12px;
+  height: 12px;
+}
+
+.engine-grip:hover {
+  background: var(--surface-3);
+  color: var(--text-muted);
+}
+
+.engine-grip:active,
+.engine-option.dragging .engine-grip {
+  cursor: grabbing;
+}
+
+.engine-grip:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: -1px;
+}
+
+.engine-option-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+  min-height: 30px;
+  padding: 0 2px;
+  cursor: pointer;
 }
 
 .engine-option input {
@@ -596,6 +666,18 @@ select option:checked {
   flex: none;
   font-size: 10.5px;
   color: var(--warn);
+  white-space: nowrap;
+}
+
+.engine-primary {
+  flex: none;
+  padding: 1px 5px;
+  border-radius: 999px;
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 1.4;
   white-space: nowrap;
 }
 
