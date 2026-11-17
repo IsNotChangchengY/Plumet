@@ -6,9 +6,20 @@ import { markUiHost } from './ui-mark'
 
 export type BubbleAnchor = { top: number; bottom: number; left: number; width?: number }
 
+export type BubbleEngineRun = {
+  engineId: string
+  label: string
+  text: string
+  done: boolean
+  error?: string
+  elapsedMs?: number
+  cached?: boolean
+  notice?: string
+}
+
 export type BubbleView =
-  | { status: 'loading'; label?: string }
-  | { status: 'streaming'; text: string }
+  | { status: 'loading'; label?: string; count?: number }
+  | { status: 'streaming'; text: string; runs?: BubbleEngineRun[] }
   | {
       status: 'done'
       text: string
@@ -20,6 +31,7 @@ export type BubbleView =
       expandable?: boolean
       cached?: boolean
       context?: string
+      runs?: BubbleEngineRun[]
     }
   | { status: 'error'; message: string }
 
@@ -27,7 +39,7 @@ export type BubbleHandlers = {
   onCopy: (text: string) => void
   onSpeak: (text: string, lang?: string) => void
   onAudio: (url: string, word: string) => void
-  onSave: () => void
+  onSave: (text: string) => Promise<boolean> | void
   onRetry: () => void
   onMoreContext: () => void
   onClose: () => void
@@ -38,7 +50,6 @@ export type Bubble = {
   ownsPath: (path: EventTarget[]) => boolean
   isOpen: () => boolean
   setSource: (text: string) => void
-  setSaved: (saved: boolean) => void
   setCopied: () => void
   setTheme: (theme: ThemeMode) => void
   render: (view: BubbleView) => void
@@ -76,17 +87,24 @@ const STYLE = `
     line-height: 1.6;
     user-select: text;
   }
-  .panel::-webkit-scrollbar { width: 8px; height: 8px; }
-  .panel::-webkit-scrollbar-track { background: transparent; }
-  .panel::-webkit-scrollbar-thumb {
+  .panel::-webkit-scrollbar,
+  .ctx-text::-webkit-scrollbar { width: 8px; height: 8px; }
+  .panel::-webkit-scrollbar-track,
+  .ctx-text::-webkit-scrollbar-track { background: transparent; }
+  .panel::-webkit-scrollbar-thumb,
+  .ctx-text::-webkit-scrollbar-thumb {
     background: var(--surface-3);
     border: 2px solid transparent;
     border-radius: 999px;
     background-clip: content-box;
   }
-  .panel::-webkit-scrollbar-thumb:hover {
+  .panel::-webkit-scrollbar-thumb:hover,
+  .ctx-text::-webkit-scrollbar-thumb:hover {
     background-color: var(--text-faint);
     background-clip: content-box;
+  }
+  .ctx-text::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--text-faint) 55%, transparent);
   }
   .panel ::selection {
     background: color-mix(in srgb, var(--brand) 40%, transparent);
@@ -228,17 +246,17 @@ const STYLE = `
 
   .foot {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    padding: 8px 12px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    padding: 7px 10px 8px 12px;
     border-top: 1px solid var(--border);
     background: linear-gradient(180deg, rgba(0, 0, 0, 0), var(--surface-2));
   }
   .foot[hidden] { display: none; }
   .error-state .foot { background: transparent; }
   .meta {
-    flex: 1;
+    width: 100%;
     min-width: 0;
     padding: 0;
     border: 0;
@@ -276,20 +294,20 @@ const STYLE = `
     cursor: text;
     user-select: text;
   }
-  .acts { display: flex; align-items: center; gap: 1px; flex: none; }
+  .acts { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 2px; }
   .act {
     display: inline-flex;
     align-items: center;
     gap: 4px;
     flex: none;
-    height: 24px;
-    padding: 0 5px;
+    height: 26px;
+    padding: 0 7px;
     border: 0;
     border-radius: var(--radius-sm);
     background: transparent;
     color: var(--text-muted);
     font-family: inherit;
-    font-size: 10.5px;
+    font-size: 11px;
     white-space: nowrap;
     cursor: pointer;
     transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
@@ -298,7 +316,94 @@ const STYLE = `
   .act[hidden] { display: none; }
   .act:disabled { color: var(--text-faint); cursor: default; background: transparent; }
   .act.copied { color: var(--brand); background: var(--brand-soft); }
-  .act svg { width: 11px; height: 11px; }
+  .act svg { width: 12px; height: 12px; }
+  .panel.compact .act { gap: 0; padding: 0 6px; }
+  .panel.compact .act svg { display: none; }
+
+  .engine-results { display: flex; flex-direction: column; gap: 8px; }
+  .engine-result {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 8px 10px 9px;
+    border: 1px solid color-mix(in srgb, var(--brand) 16%, var(--border));
+    border-radius: var(--radius-sm);
+    background: var(--surface);
+  }
+  .engine-result.failed { border-color: color-mix(in srgb, var(--danger) 26%, var(--border)); }
+  .engine-head { display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .engine-dot {
+    width: 6px;
+    height: 6px;
+    flex: none;
+    border-radius: 50%;
+    background: var(--text-faint);
+  }
+  .engine-dot.running { background: var(--brand); animation: yy-breathe 1.6s var(--ease) infinite; }
+  .engine-dot.done { background: var(--ok); }
+  .engine-dot.failed { background: var(--danger); }
+  .engine-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .engine-acts { display: flex; align-items: center; gap: 1px; flex: none; margin-left: auto; }
+  .engine-act {
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border: 0;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--text-faint);
+    cursor: pointer;
+    transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+  }
+  .engine-act[hidden] { display: none; }
+  .engine-act:hover { background: var(--surface-2); color: var(--text); }
+  .engine-act:disabled { color: var(--brand); cursor: default; background: transparent; }
+  .engine-act.copied, .engine-act.saved { color: var(--brand); background: var(--brand-soft); }
+  .engine-act svg { width: 12px; height: 12px; }
+  .engine-meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 6px;
+    font-size: 10.5px;
+    color: var(--text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  .engine-meta:empty { display: none; }
+  .engine-tag {
+    display: inline-flex;
+    align-items: center;
+    height: 16px;
+    padding: 0 6px;
+    border-radius: 999px;
+    background: var(--surface-2);
+    color: var(--text-muted);
+  }
+  .engine-tag.ok { background: var(--ok-soft); color: var(--ok); }
+  .engine-tag.warn { background: var(--warn-soft); color: var(--warn); }
+  .engine-text {
+    margin: 0;
+    font-family: inherit;
+    font-size: 13.5px;
+    line-height: 1.62;
+    color: var(--text);
+    white-space: pre-wrap;
+    word-break: break-word;
+    cursor: text;
+  }
+  .engine-text[hidden] { display: none; }
+  .engine-error { font-size: 11.5px; line-height: 1.55; color: var(--danger); word-break: break-word; }
 
   @keyframes yy-pop {
     from { opacity: 0; transform: scale(0.96) translateY(6px); }
@@ -370,8 +475,8 @@ const STYLE = `
 
   @media (prefers-reduced-motion: reduce) {
     :host([data-open="1"]) .panel { animation: none; }
-    .dots i, .cursor { animation: none; opacity: 1; }
-    .close, .act { transition: none; }
+    .dots i, .cursor, .engine-dot.running { animation: none; opacity: 1; }
+    .close, .act, .engine-act { transition: none; }
   }
 `
 
@@ -391,6 +496,8 @@ const ICON_CLOSE =
   '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
 const ICON_ERROR =
   '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 7.5v6"/><path d="M12 16.6v.4"/><circle cx="12" cy="12" r="9"/></svg>'
+
+const COMPACT_BUBBLE_WIDTH = 300
 
 const FULL_DISPLAY: DictionarySections = {
   phonetic: true,
@@ -561,6 +668,11 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
   let latestContext = ''
   let streamedText = ''
   let dictOpen = false
+  let cardMode = false
+  let latestRuns: BubbleEngineRun[] = []
+  const runShown = new Map<string, string>()
+  let runCopiedTimer = 0
+  let runCopiedButton: HTMLButtonElement | null = null
   let frame = 0
   let pinned = false
   let drag: { id: number; dx: number; dy: number } | null = null
@@ -577,7 +689,9 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
 
   function applyWidth(): void {
     if (!anchor) return
-    panel.style.width = `${clampBubbleWidth(dictOpen ? undefined : anchor.width, window.innerWidth)}px`
+    const width = clampBubbleWidth(dictOpen ? undefined : anchor.width, window.innerWidth)
+    panel.style.width = `${width}px`
+    panel.classList.toggle('compact', width < COMPACT_BUBBLE_WIDTH)
   }
 
   function position(): void {
@@ -617,7 +731,11 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
     meta.hidden = true
     meta.dataset.expandable = ''
     meta.setAttribute('aria-expanded', 'false')
+    meta.title = ''
     meta.textContent = ''
+    window.clearTimeout(runCopiedTimer)
+    runCopiedTimer = 0
+    runCopiedButton = null
   }
 
   let copiedTimer = 0
@@ -641,8 +759,9 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
   }
 
   function syncFoot(): void {
+    const metaVisible = !meta.hidden && Boolean(meta.textContent)
     foot.hidden =
-      !meta.textContent &&
+      !metaVisible &&
       speakButton.hidden &&
       copyButton.hidden &&
       saveButton.hidden &&
@@ -686,6 +805,155 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
     body.appendChild(def)
   }
 
+  function runSeconds(run: BubbleEngineRun): string {
+    return `${Math.max(1, Math.round((run.elapsedMs ?? 0) / 100) / 10)}s`
+  }
+
+  function findRunCard(container: HTMLElement, engineId: string): HTMLElement | null {
+    for (const child of Array.from(container.children)) {
+      if ((child as HTMLElement).dataset.engine === engineId) return child as HTMLElement
+    }
+    return null
+  }
+
+  function renderRuns(runs: BubbleEngineRun[], expandable: boolean): void {
+    let container = body.querySelector('.engine-results') as HTMLElement | null
+    if (!container) {
+      body.innerHTML = ''
+      runShown.clear()
+      container = element('div', 'engine-results')
+      body.appendChild(container)
+    }
+    const wanted = new Set(runs.map((run) => run.engineId))
+    for (const child of Array.from(container.children)) {
+      const engineId = (child as HTMLElement).dataset.engine ?? ''
+      if (wanted.has(engineId)) continue
+      child.remove()
+      runShown.delete(engineId)
+    }
+    for (const run of runs) {
+      let card = findRunCard(container, run.engineId)
+      if (!card) {
+        card = element('section', 'engine-result')
+        card.dataset.engine = run.engineId
+        const head = element('div', 'engine-head')
+        head.appendChild(element('span', 'engine-dot'))
+        head.appendChild(element('span', 'engine-name'))
+        const acts = element('div', 'engine-acts')
+        acts.appendChild(cardActionButton('speak', ICON_SPEAK, '朗读'))
+        acts.appendChild(cardActionButton('copy', ICON_COPY, '复制'))
+        acts.appendChild(cardActionButton('save', ICON_SAVE, '收藏'))
+        acts.appendChild(cardActionButton('more', ICON_MORE, '扩上下文'))
+        head.appendChild(acts)
+        card.appendChild(head)
+        card.appendChild(element('div', 'engine-meta'))
+        card.appendChild(element('pre', 'engine-text'))
+        container.appendChild(card)
+      }
+      card.classList.toggle('failed', Boolean(run.error))
+      const name = card.querySelector('.engine-name') as HTMLElement
+      name.textContent = run.label
+      name.title = run.label
+      const dot = card.querySelector('.engine-dot') as HTMLElement
+      dot.className = `engine-dot ${run.error ? 'failed' : run.done ? 'done' : 'running'}`
+      const metaRow = card.querySelector('.engine-meta') as HTMLElement
+      metaRow.innerHTML = ''
+      if (run.error) {
+        metaRow.appendChild(element('span', 'engine-error', run.error))
+      } else {
+        if (typeof run.elapsedMs === 'number') metaRow.appendChild(element('span', 'engine-tag', runSeconds(run)))
+        if (run.cached) metaRow.appendChild(element('span', 'engine-tag ok', '缓存命中'))
+        if (run.notice) metaRow.appendChild(element('span', 'engine-tag warn', run.notice))
+      }
+      const pre = card.querySelector('.engine-text') as HTMLElement
+      pre.hidden = Boolean(run.error)
+      if (!run.error) {
+        if (run.done) {
+          pre.textContent = run.text
+          runShown.set(run.engineId, run.text)
+        } else {
+          const shown = runShown.get(run.engineId) ?? ''
+          const caret = pre.querySelector('.cursor') as HTMLElement | null
+          if (caret && run.text.startsWith(shown)) {
+            const added = run.text.slice(shown.length)
+            if (added) pre.insertBefore(document.createTextNode(added), caret)
+          } else {
+            pre.textContent = run.text
+            pre.appendChild(element('span', 'cursor'))
+          }
+          runShown.set(run.engineId, run.text)
+        }
+      }
+      const done = run.done && !run.error && Boolean(run.text)
+      toggleCardAction(card, 'speak', done)
+      toggleCardAction(card, 'copy', done)
+      toggleCardAction(card, 'save', done)
+      toggleCardAction(card, 'more', done && expandable && run.engineId.startsWith('ai:'))
+    }
+  }
+
+  function cardActionButton(action: string, icon: string, label: string): HTMLButtonElement {
+    const button = element('button', 'engine-act')
+    button.type = 'button'
+    button.dataset.cardAction = action
+    button.hidden = true
+    button.title = label
+    button.setAttribute('aria-label', label)
+    button.innerHTML = icon
+    return button
+  }
+
+  function toggleCardAction(card: HTMLElement, action: string, visible: boolean): void {
+    const button = card.querySelector(`[data-card-action="${action}"]`) as HTMLButtonElement | null
+    if (button) button.hidden = !visible
+  }
+
+  function applyEngineCopied(button: HTMLButtonElement, copied: boolean): void {
+    button.classList.toggle('copied', copied)
+    button.innerHTML = copied ? ICON_CHECK : ICON_COPY
+    const label = copied ? '已复制' : '复制'
+    button.title = label
+    button.setAttribute('aria-label', label)
+  }
+
+  function applyEngineSaved(button: HTMLButtonElement): void {
+    button.classList.remove('copied')
+    button.classList.add('saved')
+    button.disabled = true
+    button.innerHTML = ICON_CHECK
+    button.title = '已收藏'
+    button.setAttribute('aria-label', '已收藏')
+  }
+
+  function isPromise(value: unknown): value is Promise<boolean> {
+    return Boolean(value && typeof (value as Promise<boolean>).then === 'function')
+  }
+
+  function saveFromCard(button: HTMLButtonElement, text: string): void {
+    const result = handlers.onSave(text)
+    if (isPromise(result)) {
+      void result
+        .then((saved) => {
+          if (saved) applyEngineSaved(button)
+        })
+        .catch(() => undefined)
+      return
+    }
+    applyEngineSaved(button)
+  }
+
+  function markEngineCopied(button: HTMLButtonElement): void {
+    window.clearTimeout(runCopiedTimer)
+    if (runCopiedButton && runCopiedButton !== button) applyEngineCopied(runCopiedButton, false)
+    runCopiedButton = button
+    applyEngineCopied(button, true)
+    runCopiedTimer = window.setTimeout(() => {
+      runCopiedTimer = 0
+      if (runCopiedButton) applyEngineCopied(runCopiedButton, false)
+      runCopiedButton = null
+    }, 1500)
+  }
+
   function render(view: BubbleView): void {
     open = true
     host.setAttribute('data-open', '1')
@@ -693,17 +961,27 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
     panel.className = 'panel'
     resetActions()
     dictOpen = false
+    cardMode = false
+    latestRuns = []
     if (view.status !== 'streaming') streamedText = ''
 
     if (view.status === 'loading') {
+      runShown.clear()
+      const count = view.count ?? 0
+      const label = view.label ?? (count > 1 ? `正在用 ${count} 个引擎翻译` : '正在翻译')
       body.innerHTML =
-        `<div class="loading"><span class="dots"><i></i><i></i><i></i></span>${view.label ?? '正在翻译'}</div><div class="skel"><i></i><i></i></div>`
+        `<div class="loading"><span class="dots"><i></i><i></i><i></i></span>${label}</div><div class="skel"><i></i><i></i></div>`
     } else if (view.status === 'streaming') {
-      latestText = view.text
-      renderStreaming(view.text)
+      latestRuns = view.runs ?? []
+      cardMode = latestRuns.length > 0
+      latestText = cardMode ? latestRuns[0]?.text ?? '' : view.text
+      if (cardMode) renderRuns(latestRuns, false)
+      else renderStreaming(view.text)
       meta.textContent = '生成中…'
     } else if (view.status === 'done') {
       latestText = view.text
+      latestRuns = view.runs ?? []
+      cardMode = latestRuns.length > 0
       if (view.dictionary) {
         dictOpen = true
         latestWord = view.dictionary.word
@@ -714,24 +992,36 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
       } else if (view.word) {
         renderWordCard(latestSource, view.text)
       } else {
-        body.innerHTML = ''
-        const pre = document.createElement('pre')
-        pre.className = 'text'
-        pre.textContent = view.text
-        body.appendChild(pre)
+        if (!cardMode) {
+          latestRuns = [
+            {
+              engineId: '',
+              label: view.engineLabel,
+              text: view.text,
+              done: true,
+              elapsedMs: view.elapsedMs,
+              cached: view.cached,
+            },
+          ]
+          cardMode = true
+        }
+        renderRuns(latestRuns, Boolean(view.expandable))
       }
-      meta.hidden = false
-      meta.textContent = `${view.engineLabel} · ${Math.max(1, Math.round(view.elapsedMs / 100) / 10)}s${view.cached ? ' · 缓存' : ''}`
-      if (!view.word && view.context) {
+      if (view.dictionary || view.word) {
+        meta.hidden = false
+        meta.textContent = `${view.engineLabel} · ${Math.max(1, Math.round(view.elapsedMs / 100) / 10)}s${view.cached ? ' · 缓存' : ''}`
+        speakButton.hidden = false
+        copyButton.hidden = false
+        saveButton.hidden = false
+      } else if (view.context) {
         latestContext = view.context
         ctxText.textContent = view.context
+        meta.hidden = false
+        meta.textContent = '上下文预览'
+        meta.title = '查看本次实际发送的上下文'
         meta.dataset.expandable = '1'
         meta.appendChild(element('span', 'meta-caret', '▾'))
       }
-      speakButton.hidden = false
-      copyButton.hidden = false
-      saveButton.hidden = false
-      moreButton.hidden = !view.expandable
     } else {
       panel.className = 'panel error-state'
       body.innerHTML = ''
@@ -743,6 +1033,7 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
       body.appendChild(error)
       retryButton.hidden = false
     }
+    applyWidth()
     syncFoot()
     schedulePosition()
   }
@@ -787,6 +1078,24 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
       handlers.onClose()
       return
     }
+    const cardAction = target?.closest?.('[data-card-action]') as HTMLButtonElement | null
+    if (cardAction) {
+      const card = cardAction.closest('.engine-result') as HTMLElement | null
+      const engineId = card?.dataset.engine ?? ''
+      const run = latestRuns.find((item) => item.engineId === engineId)
+      const action = cardAction.dataset.cardAction
+      if (run && action === 'copy' && run.text) {
+        handlers.onCopy(run.text)
+        markEngineCopied(cardAction)
+      } else if (run && action === 'speak' && run.text) {
+        handlers.onSpeak(run.text)
+      } else if (run && action === 'save' && run.text) {
+        saveFromCard(cardAction, run.text)
+      } else if (action === 'more') {
+        handlers.onMoreContext()
+      }
+      return
+    }
     const audioButton = target?.closest?.('[data-audio]') as HTMLElement | null
     if (audioButton) {
       const url = audioButton.dataset.audio ?? ''
@@ -814,7 +1123,17 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
       return
     }
     if (action === 'save') {
-      handlers.onSave()
+      if (!latestText) return
+      const result = handlers.onSave(latestText)
+      if (isPromise(result)) {
+        void result
+          .then((saved) => {
+            if (saved) applySaved(true)
+          })
+          .catch(() => undefined)
+      } else {
+        applySaved(true)
+      }
       return
     }
     if (action === 'more') {
@@ -842,9 +1161,6 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
     setSource(text: string) {
       latestSource = text
     },
-    setSaved(saved: boolean) {
-      applySaved(saved)
-    },
     setCopied() {
       applyCopied(true)
     },
@@ -865,6 +1181,7 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
     hide() {
       open = false
       pinned = false
+      cardMode = false
       drag = null
       head.classList.remove('dragging')
       host.removeAttribute('data-open')

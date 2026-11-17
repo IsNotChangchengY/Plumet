@@ -8,6 +8,8 @@ const calls: string[] = []
 let copied = ''
 let spoken: { text: string; lang?: string } | null = null
 let played = ''
+let savedText = ''
+let saveResult = true
 
 const handlers = {
   onCopy: (text: string) => {
@@ -22,7 +24,11 @@ const handlers = {
     played = url
     calls.push('audio')
   },
-  onSave: () => calls.push('save'),
+  onSave: (text: string) => {
+    savedText = text
+    calls.push('save')
+    return Promise.resolve(saveResult)
+  },
   onRetry: () => calls.push('retry'),
   onMoreContext: () => calls.push('more'),
   onClose: () => calls.push('close'),
@@ -51,6 +57,19 @@ function buttonOf(view: Bubble, action: string): HTMLButtonElement {
   return partOf<HTMLButtonElement>(view, `[data-action="${action}"]`)
 }
 
+function cardOf(view: Bubble, index = 0): HTMLElement {
+  const cards = rootOf(view).querySelectorAll<HTMLElement>('.engine-result')
+  const card = cards[index]
+  if (!card) throw new Error(`missing card ${index}`)
+  return card
+}
+
+function cardButtonOf(view: Bubble, index: number, action: string): HTMLButtonElement {
+  const button = cardOf(view, index).querySelector<HTMLButtonElement>(`[data-card-action="${action}"]`)
+  if (!button) throw new Error(`missing card action ${action}`)
+  return button
+}
+
 const flush = (): Promise<void> => new Promise((resolve) => setTimeout(resolve, 60))
 
 afterEach(() => {
@@ -60,6 +79,8 @@ afterEach(() => {
   copied = ''
   spoken = null
   played = ''
+  savedText = ''
+  saveResult = true
   document.documentElement.querySelectorAll('[data-yuyi-ui="bubble"]').forEach((node) => node.remove())
 })
 
@@ -73,20 +94,25 @@ describe('selection bubble', () => {
     expect(partOf<HTMLElement>(view, '.foot').hidden).toBe(true)
   })
 
-  it('完成态显示引擎耗时与朗读/复制/收藏，且只有右上角一个关闭入口', () => {
+  it('完成态用一张结果卡显示服务名、译文与右上角图标动作', () => {
     const view = mount()
     view.showAt({ top: 200, bottom: 220, left: 100 })
     view.render({ status: 'done', text: '已推迟发布。', engineLabel: 'DeepSeek', elapsedMs: 1400, word: false })
-    expect(partOf<HTMLElement>(view, '.meta').textContent).toBe('DeepSeek · 1.4s')
-    expect(partOf<HTMLElement>(view, '.foot').hidden).toBe(false)
-    expect(buttonOf(view, 'copy').hidden).toBe(false)
-    expect(buttonOf(view, 'speak').hidden).toBe(false)
-    expect(buttonOf(view, 'save').hidden).toBe(false)
+    const card = cardOf(view)
+    expect(card.querySelector('.engine-name')?.textContent).toBe('DeepSeek')
+    expect(card.querySelector('.engine-text')?.textContent).toBe('已推迟发布。')
+    expect(cardButtonOf(view, 0, 'speak').hidden).toBe(false)
+    expect(cardButtonOf(view, 0, 'copy').hidden).toBe(false)
+    expect(cardButtonOf(view, 0, 'save').hidden).toBe(false)
+    expect(cardButtonOf(view, 0, 'copy').title).toBe('复制')
+    expect(partOf<HTMLElement>(view, '.meta').hidden).toBe(true)
+    expect(partOf<HTMLElement>(view, '.foot').hidden).toBe(true)
+    expect(buttonOf(view, 'copy').hidden).toBe(true)
     expect(rootOf(view).querySelectorAll('.close').length).toBe(1)
     expect(rootOf(view).querySelector('[data-action="close"]')).toBe(null)
   })
 
-  it('完成态可按需带上更多上下文重译', () => {
+  it('AI 卡可按需带上更多上下文重译，机器翻译卡不显示这个入口', () => {
     const view = mount()
     view.showAt({ top: 200, bottom: 220, left: 100 })
     view.render({
@@ -96,17 +122,30 @@ describe('selection bubble', () => {
       elapsedMs: 1400,
       word: false,
       expandable: true,
+      runs: [
+        { engineId: 'ai:a', label: 'DeepSeek', text: '已推迟发布。', done: true, elapsedMs: 1400 },
+        { engineId: 'mt:baidu', label: '百度翻译', text: '发布推迟。', done: true, elapsedMs: 800 },
+      ],
     })
-    expect(buttonOf(view, 'more').hidden).toBe(false)
-    buttonOf(view, 'more').click()
+    expect(cardButtonOf(view, 0, 'more').hidden).toBe(false)
+    expect(cardButtonOf(view, 1, 'more').hidden).toBe(true)
+    cardButtonOf(view, 0, 'more').click()
     expect(calls).toEqual(['more'])
-    view.render({ status: 'done', text: '已推迟发布。', engineLabel: 'DeepSeek', elapsedMs: 1400, word: false })
-    expect(buttonOf(view, 'more').hidden).toBe(true)
+    view.render({
+      status: 'done',
+      text: '已推迟发布。',
+      engineLabel: 'DeepSeek',
+      elapsedMs: 1400,
+      word: false,
+      runs: [{ engineId: 'ai:a', label: 'DeepSeek', text: '已推迟发布。', done: true, elapsedMs: 1400 }],
+    })
+    expect(rootOf(view).querySelectorAll('.engine-result').length).toBe(1)
+    expect(cardButtonOf(view, 0, 'more').hidden).toBe(true)
     view.render({ status: 'loading' })
-    expect(buttonOf(view, 'more').hidden).toBe(true)
+    expect(rootOf(view).querySelector('.engine-result')).toBe(null)
   })
 
-  it('完成态标出缓存命中，并可展开本次实际发出的语境', () => {
+  it('完成态标出缓存命中，底栏只留上下文预览并可展开', () => {
     const view = mount()
     view.showAt({ top: 200, bottom: 220, left: 100 })
     const context = '页面标题：Example\n章节：Guide › Setup\n上文：Alpha one.'
@@ -118,10 +157,13 @@ describe('selection bubble', () => {
       word: false,
       cached: true,
       context,
+      runs: [
+        { engineId: 'ai:a', label: 'DeepSeek', text: '已推迟发布。', done: true, elapsedMs: 1400, cached: true },
+      ],
     })
     const meta = partOf<HTMLElement>(view, '.meta')
-    expect(meta.textContent).toContain('DeepSeek · 1.4s')
-    expect(meta.textContent).toContain('缓存')
+    expect(meta.textContent).toContain('上下文预览')
+    expect(cardOf(view).querySelector('.engine-tag.ok')?.textContent).toBe('缓存命中')
     const ctx = partOf<HTMLElement>(view, '.ctx')
     expect(ctx.hidden).toBe(true)
     meta.dispatchEvent(new MouseEvent('click', { bubbles: true }))
@@ -151,18 +193,58 @@ describe('selection bubble', () => {
     expect(partOf<HTMLElement>(view, '.meta').dataset.expandable).toBe('')
   })
 
-  it('收藏按钮触发 onSave，收藏后按钮变已收藏并禁用', () => {
+  it('卡片收藏触发 onSave，保存成功后按钮变已收藏并禁用', async () => {
     const view = mount()
     view.showAt({ top: 200, bottom: 220, left: 100 })
-    view.render({ status: 'done', text: '已推迟发布。', engineLabel: 'DeepSeek', elapsedMs: 1400, word: false })
-    buttonOf(view, 'save').click()
+    view.render({
+      status: 'done',
+      text: '已推迟发布。',
+      engineLabel: 'DeepSeek',
+      elapsedMs: 1400,
+      word: false,
+      runs: [{ engineId: 'ai:a', label: 'DeepSeek', text: '已推迟发布。', done: true, elapsedMs: 1400 }],
+    })
+    const save = cardButtonOf(view, 0, 'save')
+    save.click()
+    await flush()
     expect(calls).toEqual(['save'])
-    view.setSaved(true)
-    expect(buttonOf(view, 'save').disabled).toBe(true)
-    expect(buttonOf(view, 'save').textContent).toContain('已收藏')
+    expect(savedText).toBe('已推迟发布。')
+    expect(save.disabled).toBe(true)
+    expect(save.title).toBe('已收藏')
     view.render({ status: 'loading' })
-    expect(buttonOf(view, 'save').hidden).toBe(true)
-    expect(buttonOf(view, 'save').disabled).toBe(false)
+    expect(rootOf(view).querySelector('.engine-result')).toBe(null)
+  })
+
+  it('单词卡底栏收藏也走同一条保存链路', async () => {
+    const view = mount()
+    view.setSource('ephemeral')
+    view.showAt({ top: 200, bottom: 220, left: 100 })
+    view.render({ status: 'done', text: '短暂的', engineLabel: 'DeepSeek', elapsedMs: 900, word: true })
+    const save = buttonOf(view, 'save')
+    save.click()
+    await flush()
+    expect(savedText).toBe('短暂的')
+    expect(save.disabled).toBe(true)
+    expect(save.textContent).toContain('已收藏')
+  })
+
+  it('保存失败时卡片收藏按钮保持可点', async () => {
+    saveResult = false
+    const view = mount()
+    view.showAt({ top: 200, bottom: 220, left: 100 })
+    view.render({
+      status: 'done',
+      text: '已推迟发布。',
+      engineLabel: 'DeepSeek',
+      elapsedMs: 1400,
+      word: false,
+      runs: [{ engineId: 'ai:a', label: 'DeepSeek', text: '已推迟发布。', done: true, elapsedMs: 1400 }],
+    })
+    const save = cardButtonOf(view, 0, 'save')
+    save.click()
+    await flush()
+    expect(save.disabled).toBe(false)
+    expect(save.title).toBe('收藏')
   })
 
   it('错误态只留重试，不显示原文', () => {
@@ -313,31 +395,46 @@ describe('selection bubble', () => {
     expect(calls).toEqual(['close'])
   })
 
-  it('点复制图标里的 svg 也能复制译文', () => {
+  it('点卡片复制图标里的 svg 也能复制该引擎译文', () => {
     const view = mount()
     view.showAt({ top: 200, bottom: 220, left: 100 })
-    view.render({ status: 'done', text: '已推迟发布。', engineLabel: 'DeepSeek', elapsedMs: 1400, word: false })
-    const path = buttonOf(view, 'copy').querySelector('svg')
+    view.render({
+      status: 'done',
+      text: '已推迟发布。',
+      engineLabel: 'DeepSeek',
+      elapsedMs: 1400,
+      word: false,
+      runs: [{ engineId: 'ai:a', label: 'DeepSeek', text: '已推迟发布。', done: true, elapsedMs: 1400 }],
+    })
+    const path = cardButtonOf(view, 0, 'copy').querySelector('svg')
     path?.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     expect(calls).toEqual(['copy'])
     expect(copied).toBe('已推迟发布。')
   })
 
-  it('复制成功后按钮短暂显示已复制，重渲染恢复原样', () => {
+  it('卡片复制成功后短暂显示对勾，重渲染恢复原样', () => {
     vi.useFakeTimers()
     try {
       const view = mount()
       view.showAt({ top: 200, bottom: 220, left: 100 })
-      view.render({ status: 'done', text: '已推迟发布。', engineLabel: 'DeepSeek', elapsedMs: 1400, word: false })
-      view.setCopied()
-      expect(buttonOf(view, 'copy').textContent).toContain('已复制')
-      expect(buttonOf(view, 'copy').classList.contains('copied')).toBe(true)
+      view.render({
+        status: 'done',
+        text: '已推迟发布。',
+        engineLabel: 'DeepSeek',
+        elapsedMs: 1400,
+        word: false,
+        runs: [{ engineId: 'ai:a', label: 'DeepSeek', text: '已推迟发布。', done: true, elapsedMs: 1400 }],
+      })
+      const copy = cardButtonOf(view, 0, 'copy')
+      copy.click()
+      expect(copy.title).toBe('已复制')
+      expect(copy.classList.contains('copied')).toBe(true)
       vi.advanceTimersByTime(1600)
-      expect(buttonOf(view, 'copy').textContent).not.toContain('已复制')
-      view.setCopied()
+      expect(copy.title).toBe('复制')
+      expect(copy.classList.contains('copied')).toBe(false)
+      copy.click()
       view.render({ status: 'loading' })
-      expect(buttonOf(view, 'copy').textContent).not.toContain('已复制')
-      expect(buttonOf(view, 'copy').classList.contains('copied')).toBe(false)
+      expect(rootOf(view).querySelector('.engine-result')).toBe(null)
     } finally {
       vi.useRealTimers()
     }
@@ -366,18 +463,116 @@ describe('selection bubble', () => {
     expect(partOf<HTMLElement>(view, '.text').textContent).toBe('xyz')
   })
 
-  it('气泡宽度贴合选区宽度', () => {
+  it('多引擎时逐条渲染结果卡，各自带状态、耗时与复制', async () => {
+    const view = mount()
+    view.showAt({ top: 200, bottom: 220, left: 100, width: 90 })
+    view.render({ status: 'loading', count: 2 })
+    expect(partOf<HTMLElement>(view, '.loading').textContent).toContain('2 个引擎')
+    await flush()
+    expect(partOf<HTMLElement>(view, '.panel').style.width).toBe(`${clampBubbleWidth(90, window.innerWidth)}px`)
+
+    view.render({
+      status: 'streaming',
+      text: '委员',
+      runs: [
+        { engineId: 'ai:a', label: 'DeepSeek', text: '委员', done: false },
+        { engineId: 'mt:baidu', label: '百度翻译', text: '委员会决定', done: false },
+      ],
+    })
+    let cards = rootOf(view).querySelectorAll('.engine-result')
+    expect(cards.length).toBe(2)
+    expect(partOf<HTMLElement>(view, '.engine-name').textContent).toBe('DeepSeek')
+    expect(rootOf(view).querySelectorAll('.engine-dot.running').length).toBe(2)
+
+    view.render({
+      status: 'done',
+      text: '委员会已决定',
+      engineLabel: 'DeepSeek',
+      elapsedMs: 1200,
+      word: false,
+      runs: [
+        { engineId: 'ai:a', label: 'DeepSeek', text: '委员会已决定', done: true, elapsedMs: 1200, cached: true },
+        { engineId: 'mt:baidu', label: '百度翻译', text: '委员会决定', done: true, elapsedMs: 800 },
+      ],
+    })
+    cards = rootOf(view).querySelectorAll('.engine-result')
+    expect(cards.length).toBe(2)
+    expect(rootOf(view).querySelectorAll('.engine-dot.done').length).toBe(2)
+    const tags = Array.from(rootOf(view).querySelectorAll('.engine-tag')).map((node) => node.textContent)
+    expect(tags).toContain('1.2s')
+    expect(tags).toContain('缓存命中')
+    expect(cardButtonOf(view, 0, 'speak').hidden).toBe(false)
+    expect(cardButtonOf(view, 0, 'copy').hidden).toBe(false)
+    expect(cardButtonOf(view, 0, 'save').hidden).toBe(false)
+    expect(cardButtonOf(view, 1, 'copy').hidden).toBe(false)
+
+    const copyButtons = rootOf(view).querySelectorAll<HTMLButtonElement>('[data-card-action="copy"]')
+    expect(copyButtons.length).toBe(2)
+    copyButtons[1].click()
+    expect(copied).toBe('委员会决定')
+    expect(copyButtons[1].title).toBe('已复制')
+  })
+
+  it('某个引擎失败时只让那张卡显示错误，不挡住其他译文', () => {
+    const view = mount()
+    view.showAt({ top: 200, bottom: 220, left: 100 })
+    view.render({
+      status: 'done',
+      text: '委员会已决定',
+      engineLabel: 'DeepSeek',
+      elapsedMs: 1200,
+      word: false,
+      runs: [
+        { engineId: 'ai:a', label: 'DeepSeek', text: '委员会已决定', done: true, elapsedMs: 1200 },
+        { engineId: 'mt:baidu', label: '百度翻译', text: '', done: true, error: '百度翻译未配置 AppID' },
+      ],
+    })
+    const cards = rootOf(view).querySelectorAll('.engine-result')
+    expect(cards.length).toBe(2)
+    expect(cards[1].classList.contains('failed')).toBe(true)
+    expect(cards[1].querySelector('.engine-error')?.textContent).toBe('百度翻译未配置 AppID')
+    expect(cards[1].querySelector<HTMLButtonElement>('[data-card-action="copy"]')?.hidden).toBe(true)
+    expect(cards[1].querySelector<HTMLButtonElement>('[data-card-action="save"]')?.hidden).toBe(true)
+    expect(cards[0].querySelector('.engine-text')?.textContent).toBe('委员会已决定')
+  })
+
+  it('气泡宽度略长于选区，给卡片内边距留出空间', () => {
     const view = mount()
     view.showAt({ top: 200, bottom: 220, left: 100, width: 300 })
     view.render({ status: 'done', text: '已推迟发布。', engineLabel: 'DeepSeek', elapsedMs: 1400, word: false })
-    expect(partOf<HTMLElement>(view, '.panel').style.width).toBe('300px')
+    const width = partOf<HTMLElement>(view, '.panel').style.width
+    expect(width).toBe(`${clampBubbleWidth(300, window.innerWidth)}px`)
+    expect(parseInt(width, 10)).toBeGreaterThan(300)
   })
 
-  it('选区过宽时按视口三分之一截断', () => {
+  it('选区过宽时最多占半屏', () => {
     const view = mount()
     view.showAt({ top: 200, bottom: 220, left: 100, width: 2000 })
     view.render({ status: 'done', text: '已推迟发布。', engineLabel: 'DeepSeek', elapsedMs: 1400, word: false })
     expect(partOf<HTMLElement>(view, '.panel').style.width).toBe(`${clampBubbleWidth(2000, window.innerWidth)}px`)
+    expect(parseInt(partOf<HTMLElement>(view, '.panel').style.width, 10)).toBeLessThanOrEqual(
+      Math.floor(window.innerWidth / 2),
+    )
+  })
+
+  it('窄气泡给单词卡动作加紧凑类，重渲染后仍保持', () => {
+    const view = mount()
+    view.setSource('ephemeral')
+    view.showAt({ top: 200, bottom: 220, left: 100, width: 220 })
+    view.render({ status: 'done', text: '短暂的', engineLabel: 'DeepSeek', elapsedMs: 900, word: true })
+    const panel = partOf<HTMLElement>(view, '.panel')
+    expect(panel.style.width).toBe(`${clampBubbleWidth(220, window.innerWidth)}px`)
+    expect(panel.classList.contains('compact')).toBe(true)
+    expect(buttonOf(view, 'copy').hidden).toBe(false)
+    view.render({ status: 'streaming', text: '短暂' })
+    expect(panel.classList.contains('compact')).toBe(true)
+  })
+
+  it('常规宽度不压缩动作按钮', () => {
+    const view = mount()
+    view.showAt({ top: 200, bottom: 220, left: 100, width: 300 })
+    view.render({ status: 'done', text: '已推迟发布。', engineLabel: 'DeepSeek', elapsedMs: 1400, word: false })
+    expect(partOf<HTMLElement>(view, '.panel').classList.contains('compact')).toBe(false)
   })
 
   it('词典卡用默认宽度，不跟短选区收窄', () => {

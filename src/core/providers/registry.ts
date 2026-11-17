@@ -3,7 +3,10 @@ import type { AiProviderConfig, MtServiceId, Settings } from '../../storage/sett
 import { MT_SERVICE_IDS } from '../../storage/settings'
 import type { TranslateProvider, TranslateProviderKind } from './types'
 import { createAiProvider } from './ai/openai-compatible'
+import { aiEngineLabel, engineLabelOf } from './labels'
 import { aiProviderMissing, createMtProvider, findMtService, missingMtFields } from './services'
+
+export { aiEngineLabel } from './labels'
 
 export const MT_GOOGLE_FREE = 'mt:google-free'
 export const MT_MYMEMORY = 'mt:mymemory'
@@ -19,13 +22,6 @@ export type EngineOption = {
   group: EngineGroup
   ready: boolean
   missing: string[]
-}
-
-export function aiEngineLabel(provider: AiProviderConfig): string {
-  const name = provider.label.trim() || provider.model.trim() || 'AI 服务'
-  const model = provider.model.trim()
-  if (!model || name === model) return name
-  return `${name} · ${model}`
 }
 
 export function listEngines(settings: Settings): EngineOption[] {
@@ -64,7 +60,7 @@ export function engineReadiness(settings: Settings, engineId: string): { ready: 
 }
 
 export function engineLabel(engineId: string, settings: Settings): string {
-  return listEngines(settings).find((engine) => engine.id === engineId)?.label ?? engineId
+  return engineLabelOf(settings, engineId)
 }
 
 export function findAiProvider(settings: Settings, engineId: string): AiProviderConfig | null {
@@ -111,9 +107,7 @@ export function resolveAiProviderConfig(settings: Settings, preferredEngineId: s
     const config = findAiProvider(settings, preferred)
     if (!config) throw new AppError('config', '选中的 AI 服务已被删除，请到设置 → 服务里重新选择')
     const missing = aiProviderMissing(config)
-    if (missing.length > 0) {
-      throw new AppError('config', `「${aiEngineLabel(config)}」缺少 ${missing.join('、')}，请到设置 → 服务里补齐`)
-    }
+    if (missing.length > 0) throw new AppError('config', `「${aiEngineLabel(config)}」缺少 ${missing.join('、')}，请到设置 → 服务里补齐`)
     return config
   }
 

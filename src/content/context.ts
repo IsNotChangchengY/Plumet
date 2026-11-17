@@ -199,15 +199,17 @@ export function calculatePlacement(
   return { left, top: Math.min(Math.max(gap, top), maxTop), side }
 }
 
-const BUBBLE_MIN_WIDTH = 200
+const BUBBLE_MIN_WIDTH = 240
 const BUBBLE_DEFAULT_WIDTH = 340
-const BUBBLE_MAX_VIEWPORT_RATIO = 1 / 3
+const BUBBLE_WIDTH_EXTRA = 56
+const BUBBLE_MAX_VIEWPORT_RATIO = 1 / 2
 const BUBBLE_VIEWPORT_MARGIN = 24
 
 export function clampBubbleWidth(selectionWidth: number | undefined, viewportWidth: number): number {
   const ratioLimit = Math.max(0, viewportWidth * BUBBLE_MAX_VIEWPORT_RATIO)
   const max = Math.max(BUBBLE_MIN_WIDTH, Math.min(ratioLimit, viewportWidth - BUBBLE_VIEWPORT_MARGIN))
-  const desired = selectionWidth && selectionWidth > 0 ? selectionWidth : BUBBLE_DEFAULT_WIDTH
+  const desired =
+    selectionWidth && selectionWidth > 0 ? selectionWidth + BUBBLE_WIDTH_EXTRA : BUBBLE_DEFAULT_WIDTH
   return Math.round(Math.min(Math.max(desired, BUBBLE_MIN_WIDTH), max))
 }
 

@@ -134,18 +134,18 @@ describe('clampIconPosition', () => {
 })
 
 describe('clampBubbleWidth', () => {
-  it('贴合选区宽度', () => {
-    expect(clampBubbleWidth(300, 1200)).toBe(300)
-    expect(clampBubbleWidth(300.6, 1200)).toBe(301)
+  it('比选区宽一点，给卡片内边距留空间', () => {
+    expect(clampBubbleWidth(300, 1200)).toBe(356)
+    expect(clampBubbleWidth(300.6, 1200)).toBe(357)
   })
 
-  it('上限是视口宽度的三分之一', () => {
-    expect(clampBubbleWidth(720, 1200)).toBe(400)
-    expect(clampBubbleWidth(400, 1200)).toBe(400)
+  it('上限是视口宽度的二分之一', () => {
+    expect(clampBubbleWidth(720, 1200)).toBe(600)
+    expect(clampBubbleWidth(400, 1200)).toBe(456)
   })
 
   it('短选区有下限，避免压成窄条', () => {
-    expect(clampBubbleWidth(40, 1200)).toBe(200)
+    expect(clampBubbleWidth(40, 1200)).toBe(240)
   })
 
   it('拿不到选区宽度时用默认宽度', () => {
@@ -153,9 +153,9 @@ describe('clampBubbleWidth', () => {
     expect(clampBubbleWidth(0, 1200)).toBe(340)
   })
 
-  it('窄视口下三分之一不足下限时保留下限', () => {
-    expect(clampBubbleWidth(400, 480)).toBe(200)
-    expect(clampBubbleWidth(400, 300)).toBe(200)
+  it('窄视口下二分之一不足下限时保留下限', () => {
+    expect(clampBubbleWidth(400, 480)).toBe(240)
+    expect(clampBubbleWidth(400, 300)).toBe(240)
   })
 })
 

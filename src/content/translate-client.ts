@@ -1,4 +1,4 @@
-import type { DictJobRequest, TranslateJobRequest } from '../core/messaging'
+import type { DictJobRequest, EngineRunResult, TranslateJobRequest } from '../core/messaging'
 import { isJobEvent, YUYI_PORT } from '../core/messaging'
 import type { DictionaryEntry } from '../core/dictionary/types'
 
@@ -18,8 +18,12 @@ export type SelectionTranslation = {
   detectedLang?: string
 }
 
+export type EngineDeltaEvent = { engineId: string; text: string }
+
 export type TextHandlers = {
   onDelta?: (delta: string) => void
+  onEngineDelta?: (event: EngineDeltaEvent) => void
+  onEngineDone?: (result: EngineRunResult) => void
   onDone?: (result: TextTranslation) => void
   onError?: (message: string) => void
 }
@@ -36,6 +40,8 @@ export type WordLookupHandlers = {
 
 export type SelectionHandlers = {
   onDelta?: (delta: string) => void
+  onEngineDelta?: (event: EngineDeltaEvent) => void
+  onEngineDone?: (result: EngineRunResult) => void
   onDone?: (result: SelectionTranslation) => void
   onError?: (message: string) => void
 }
@@ -46,6 +52,7 @@ export type TextInput = {
   targetLang: string
   context?: string
   engineId?: string
+  engineIds?: string[]
   silent?: boolean
 }
 
@@ -81,7 +88,12 @@ export function requestTextTranslation(input: TextInput, handlers: TextHandlers)
   port.onMessage.addListener((event: unknown) => {
     if (!isJobEvent(event) || event.requestId !== requestId) return
     if (event.kind === 'delta') {
+      if (event.engineId) handlers.onEngineDelta?.({ engineId: event.engineId, text: event.text })
       handlers.onDelta?.(event.text)
+      return
+    }
+    if (event.kind === 'engineDone') {
+      handlers.onEngineDone?.(event.result)
       return
     }
     if (event.kind === 'done') {
@@ -117,6 +129,7 @@ export function requestTextTranslation(input: TextInput, handlers: TextHandlers)
       targetLang: input.targetLang,
       context: input.context || undefined,
       engineId: input.engineId || undefined,
+      engineIds: input.engineIds && input.engineIds.length > 0 ? input.engineIds : undefined,
       silent: input.silent || undefined,
     }
     port.postMessage(payload)
@@ -137,7 +150,7 @@ export function requestTextTranslation(input: TextInput, handlers: TextHandlers)
 }
 
 export function requestSelectionTranslation(
-  input: { text: string; context: string; sourceLang: string; targetLang: string },
+  input: { text: string; context: string; sourceLang: string; targetLang: string; engineIds?: string[] },
   handlers: SelectionHandlers,
 ): () => void {
   return requestTextTranslation(
@@ -146,9 +159,12 @@ export function requestSelectionTranslation(
       context: input.context,
       sourceLang: input.sourceLang,
       targetLang: input.targetLang,
+      engineIds: input.engineIds,
     },
     {
       onDelta: handlers.onDelta,
+      onEngineDelta: handlers.onEngineDelta,
+      onEngineDone: handlers.onEngineDone,
       onDone(result) {
         handlers.onDone?.({
           text: result.segments.join('\n\n'),

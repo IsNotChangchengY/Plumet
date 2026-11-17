@@ -7,7 +7,8 @@ import { snapshotEntry } from '../core/dictionary/snapshot'
 import { playPronunciation } from '../core/dictionary/audio'
 import { dictionaryQueryFor } from '../core/dictionary/query'
 import { resolveTargetLang } from '../core/lang'
-import type { Bubble, BubbleAnchor } from './bubble'
+import { engineLabelOf } from '../core/providers/labels'
+import type { Bubble, BubbleAnchor, BubbleEngineRun } from './bubble'
 import { createBubble } from './bubble'
 import { DEFAULT_CONTEXT_CHARS, MAX_SELECTION_CHARS, clampIconPosition, looksLikeWord } from './context'
 import { buildStructuredContext } from './structure'
@@ -193,9 +194,7 @@ function ensureBubble(): Bubble {
     onAudio: (url, word) => {
       playPronunciation(url, word)
     },
-    onSave: () => {
-      void saveCurrentSelection()
-    },
+    onSave: (text) => saveCurrentSelection(text),
     onRetry: () => {
       if (!current) return
       bubble?.render({ status: 'loading' })
@@ -212,21 +211,22 @@ function ensureBubble(): Bubble {
   return bubble
 }
 
-async function saveCurrentSelection(): Promise<void> {
-  if (!current || !lastTranslation) return
+async function saveCurrentSelection(translation?: string): Promise<boolean> {
+  const text = translation || lastTranslation
+  if (!current || !text) return false
   try {
     await saveCard({
       text: current.text,
-      translation: lastTranslation,
+      translation: text,
       dictionary: lastDictionary ?? undefined,
       sourceUrl: location.href,
       sourceTitle: document.title,
       sourceLang: settings?.sourceLang ?? 'auto',
       targetLang: lastTargetLang || resolveTargetLang(settings?.targetLang ?? 'zh-CN', current.text),
     })
-    bubble?.setSaved(true)
+    return true
   } catch {
-    // 存储不可用时维持未收藏态
+    return false
   }
 }
 
@@ -303,18 +303,50 @@ function startTranslation(hit: SelectionHit): void {
     )
     return
   }
-  let streamed = ''
+  const prefs = settings
+  const runs: BubbleEngineRun[] = prefs.translateEngines.map((engineId) => ({
+    engineId,
+    label: engineLabelOf(prefs, engineId),
+    text: '',
+    done: false,
+  }))
+  const renderStreaming = (): void => {
+    if (!bubble?.isOpen()) return
+    bubble.render({
+      status: 'streaming',
+      text: runs[0]?.text ?? '',
+      runs: runs.map((run) => ({ ...run })),
+    })
+  }
+  bubble?.render({ status: 'loading', count: runs.length })
   cancelRequest = requestSelectionTranslation(
     {
       text: hit.text,
       context: hit.context,
       sourceLang: settings.sourceLang,
       targetLang,
+      engineIds: runs.map((run) => run.engineId),
     },
     {
-      onDelta(delta) {
-        streamed += delta
-        bubble?.render({ status: 'streaming', text: streamed })
+      onEngineDelta(event) {
+        const run = runs.find((item) => item.engineId === event.engineId)
+        if (!run || run.done) return
+        run.text += event.text
+        renderStreaming()
+      },
+      onEngineDone(result) {
+        const run = runs.find((item) => item.engineId === result.engineId)
+        if (!run) return
+        run.done = true
+        if (result.ok) {
+          run.text = result.segments.join('\n\n')
+          run.elapsedMs = result.elapsedMs
+          run.cached = result.cached
+          run.notice = result.notice
+        } else {
+          run.error = result.message
+        }
+        renderStreaming()
       },
       onDone(result) {
         cancelRequest = null
@@ -329,6 +361,7 @@ function startTranslation(hit: SelectionHit): void {
           expandable,
           context: hit.context,
           cached: result.cached,
+          runs: runs.map((run) => ({ ...run })),
         })
       },
       onError(message) {

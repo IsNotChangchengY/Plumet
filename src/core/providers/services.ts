@@ -1,4 +1,5 @@
 import { isLocalBaseUrl } from './ai/presets'
+import { MT_SERVICE_LABELS } from './labels'
 import type { AiProviderConfig, MtServiceConfig, MtServiceId, Settings } from '../../storage/settings'
 import type { TranslateProvider } from './types'
 import { createBaiduProvider } from './mt/baidu'
@@ -27,7 +28,7 @@ export type ServiceDef = {
 export const MT_SERVICES: ServiceDef[] = [
   {
     id: 'google-free',
-    label: '谷歌翻译',
+    label: MT_SERVICE_LABELS['google-free'],
     tag: '免 Key',
     kind: 'free',
     fields: [],
@@ -37,7 +38,7 @@ export const MT_SERVICES: ServiceDef[] = [
   },
   {
     id: 'mymemory',
-    label: 'MyMemory',
+    label: MT_SERVICE_LABELS.mymemory,
     tag: '免 Key',
     kind: 'free',
     fields: [],
@@ -47,7 +48,7 @@ export const MT_SERVICES: ServiceDef[] = [
   },
   {
     id: 'baidu',
-    label: '百度翻译',
+    label: MT_SERVICE_LABELS.baidu,
     tag: 'AppID + 密钥',
     kind: 'key',
     fields: [
@@ -64,7 +65,7 @@ export const MT_SERVICES: ServiceDef[] = [
   },
   {
     id: 'microsoft',
-    label: '微软 / 必应',
+    label: MT_SERVICE_LABELS.microsoft,
     tag: 'Key + 区域',
     kind: 'key',
     fields: [

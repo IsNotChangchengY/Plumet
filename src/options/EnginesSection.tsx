@@ -17,7 +17,7 @@ type SlotDef = {
 const SLOTS: SlotDef[] = [
   {
     key: 'translateEngines',
-    label: '翻译面板',
+    label: '翻译与划词',
     onlyAi: false,
     multi: true,
     icon: (
@@ -110,6 +110,7 @@ export function EnginesSection({ settings, onPatch, onOpenService }: Props) {
             {readyCount} / {SLOTS.length} 可用
           </span>
         </div>
+        <p className="slot-note">翻译与划词共用这一组引擎；勾选多个时，划词会同时运行它们并逐条给出译文。</p>
 
         {SLOTS.map((slot) => {
           const status = slotStatus(slot)
