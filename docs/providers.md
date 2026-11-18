@@ -17,7 +17,7 @@ interface TranslateProvider {
 
 - `request.segments`：要翻译的文本段（弹窗一般 1 段，网页翻译一批 8 段、划词 1 段）。
 - `request.sourceLang`：可能是 `auto`，MT 服务商需要自己处理（`lang-map.ts` 转码，或本地检测）。
-- `request.context / glossary`：上下文与术语表，MT 可忽略；网页翻译不传 context（见第 9 节）。划词上下文由 `src/content/context.ts` 与 `src/content/structure.ts` 组装（标题 / 网站 / 段落窗口 / 章节标题链 / 相邻段 / 列表 / 表格，范围与长度由 `selectionContextScope` / `selectionContextChars` 控制），对 AI 引擎只作消歧依据（prompt 明确「只翻译【原文】」），并对 AI 引擎参与缓存键（MT 引擎忽略上下文，也不计入键）。
+- `request.context / glossary`：上下文与术语表，MT 可忽略；网页翻译不传 context（见第 9 节）。划词上下文由 `src/content/context.ts` 与 `src/content/structure.ts` 组装（标题 / 网站 / 段落窗口 / 章节标题链 / 相邻段（评论区与聊天列表按对话顺序取上下各最多 2 条评论/消息） / 列表 / 表格，范围与长度由 `selectionContextScope` / `selectionContextChars` 控制），对 AI 引擎只作消歧依据（prompt 明确「只翻译【原文】」），并对 AI 引擎参与缓存键（MT 引擎忽略上下文，也不计入键）。
 - `request.onDelta`：有就推流（AI 单段实现；百度/微软按批整段推）。
 - `request.signal`：取消。
 - 网页翻译在协议层用 `TranslateJobRequest.silent` 标记「不要写历史」，服务商层无感知。

@@ -9,7 +9,7 @@ import {
   looksLikeWord,
   normalizeSelectionText,
 } from '../src/content/context'
-import { toRect } from '../src/content/selection-hit'
+import { pickBlock, toRect } from '../src/content/selection-hit'
 
 describe('normalizeSelectionText', () => {
   it('保留换行，压掉行内多余空白', () => {
@@ -171,6 +171,60 @@ describe('toRect', () => {
       left: 20,
       right: 80,
     })
+  })
+})
+
+describe('pickBlock', () => {
+  function rangeAt(node: Node, start = 0, end = 5): Range {
+    const range = document.createRange()
+    range.setStart(node, start)
+    range.setEnd(node, end)
+    return range
+  }
+
+  it('取选区所在的最近块级元素，不向外扩到整个列表容器', () => {
+    document.body.innerHTML =
+      '<div id="feed"><div class="comment"><p id="text">hello world from one comment</p></div></div>'
+    const text = document.getElementById('text')?.firstChild as Text
+    expect(pickBlock(rangeAt(text))).toBe(document.getElementById('text'))
+  })
+
+  it('选区落在行内元素里时回到所在段落', () => {
+    document.body.innerHTML =
+      '<div id="outer"><p id="para">text with a <b id="bold">bold part</b> after it</p></div>'
+    const bold = document.getElementById('bold')?.firstChild as Text
+    expect(pickBlock(rangeAt(bold))).toBe(document.getElementById('para'))
+  })
+
+  it('Shadow DOM 里没有块级祖先时退回宿主元素', () => {
+    document.body.innerHTML = ''
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const shadow = host.attachShadow({ mode: 'open' })
+    shadow.innerHTML = '<span id="inline">shadow text</span>'
+    const text = shadow.getElementById('inline')?.firstChild as Text
+    expect(pickBlock(rangeAt(text))).toBe(host)
+  })
+
+  it('Shadow DOM 选区直接返回宿主，即使宿主是行内元素', () => {
+    document.body.innerHTML = ''
+    const host = document.createElement('span')
+    document.body.appendChild(host)
+    const shadow = host.attachShadow({ mode: 'open' })
+    shadow.innerHTML = '<span id="inline">shadow text</span>'
+    const text = shadow.getElementById('inline')?.firstChild as Text
+    expect(pickBlock(rangeAt(text))).toBe(host)
+  })
+
+  it('嵌套 Shadow DOM 里外层宿主没有文字时仍返回内层宿主', () => {
+    document.body.innerHTML = ''
+    const outer = document.createElement('div')
+    document.body.appendChild(outer)
+    const wrapper = document.createElement('span')
+    outer.attachShadow({ mode: 'open' }).append(wrapper)
+    wrapper.attachShadow({ mode: 'open' }).innerHTML = '<span id="inline">shadow text</span>'
+    const text = wrapper.shadowRoot?.getElementById('inline')?.firstChild as Text
+    expect(pickBlock(rangeAt(text))).toBe(wrapper)
   })
 })
 

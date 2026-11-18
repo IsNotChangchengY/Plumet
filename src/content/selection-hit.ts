@@ -54,7 +54,7 @@ export function readSelection(probe: SelectionProbe): SelectionHit | null {
     if (!raw) continue
     const text = normalizeSelectionText(raw.text)
     if (!text) continue
-    const block = raw.element ? null : pickBlock(raw.range, probe.contextChars)
+    const block = raw.element ? null : pickBlock(raw.range)
     return {
       text,
       context: buildStructuredContext({
@@ -303,27 +303,25 @@ function shadowRootFromSelection(selection: Selection): ShadowRoot | null {
   return root instanceof ShadowRoot ? root : null
 }
 
-function pickBlock(range: Range | null, maxChars: number): Element | null {
+export function pickBlock(range: Range | null): Element | null {
   if (!range) return null
-  let node: Node | null = range.startContainer
-  let best: Element | null = null
-  while (node && node !== document.body) {
-    if (node.nodeType === 1) {
-      const element = node as Element
-      if (isBlockElement(element)) {
-        const text = (element.textContent ?? '').trim()
-        if (text) {
-          best = element
-          if (text.length >= maxChars * 2) break
-        }
-      }
+  const shadow = range.startContainer.getRootNode()
+  if (shadow instanceof ShadowRoot) return shadow.host
+  let current: Node | null = range.startContainer
+  while (current && current !== document.body) {
+    if (current.nodeType === Node.ELEMENT_NODE) {
+      const element: Element = current as Element
+      if (isBlockElement(element) && (element.textContent ?? '').trim()) return element
     }
-    const root = node.getRootNode()
-    if (root instanceof ShadowRoot && root.host) {
-      node = root.host
+    const owner: Node = current.getRootNode()
+    if (owner instanceof ShadowRoot) {
+      const hostElement: Element = owner.host
+      const hostText: string = owner.textContent ?? ''
+      if (isBlockElement(hostElement) && hostText.trim()) return hostElement
+      current = hostElement
       continue
     }
-    node = node.parentNode
+    current = current.parentNode
   }
-  return best
+  return null
 }

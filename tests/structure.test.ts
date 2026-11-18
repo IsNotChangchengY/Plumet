@@ -266,4 +266,184 @@ describe('structured selection context', () => {
     expect(context).toContain('- Handbook')
     expect(context).not.toContain(WINDOW_LABEL)
   })
+
+  it('评论区里上下文取自相邻评论，而不是站内导航与侧栏', () => {
+    const block = mount(`
+      <div class="site-nav"><a>首页</a><a>番剧</a><a>直播</a><a>游戏中心</a><a>会员购</a></div>
+      <div id="app">
+        <div class="comment-feed">
+          <div class="comment-item"><div class="comment-body"><p id="block">不是哥们，别太上纲上线了，不翻代理都没得用啊。</p></div></div>
+          <div class="comment-item"><div class="comment-body"><p>后一条评论在聊别的话题，内容也足够长，可以当作邻段。</p></div></div>
+        </div>
+        <aside class="sidebar"><a>望月星途</a><a>发消息</a><a>充电</a><a>关注 2.2万</a></aside>
+      </div>
+    `)
+    expect(neighborContext(block, 'previous')).toBe('')
+    const next = neighborContext(block, 'next')
+    expect(next).toContain('后一条评论')
+    expect(next).not.toContain('首页')
+  })
+
+  it('广告块与工具栏不会被当作前后文', () => {
+    const block = mount(`
+      <div class="comment-item"><p id="block">选中的这条评论内容足够长，可以当作一段文字处理。</p></div>
+      <div class="ad-slot"><a>下载客户端</a><a>会员购</a><a>大会员</a><a>游戏中心</a></div>
+      <div role="toolbar"><button>回复</button><button>点赞</button></div>
+      <div class="comment-item"><p>相邻的下一条评论内容，也在讨论同一个视频。</p></div>
+    `)
+    expect(neighborContext(block, 'next')).toContain('相邻的下一条评论')
+  })
+
+  it('评论区一次带上多条相邻评论，按对话顺序排列', () => {
+    const block = mount(`
+      <div class="comment-feed">
+        <div class="comment-item"><div class="comment-body"><p>最早一条评论的内容足够长，可以当作更早的上下文。</p></div></div>
+        <div class="comment-item"><div class="comment-body"><p>紧挨着选区的上一条评论，内容也足够长。</p></div></div>
+        <div class="comment-item"><div class="comment-body"><p id="block">选中的这条评论内容足够长，可以当作一段文字处理。</p></div></div>
+        <div class="comment-item"><div class="comment-body"><p>紧挨着选区的下一条评论，内容也足够长。</p></div></div>
+        <div class="comment-item"><div class="comment-body"><p>再往后一条评论的内容，也足够长可以取到。</p></div></div>
+      </div>
+    `)
+    const previous = neighborContext(block, 'previous')
+    expect(previous).toContain('最早一条')
+    expect(previous).toContain('上一条评论')
+    expect(previous.indexOf('最早一条')).toBeLessThan(previous.indexOf('上一条评论'))
+    const next = neighborContext(block, 'next')
+    expect(next).toContain('下一条评论')
+    expect(next).toContain('再往后一条')
+    expect(next.indexOf('下一条评论')).toBeLessThan(next.indexOf('再往后一条'))
+  })
+
+  it('聊天界面一次带上多条相邻消息，并保留会话顺序', () => {
+    document.body.innerHTML = `
+      <ol class="chat-log">
+        <li class="chat-message"><div class="message-head"><span>Alice</span></div><div class="message-body"><p>Earlier message content is long enough to be context.</p></div></li>
+        <li class="chat-message"><div class="message-head"><span>Bob</span></div><div class="message-body"><p>Previous message content is long enough to be context.</p></div></li>
+        <li class="chat-message"><div class="message-head"><span>Carol</span></div><div class="message-body"><p id="block">Selected message content is long enough to be translated.</p></div></li>
+        <li class="chat-message"><div class="message-head"><span>Dave</span></div><div class="message-body"><p>Next message content is long enough to be context.</p></div></li>
+        <li class="chat-message"><div class="message-head"><span>Eve</span></div><div class="message-body"><p>Later message content is long enough to be context.</p></div></li>
+      </ol>
+    `
+    const block = document.getElementById('block')
+    if (!block) throw new Error('missing block')
+    const previous = neighborContext(block, 'previous')
+    expect(previous).toContain('Earlier message')
+    expect(previous).toContain('Previous message')
+    const next = neighborContext(block, 'next')
+    expect(next).toContain('Next message')
+    expect(next).toContain('Later message')
+  })
+
+  it('聊天界面把说话人与下一条消息当作上下文', () => {
+    const block = mount(`
+      <ol class="chat-log">
+        <li class="chat-message">
+          <div class="message-head"><span>Alice</span><span>Yesterday at 3:04 PM</span></div>
+          <div class="message-body"><p id="block">Hello there, do you have a minute to look at this?</p></div>
+        </li>
+        <li class="chat-message">
+          <div class="message-head"><span>Bob</span><span>Yesterday at 3:05 PM</span></div>
+          <div class="message-body"><p>Sure, send it over and I will take a look.</p></div>
+        </li>
+      </ol>
+    `)
+    expect(neighborContext(block, 'previous')).toContain('Alice')
+    expect(neighborContext(block, 'next')).toContain('Sure, send it over')
+  })
+
+  it('Shadow DOM 评论卡片用宿主文字取相邻评论并生成段落窗口', () => {
+    document.body.innerHTML = '<div class="comment-feed"></div>'
+    const feed = document.querySelector('.comment-feed')
+    if (!feed) throw new Error('missing feed')
+    const first = document.createElement('div')
+    first.className = 'comment-item'
+    first.attachShadow({ mode: 'open' }).innerHTML =
+      '<div class="comment-body"><p>第一条评论的内容足够长，可以当作选中的那条。</p></div>'
+    const second = document.createElement('div')
+    second.className = 'comment-item'
+    second.attachShadow({ mode: 'open' }).innerHTML =
+      '<div class="comment-body"><p>第二条评论也在聊同一个话题，内容也足够长。</p></div>'
+    feed.append(first, second)
+    expect(neighborContext(first, 'next')).toContain('第二条评论')
+    const context = buildStructuredContext({
+      block: first,
+      selection: '第一条评论的内容足够长',
+      title: 'Bilibili',
+      host: 'www.bilibili.com',
+      contextChars: 600,
+      scope: 'section',
+    })
+    expect(context).toContain(WINDOW_LABEL)
+    expect(context).toContain('第二条评论')
+  })
+
+  it('嵌套 Shadow DOM 里的选区能跨根找到另一条评论', () => {
+    document.body.innerHTML = '<div class="comment-feed"></div>'
+    const feed = document.querySelector('.comment-feed')
+    if (!feed) throw new Error('missing feed')
+    const thread = (text: string): HTMLElement => {
+      const host = document.createElement('div')
+      host.className = 'comment-thread'
+      const wrapper = document.createElement('div')
+      host.attachShadow({ mode: 'open' }).append(wrapper)
+      wrapper.attachShadow({ mode: 'open' }).innerHTML = `<p>${text}</p>`
+      return host
+    }
+    const first = thread('第一条评论的内容足够长，可以当作选中的那条。')
+    const second = thread('第二条评论也在聊同一个话题，内容也足够长。')
+    feed.append(first, second)
+    const inner = first.shadowRoot?.firstElementChild
+    if (!inner) throw new Error('missing inner host')
+    expect(neighborContext(inner, 'next')).toContain('第二条评论')
+  })
+
+  it('自定义评论组件里的作者信息不会被当成上一条评论', () => {
+    document.body.innerHTML = '<div class="comment-feed"></div>'
+    const feed = document.querySelector('.comment-feed')
+    if (!feed) throw new Error('missing feed')
+    const thread = (author: string, text: string): HTMLElement => {
+      const host = document.createElement('bili-comment-thread-renderer')
+      const comment = document.createElement('bili-comment-renderer')
+      const user = document.createElement('bili-comment-user-info')
+      user.textContent = author + ' 天津 LV6 8小时前'
+      const body = document.createElement('div')
+      body.className = 'comment-body'
+      body.textContent = text
+      comment.attachShadow({ mode: 'open' }).append(user, body)
+      host.attachShadow({ mode: 'open' }).append(comment)
+      return host
+    }
+    const first = thread('作者甲', '第一条评论的内容足够长，可以当作上一条评论。')
+    const second = thread('作者乙', '第二条评论的内容足够长，可以当作选中的那条。')
+    feed.append(first, second)
+    const comment = second.shadowRoot?.firstElementChild
+    const block = comment?.shadowRoot?.querySelector('.comment-body')
+    if (!block) throw new Error('missing block')
+    const previous = neighborContext(block, 'previous')
+    expect(previous).toContain('第一条评论')
+    expect(previous).not.toContain('作者乙')
+  })
+
+  it('Shadow DOM 里的 style 文本不会混进段落上下文', () => {
+    document.body.innerHTML = '<div class="comment-feed"></div>'
+    const feed = document.querySelector('.comment-feed')
+    if (!feed) throw new Error('missing feed')
+    const comment = document.createElement('div')
+    comment.className = 'comment-item'
+    comment.attachShadow({ mode: 'open' }).innerHTML =
+      '<style>#contents a { color: var(--bili-rich-text-link-color); }</style><div class="comment-body"><p>选中的评论内容足够长，可以当作段落上下文。</p></div>'
+    feed.append(comment)
+    const context = buildStructuredContext({
+      block: comment,
+      selection: '选中的评论内容足够长',
+      title: 'Bilibili',
+      host: 'www.bilibili.com',
+      contextChars: 600,
+      scope: 'section',
+    })
+    expect(context).toContain(WINDOW_LABEL)
+    expect(context).toContain('选中的评论内容')
+    expect(context).not.toContain('color:')
+    expect(context).not.toContain('--bili-rich-text')
+  })
 })

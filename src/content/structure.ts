@@ -1,5 +1,5 @@
 import type { ContextScope } from '../storage/settings'
-import { MAX_SELECTION_CHARS, WINDOW_LABEL, buildContextWindowForRange, composeContext } from './context'
+import { MAX_SELECTION_CHARS, WINDOW_LABEL, buildContextWindowForRange, composeContext, isBlockElement } from './context'
 import { isYuyiNode } from './ui-mark'
 
 export const CONTEXT_LABELS = {
@@ -20,6 +20,39 @@ const NEIGHBOR_SENTENCES = 2
 const NEIGHBOR_HOPS = 6
 const NEIGHBOR_DEPTH = 4
 const NEIGHBOR_UNIT_RATIO = 0.6
+const NEIGHBOR_SIBLINGS = 3
+const NEIGHBOR_MIN_CHARS = 12
+const CONVERSATION_UNITS = 2
+const CONVERSATION_SCAN = 8
+const CONVERSATION_TAGS = /(comment|message|chat|reply|thread)/i
+const CONVERSATION_EXCLUDE = /(body|content|text|header|meta|author|avatar|toolbar|action|footer|time|editor|input)/i
+const SHADOW_TEXT_DEPTH = 8
+const CHROME_TAGS = new Set(['HEADER', 'NAV', 'ASIDE', 'FOOTER', 'MENU'])
+const CHROME_ROLES = new Set([
+  'navigation',
+  'complementary',
+  'banner',
+  'contentinfo',
+  'menu',
+  'menubar',
+  'toolbar',
+  'search',
+])
+const CHROME_NAMES = new Set([
+  'header',
+  'nav',
+  'navbar',
+  'navigation',
+  'menu',
+  'menubar',
+  'sidebar',
+  'footer',
+  'masthead',
+  'toolbar',
+  'breadcrumb',
+  'tabs',
+  'topbar',
+])
 const LIST_ITEMS = 4
 const LIST_ITEM_CHARS = 120
 const TABLE_COLUMNS = 6
@@ -47,6 +80,7 @@ const NOISE_TAGS = new Set([
   'INPUT',
   'FORM',
 ])
+const TEXT_SKIP_TAGS = new Set(['STYLE', 'SCRIPT', 'NOSCRIPT', 'TEMPLATE', 'LINK', 'META', 'TITLE', 'HEAD', 'BASE'])
 const NOISE_SELECTOR = Array.from(NOISE_TAGS, (tag) => tag.toLowerCase()).join(',')
 const HEADING_TEXT_CACHE = new WeakMap<Element, string>()
 
@@ -70,9 +104,24 @@ function flattenText(text: string, limit: number): string {
   return collapsed.slice(0, Math.max(0, limit - 1)) + '…'
 }
 
+function collectText(node: Node, depth: number): string {
+  if (depth > SHADOW_TEXT_DEPTH) return ''
+  if (node.nodeType === Node.TEXT_NODE) return node.nodeValue ?? ''
+  if (node.nodeType !== Node.ELEMENT_NODE && node.nodeType !== Node.DOCUMENT_FRAGMENT_NODE) return ''
+  let text = ''
+  if (node.nodeType === Node.ELEMENT_NODE) {
+    const element: Element = node as Element
+    if (TEXT_SKIP_TAGS.has(element.tagName)) return ''
+    const shadow = element.shadowRoot
+    if (shadow) text += collectText(shadow, depth + 1)
+  }
+  for (const child of Array.from(node.childNodes)) text += collectText(child, depth + 1)
+  return text
+}
+
 function textOf(element: Element | null): string {
   if (!element) return ''
-  return (element.textContent ?? '').replace(/\u00a0/g, ' ').trim()
+  return collectText(element, 0).replace(/\u00a0/g, ' ').trim()
 }
 
 function headingText(element: Element, limit: number): string {
@@ -96,6 +145,47 @@ function usable(element: Element | null): element is Element {
   if (isYuyiNode(element)) return false
   const style = element.getAttribute('style') ?? ''
   return !/display\s*:\s*none|visibility\s*:\s*hidden/i.test(style)
+}
+
+function isChrome(element: Element | null): boolean {
+  let node = element
+  let hops = 0
+  while (node && hops < 6) {
+    if (CHROME_TAGS.has(node.tagName)) return true
+    if (CHROME_ROLES.has((node.getAttribute('role') ?? '').toLowerCase())) return true
+    if (node.id && CHROME_NAMES.has(node.id.toLowerCase())) return true
+    for (const name of Array.from(node.classList)) {
+      if (CHROME_NAMES.has(name.toLowerCase())) return true
+    }
+    node = node.parentElement
+    hops += 1
+  }
+  return false
+}
+
+function interactiveDensity(element: Element): number {
+  const total = textOf(element).replace(/\s+/g, '').length
+  if (!total) return 0
+  let linked = 0
+  const controls = element.querySelectorAll('a, button, [role="button"], [role="link"], [role="menuitem"], [role="tab"]')
+  for (const control of Array.from(controls)) linked += textOf(control).replace(/\s+/g, '').length
+  return linked / total
+}
+
+function isContentLike(element: Element | null): element is Element {
+  if (!element || !usable(element) || isNoise(element) || isChrome(element)) return false
+  if (textOf(element).length < NEIGHBOR_MIN_CHARS) return false
+  return interactiveDensity(element) < 0.5
+}
+
+function isConversationItem(element: Element): boolean {
+  const tag = element.tagName.toLowerCase()
+  const signature = [tag, element.id, ...Array.from(element.classList)].join(' ').toLowerCase()
+  if (!CONVERSATION_TAGS.test(signature)) return false
+  if (CONVERSATION_EXCLUDE.test(signature)) return false
+  if (element.getAttribute('role') === 'listitem') return true
+  if (tag === 'li' || tag.includes('-')) return true
+  return /(comment|message|chat|reply|thread)[-_]?(item|row|card|thread|entry)/.test(signature)
 }
 
 function sentencesOf(text: string): string[] {
@@ -170,9 +260,7 @@ export function headingChain(block: Element | null, root: ParentNode = document)
   return chain.map((entry) => entry.text).join(' › ')
 }
 
-export function neighborContext(block: Element | null, direction: 'previous' | 'next', selection = ''): string {
-  const unit = edgeUnit(block, direction)
-  if (!unit) return ''
+function unitContext(unit: Element, direction: 'previous' | 'next', selection: string): string {
   const raw = textOf(unit)
   if (crossesLanguage(raw, selection)) return ''
   const sentences = sentencesOf(raw)
@@ -183,19 +271,64 @@ export function neighborContext(block: Element | null, direction: 'previous' | '
   return clampHead(sentences.slice(0, NEIGHBOR_SENTENCES).join(' '), NEIGHBOR_CHARS)
 }
 
+function conversationUnits(block: Element | null, direction: 'previous' | 'next'): Element[] {
+  let current = block
+  let hops = 0
+  while (current && hops <= NEIGHBOR_HOPS) {
+    if (isConversationItem(current)) {
+      const units: Element[] = []
+      const sameTagOnly = current.tagName === 'LI' || current.tagName.includes('-')
+      let sibling = direction === 'previous' ? current.previousElementSibling : current.nextElementSibling
+      let scanned = 0
+      while (sibling && units.length < CONVERSATION_UNITS && scanned < CONVERSATION_SCAN) {
+        scanned += 1
+        if ((!sameTagOnly || sibling.tagName === current.tagName) && isConversationItem(sibling) && isContentLike(sibling)) {
+          units.push(sibling)
+        }
+        sibling = direction === 'previous' ? sibling.previousElementSibling : sibling.nextElementSibling
+      }
+      if (units.length > 0) return direction === 'previous' ? units.reverse() : units
+    }
+    current = parentAcrossShadow(current)
+    hops += 1
+  }
+  return []
+}
+
+export function neighborContext(block: Element | null, direction: 'previous' | 'next', selection = ''): string {
+  const units = conversationUnits(block, direction)
+  if (units.length > 0) {
+    return units
+      .map((unit) => unitContext(unit, direction, selection))
+      .filter(Boolean)
+      .join('\n')
+  }
+  const unit = edgeUnit(block, direction)
+  return unit ? unitContext(unit, direction, selection) : ''
+}
+
+function parentAcrossShadow(element: Element): Element | null {
+  const parent = element.parentElement
+  if (parent) return parent
+  const root = element.getRootNode()
+  return root instanceof ShadowRoot ? root.host : null
+}
+
 function edgeUnit(block: Element | null, direction: 'previous' | 'next'): Element | null {
   let current = block
   let hops = 0
   while (current && hops <= NEIGHBOR_HOPS) {
     let sibling = direction === 'previous' ? current.previousElementSibling : current.nextElementSibling
-    while (sibling && (/^H[1-6]$/.test(sibling.tagName) || !usable(sibling) || isNoise(sibling))) {
+    let scanned = 0
+    while (sibling && scanned < NEIGHBOR_SIBLINGS) {
+      scanned += 1
+      if (!/^H[1-6]$/.test(sibling.tagName) && usable(sibling) && !isNoise(sibling) && !isChrome(sibling)) {
+        const unit = edgeNode(sibling, direction)
+        if (unit && isContentLike(unit)) return unit
+      }
       sibling = direction === 'previous' ? sibling.previousElementSibling : sibling.nextElementSibling
     }
-    if (sibling) {
-      const unit = edgeNode(sibling, direction)
-      if (unit) return unit
-    }
-    current = current.parentElement
+    current = parentAcrossShadow(current)
     hops += 1
   }
   return null
@@ -204,15 +337,17 @@ function edgeUnit(block: Element | null, direction: 'previous' | 'next'): Elemen
 function edgeNode(start: Element, direction: 'previous' | 'next'): Element | null {
   if (!usable(start) || isNoise(start)) return null
   const total = textOf(start)
+  const threshold = Math.max(20, total.length * NEIGHBOR_UNIT_RATIO)
   let node = start
   let hops = 0
   while (hops < NEIGHBOR_DEPTH) {
     const children = Array.from(node.children).filter(
-      (child) => usable(child) && !isNoise(child) && textOf(child),
+      (child) => usable(child) && !isNoise(child) && !isChrome(child) && textOf(child),
     )
     if (children.length === 0) break
-    const child = direction === 'previous' ? children[children.length - 1] : children[0]
-    if (textOf(child).length < Math.max(20, total.length * NEIGHBOR_UNIT_RATIO)) break
+    const ordered = direction === 'previous' ? children.reverse() : children
+    const child = ordered.find((entry) => isBlockElement(entry) && textOf(entry).length >= threshold)
+    if (!child) break
     node = child
     hops += 1
   }
