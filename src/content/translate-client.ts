@@ -34,6 +34,8 @@ export type WordLookupResult =
 
 export type WordLookupHandlers = {
   onDelta?: (delta: string) => void
+  onEngineDelta?: (event: EngineDeltaEvent) => void
+  onEngineDone?: (result: EngineRunResult) => void
   onResult?: (result: WordLookupResult) => void
   onError?: (message: string) => void
 }
@@ -180,7 +182,7 @@ export function requestSelectionTranslation(
 }
 
 export function requestWordLookup(
-  input: { word: string; sourceLang: string; targetLang: string; context?: string },
+  input: { word: string; sourceLang: string; targetLang: string; context?: string; engineIds?: string[] },
   handlers: WordLookupHandlers,
 ): () => void {
   const requestId = newRequestId()
@@ -207,7 +209,12 @@ export function requestWordLookup(
   port.onMessage.addListener((event: unknown) => {
     if (!isJobEvent(event) || event.requestId !== requestId) return
     if (event.kind === 'delta') {
+      if (event.engineId) handlers.onEngineDelta?.({ engineId: event.engineId, text: event.text })
       handlers.onDelta?.(event.text)
+      return
+    }
+    if (event.kind === 'engineDone') {
+      handlers.onEngineDone?.(event.result)
       return
     }
     if (event.kind === 'done') {
@@ -254,6 +261,7 @@ export function requestWordLookup(
       sourceLang: input.sourceLang,
       targetLang: input.targetLang,
       context: input.context || undefined,
+      engineIds: input.engineIds && input.engineIds.length > 0 ? input.engineIds : undefined,
     }
     port.postMessage(payload)
   } catch {

@@ -513,6 +513,28 @@ describe('selection bubble', () => {
     expect(copyButtons[1].title).toBe('已复制')
   })
 
+  it('被标成单词但有两个引擎时仍逐条显示结果卡', () => {
+    const view = mount()
+    view.setSource('还是多种点吃吧我不想吃合成淀粉')
+    view.showAt({ top: 200, bottom: 220, left: 100 })
+    view.render({
+      status: 'done',
+      text: 'Better to just grow more food.',
+      engineLabel: 'DeepSeek',
+      elapsedMs: 1000,
+      word: true,
+      context: '页面标题：Example',
+      runs: [
+        { engineId: 'ai:a', label: 'DeepSeek', text: 'Better to just grow more food.', done: true, elapsedMs: 1000 },
+        { engineId: 'mt:baidu', label: '百度翻译', text: '不如多种点吃的。', done: true, elapsedMs: 800 },
+      ],
+    })
+    expect(rootOf(view).querySelectorAll('.engine-result').length).toBe(2)
+    expect(rootOf(view).querySelector('.word-h')).toBe(null)
+    expect(partOf<HTMLElement>(view, '.meta').textContent).toContain('上下文预览')
+    expect(buttonOf(view, 'copy').hidden).toBe(true)
+  })
+
   it('某个引擎失败时只让那张卡显示错误，不挡住其他译文', () => {
     const view = mount()
     view.showAt({ top: 200, bottom: 220, left: 100 })

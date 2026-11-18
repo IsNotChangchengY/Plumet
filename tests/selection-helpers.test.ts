@@ -37,6 +37,12 @@ describe('looksLikeWord', () => {
     expect(looksLikeWord('hello world')).toBe(false)
   })
 
+  it('无空格的中文句子不算词，短词仍算', () => {
+    expect(looksLikeWord('还是多种点吃吧我不想吃合成淀粉')).toBe(false)
+    expect(looksLikeWord('你好世界')).toBe(true)
+    expect(looksLikeWord('你好世界啊')).toBe(false)
+  })
+
   it('空串与超长 token 不算词', () => {
     expect(looksLikeWord('')).toBe(false)
     expect(looksLikeWord('a'.repeat(30))).toBe(false)

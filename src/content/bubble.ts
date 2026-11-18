@@ -982,6 +982,7 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
       latestText = view.text
       latestRuns = view.runs ?? []
       cardMode = latestRuns.length > 0
+      const wordCard = view.word && latestRuns.length <= 1
       if (view.dictionary) {
         dictOpen = true
         latestWord = view.dictionary.word
@@ -989,7 +990,7 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
         body.className = 'body dict-body'
         body.appendChild(buildDictionaryCard(view.dictionary, view.display ?? FULL_DISPLAY))
         applyWidth()
-      } else if (view.word) {
+      } else if (wordCard) {
         renderWordCard(latestSource, view.text)
       } else {
         if (!cardMode) {
@@ -1007,7 +1008,7 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
         }
         renderRuns(latestRuns, Boolean(view.expandable))
       }
-      if (view.dictionary || view.word) {
+      if (view.dictionary || wordCard) {
         meta.hidden = false
         meta.textContent = `${view.engineLabel} · ${Math.max(1, Math.round(view.elapsedMs / 100) / 10)}s${view.cached ? ' · 缓存' : ''}`
         speakButton.hidden = false

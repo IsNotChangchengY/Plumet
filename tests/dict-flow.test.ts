@@ -38,6 +38,10 @@ function googleResponse(): Response {
   return new Response(JSON.stringify([['你好', 'en']]), { status: 200 })
 }
 
+function myMemoryResponse(): Response {
+  return new Response(JSON.stringify({ responseData: { translatedText: '嗨' } }), { status: 200 })
+}
+
 beforeEach(async () => {
   await clearLocal()
   clearDictionaryCache()
@@ -60,6 +64,7 @@ describe('查词任务', () => {
       word: 'hello',
       sourceLang: 'en',
       targetLang: 'zh-CN',
+      engineIds: ['mt:google-free', 'mt:mymemory'],
     })
     const event = await waitForEvent(events)
     expect(event.kind).toBe('dictDone')
@@ -97,7 +102,7 @@ describe('查词任务', () => {
     expect(urls.some((url) => url.includes('clients5.google.com'))).toBe(true)
   })
 
-  it('勾选多个翻译引擎时，查词回退仍只走主引擎', async () => {
+  it('勾选多个翻译引擎时，查词回退也跑全部引擎', async () => {
     await saveSettings({
       ...DEFAULT_SETTINGS,
       services: defaultServices(),
@@ -109,6 +114,7 @@ describe('查词任务', () => {
       if (url.includes('dict.youdao.com')) {
         return new Response(JSON.stringify({ input: 'zzznomulti', meta: { isHasSimpleDict: '0' } }), { status: 200 })
       }
+      if (url.includes('api.mymemory.translated.net')) return myMemoryResponse()
       return googleResponse()
     })
     const events: JobEvent[] = []
@@ -118,11 +124,32 @@ describe('查词任务', () => {
       word: 'zzznomulti',
       sourceLang: 'en',
       targetLang: 'zh-CN',
+      engineIds: ['mt:google-free', 'mt:mymemory'],
     })
     const event = await waitForEvent(events)
     expect(event.kind).toBe('done')
+    if (event.kind !== 'done') return
+    expect(event.result.segments).toEqual(['你好'])
+    expect(event.result.notice).toContain('词典未收录')
+
+    const results = events
+      .filter((item): item is Extract<JobEvent, { kind: 'engineDone' }> => item.kind === 'engineDone')
+      .map((item) => item.result)
+    expect(results).toHaveLength(2)
+    expect(results.find((item) => item.engineId === 'mt:google-free')).toMatchObject({
+      ok: true,
+      segments: ['你好'],
+    })
+    expect(results.find((item) => item.engineId === 'mt:mymemory')).toMatchObject({
+      ok: true,
+      segments: ['嗨'],
+    })
     expect(urls.filter((url) => url.includes('clients5.google.com'))).toHaveLength(1)
-    expect(urls.some((url) => url.includes('mymemory'))).toBe(false)
+    expect(urls.some((url) => url.includes('api.mymemory.translated.net'))).toBe(true)
+
+    const history = await readLocal<HistoryEntry[]>('history.v1', [])
+    expect(history).toHaveLength(1)
+    expect(history[0]?.resultText).toBe('你好')
   })
 
   it('英英词典遇到中文词直接走翻译，不显示词典提示', async () => {

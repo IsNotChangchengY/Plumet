@@ -93,6 +93,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
         word: query.word,
         sourceLang: settings.sourceLang,
         targetLang: resolveTargetLang(settings.targetLang, text),
+        engines: engineRuns(),
       })
       return
     }
@@ -152,6 +153,12 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
   const dictEntry = state.status === 'done' && state.kind === 'dict' ? state.result.entry : null
   const dictText = dictEntry ? entryText(dictEntry) : ''
   const finishedParts = state.status === 'done' && state.kind === 'translate' ? state.parts : []
+  const runningParts =
+    state.status === 'running' && (state.kind === 'translate' || state.kind === 'dict') ? state.parts : []
+  const dictFallback =
+    state.status === 'running' &&
+    state.kind === 'dict' &&
+    runningParts.some((part) => part.text !== '' || part.done || part.error)
   const primaryPart = finishedParts.find((part) => part.result) ?? null
 
   const translateText =
@@ -326,7 +333,11 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
                       ? `正在用 ${state.parts.length} 个引擎翻译…`
                       : '正在翻译…'
                     : state.kind === 'dict'
-                      ? '正在查词…'
+                      ? dictFallback
+                        ? state.parts.length > 1
+                          ? `正在用 ${state.parts.length} 个引擎翻译…`
+                          : '正在翻译…'
+                        : '正在查词…'
                       : state.kind === 'check'
                         ? '正在检查…'
                         : '正在润色…'}
@@ -353,6 +364,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
                 {state.parts.some((part) => part.error) ? (
                   <span className="tag error">{state.parts.filter((part) => part.error).length} 个失败</span>
                 ) : null}
+                {primaryPart?.result?.notice ? <span className="tag">{primaryPart.result.notice}</span> : null}
               </>
             ) : null}
 
@@ -392,12 +404,18 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
             </div>
           ) : null}
 
-          {state.status === 'running' && state.kind !== 'check' && (state.kind !== 'dict' || state.text !== '') ? (
-            state.kind === 'translate' ? (
-              renderParts(state.parts, true)
-            ) : (
-              <pre className="result-text">{state.text}</pre>
-            )
+          {state.status === 'running' && state.kind === 'translate' ? renderParts(state.parts, true) : null}
+
+          {state.status === 'running' && state.kind === 'dict' && dictFallback
+            ? renderParts(state.parts, true)
+            : null}
+
+          {state.status === 'running' && state.kind === 'dict' && !dictFallback && state.text !== '' ? (
+            <pre className="result-text">{state.text}</pre>
+          ) : null}
+
+          {state.status === 'running' && state.kind === 'polish' ? (
+            <pre className="result-text">{state.text}</pre>
           ) : null}
 
           {state.status === 'error' ? <div className="banner error">{state.message}</div> : null}

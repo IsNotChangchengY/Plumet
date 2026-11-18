@@ -14,6 +14,8 @@ import { DEFAULT_CONTEXT_CHARS, MAX_SELECTION_CHARS, clampIconPosition, looksLik
 import { buildStructuredContext } from './structure'
 import type { SelectionHit, SelectionProbe } from './selection-hit'
 import { endPointOf, pageContext, readSelection, rectOf } from './selection-hit'
+import type { EngineRunResult } from '../core/messaging'
+import type { EngineDeltaEvent } from './translate-client'
 import { requestSelectionTranslation, requestWordLookup } from './translate-client'
 import { applyHostTheme, CONTENT_THEME_CSS } from './theme'
 import { isYuyiNode, isYuyiPath, markUiHost } from './ui-mark'
@@ -254,17 +256,55 @@ function startTranslation(hit: SelectionHit): void {
   lastTargetLang = targetLang
   const query = dictionaryQueryFor(settings.dictionary, hit.text)
   const expandable = !word && !query && hit.scope !== 'page' && hit.block !== null && hit.text.length <= MAX_SELECTION_CHARS
+  const prefs = settings
+  const runs: BubbleEngineRun[] = prefs.translateEngines.map((engineId) => ({
+    engineId,
+    label: engineLabelOf(prefs, engineId),
+    text: '',
+    done: false,
+  }))
+  const renderStreaming = (): void => {
+    if (!bubble?.isOpen()) return
+    bubble.render({
+      status: 'streaming',
+      text: runs[0]?.text ?? '',
+      runs: runs.map((run) => ({ ...run })),
+    })
+  }
+  const applyEngineDelta = (event: EngineDeltaEvent): void => {
+    const run = runs.find((item) => item.engineId === event.engineId)
+    if (!run || run.done) return
+    run.text += event.text
+    renderStreaming()
+  }
+  const applyEngineDone = (result: EngineRunResult): void => {
+    const run = runs.find((item) => item.engineId === result.engineId)
+    if (!run) return
+    run.done = true
+    if (result.ok) {
+      run.text = result.segments.join('\n\n')
+      run.elapsedMs = result.elapsedMs
+      run.cached = result.cached
+      run.notice = result.notice
+    } else {
+      run.error = result.message
+    }
+    renderStreaming()
+  }
   if (query) {
     const dictionary = settings.dictionary
     bubble?.render({ status: 'loading', label: '正在查词' })
-    let streamed = ''
     cancelRequest = requestWordLookup(
-      { word: query.word, sourceLang: settings.sourceLang, targetLang, context: hit.context },
       {
-        onDelta(delta) {
-          streamed += delta
-          bubble?.render({ status: 'streaming', text: streamed })
-        },
+        word: query.word,
+        sourceLang: settings.sourceLang,
+        targetLang,
+        context: hit.context,
+        engineIds: runs.map((run) => run.engineId),
+      },
+      {
+        onEngineDelta: applyEngineDelta,
+        onEngineDone: applyEngineDone,
         onResult(result) {
           cancelRequest = null
           if (result.kind === 'dictionary') {
@@ -293,6 +333,7 @@ function startTranslation(hit: SelectionHit): void {
             expandable,
             context: hit.context,
             cached: result.cached,
+            runs: runs.map((run) => ({ ...run })),
           })
         },
         onError(message) {
@@ -302,21 +343,6 @@ function startTranslation(hit: SelectionHit): void {
       },
     )
     return
-  }
-  const prefs = settings
-  const runs: BubbleEngineRun[] = prefs.translateEngines.map((engineId) => ({
-    engineId,
-    label: engineLabelOf(prefs, engineId),
-    text: '',
-    done: false,
-  }))
-  const renderStreaming = (): void => {
-    if (!bubble?.isOpen()) return
-    bubble.render({
-      status: 'streaming',
-      text: runs[0]?.text ?? '',
-      runs: runs.map((run) => ({ ...run })),
-    })
   }
   bubble?.render({ status: 'loading', count: runs.length })
   cancelRequest = requestSelectionTranslation(
@@ -328,26 +354,8 @@ function startTranslation(hit: SelectionHit): void {
       engineIds: runs.map((run) => run.engineId),
     },
     {
-      onEngineDelta(event) {
-        const run = runs.find((item) => item.engineId === event.engineId)
-        if (!run || run.done) return
-        run.text += event.text
-        renderStreaming()
-      },
-      onEngineDone(result) {
-        const run = runs.find((item) => item.engineId === result.engineId)
-        if (!run) return
-        run.done = true
-        if (result.ok) {
-          run.text = result.segments.join('\n\n')
-          run.elapsedMs = result.elapsedMs
-          run.cached = result.cached
-          run.notice = result.notice
-        } else {
-          run.error = result.message
-        }
-        renderStreaming()
-      },
+      onEngineDelta: applyEngineDelta,
+      onEngineDone: applyEngineDone,
       onDone(result) {
         cancelRequest = null
         lastTranslation = result.text

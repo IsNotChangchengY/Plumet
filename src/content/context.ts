@@ -42,6 +42,7 @@ export function looksLikeWord(text: string): boolean {
   const trimmed = text.trim()
   if (!trimmed) return false
   if (/\s/.test(trimmed)) return false
+  if (/\p{Script=Han}/u.test(trimmed)) return /^\p{Script=Han}{1,4}$/u.test(trimmed)
   return /^[\p{L}\p{M}\p{N}'’\-·_]{1,24}$/u.test(trimmed)
 }
 

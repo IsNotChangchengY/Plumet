@@ -24,6 +24,7 @@ export type DictJobRequest = {
   sourceLang: string
   targetLang: string
   context?: string
+  engineIds?: string[]
   silent?: boolean
 }
 

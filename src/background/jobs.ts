@@ -221,6 +221,7 @@ async function runDict(request: DictJobRequest, job: Job): Promise<void> {
         sourceLang: request.sourceLang,
         targetLang: request.targetLang,
         context: request.context,
+        engineIds: request.engineIds,
         silent: request.silent,
       },
       settings,
