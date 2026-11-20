@@ -11,6 +11,7 @@ import { SectionTitle } from '../app/SectionTitle'
 import { DictSection } from './DictSection'
 import { EnginesSection } from './EnginesSection'
 import { ServicesSection } from './ServicesSection'
+import { ShortcutSection } from './ShortcutSection'
 
 const TABS = [
   { id: 'general', label: '通用' },
@@ -374,21 +375,7 @@ export default function App() {
               </div>
             </section>
 
-            <section className="card section">
-              <SectionTitle icon="type">快捷键</SectionTitle>
-              <div className="kv-row">
-                <span className="k">翻译选中内容</span>
-                <span className="d">
-                  <span className="kbd">Alt</span> + <span className="kbd">T</span>
-                </span>
-              </div>
-              <div className="kv-row">
-                <span className="k">翻译当前页面</span>
-                <span className="d">
-                  <span className="kbd">Alt</span> + <span className="kbd">P</span>
-                </span>
-              </div>
-            </section>
+            <ShortcutSection settings={settings} onPatch={patch} />
 
             <section className="card section">
               <SectionTitle icon="info">关于</SectionTitle>

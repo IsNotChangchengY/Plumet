@@ -1,5 +1,7 @@
 import { YUYI_PORT } from '../core/messaging'
 import type { JobRequest } from '../core/messaging'
+import { isDefaultShortcut } from '../core/shortcuts'
+import { loadSettings } from '../storage/settings'
 import { handleJobMessage, removePort } from './jobs'
 import { setupPageRouter } from './page'
 
@@ -48,14 +50,23 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
   }
 })
 
+async function runCommand(command: string, tabId: number): Promise<void> {
+  if (command !== 'translate-selection' && command !== 'translate-page') return
+  const settings = await loadSettings().catch(() => null)
+  if (!settings) return
+  if (command === 'translate-selection') {
+    if (!isDefaultShortcut('selection', settings.shortcuts.selection)) return
+    await tellContent(tabId, 'yuyi:translate-selection')
+    return
+  }
+  if (!isDefaultShortcut('page', settings.shortcuts.page)) return
+  await tellContent(tabId, 'yuyi:translate-page', { frameId: 0 })
+}
+
 chrome.commands.onCommand.addListener((command, tab) => {
   const tabId = tab?.id
-  if (command === 'translate-selection' && tabId !== undefined) {
-    void tellContent(tabId, 'yuyi:translate-selection')
-  }
-  if (command === 'translate-page' && tabId !== undefined) {
-    void tellContent(tabId, 'yuyi:translate-page', { frameId: 0 })
-  }
+  if (tabId === undefined) return
+  void runCommand(command, tabId)
 })
 
 chrome.runtime.onConnect.addListener((port) => {

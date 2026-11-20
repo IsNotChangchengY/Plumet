@@ -195,6 +195,8 @@
 - `.slot`：引擎槽位行，三列 `190px / 1fr / auto`；`.slot-id` 放 26px 图标座 + 名称（检查 / 润色额外挂 `仅 AI` 胶囊），`.slot-eng` 放引擎选择控件（单选 select 或多选 `.engine-picker`，最大 380），`.slot-side` 放状态与「去配置」。
 - `.detail-head` / `.detail-grid`：服务详情，左侧凭证卡 + 右侧 292px 说明栏（`.aside-card`：`.steps` 编号步骤、`.quota` 额度）。`.back` 返回「全部服务」。
 - `.kbd` / `.kv-row`：「其它」页的键帽与键值行。
+- `.shortcut-cell` / `.shortcut-acts` / `.shortcut-plus`：「其它 → 快捷键」的录制行。键帽沿用 `.kbd`，组合之间用分色的 `+` 连接，右侧动作（修改 / 恢复默认）用 `.shortcut-acts` 靠右；行内可换行，换行时错误文案独占一行。
+- `.shortcut-live` / `.shortcut-empty` / `.shortcut-error`：录制态提示用主色 11.5px；未设置用继承的灰字；非法或重复组合用 `--danger` 11.5px 且 `flex: 1 0 100%` 占满整行，不与键帽挤在一行。
 
 ### 6.10 词典卡
 
@@ -310,6 +312,7 @@ Shadow DOM 的限制：页面里的 `:root` 变量不会自动带进来，所以
 | 词典卡（弹窗） | `src/app/DictCard.tsx`、`src/popup/popup.css` 的 `.dict-*` |
 | 词典卡（气泡） | `src/content/bubble.ts` 的 `buildDictionaryCard()` 与 `STYLE` 里的 `.dict-*` |
 | 词典设置页 | `src/options/DictSection.tsx` |
+| 快捷键录制与冲突校验 | `src/options/ShortcutSection.tsx`、`src/core/shortcuts.ts` |
 | 词典服务与解析 | `src/core/providers/dict/{services,youdao,freedict}.ts`、`src/core/dictionary/` |
 | 气泡（样式字符串） | `src/content/bubble.ts` |
 | 触发图标 | `src/content/selection.ts` |

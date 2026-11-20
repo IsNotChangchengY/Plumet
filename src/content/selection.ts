@@ -1,5 +1,7 @@
 import type { ContextScope, Settings } from '../storage/settings'
 import { SETTINGS_KEY, loadSettings } from '../storage/settings'
+import type { ShortcutSettings } from '../core/shortcuts'
+import { defaultShortcuts } from '../core/shortcuts'
 import { saveCard } from '../storage/learning'
 import type { DictionaryEntry } from '../core/dictionary/types'
 import { entryText } from '../core/dictionary/format'
@@ -561,6 +563,10 @@ function onViewportChange(): void {
     current = { ...current, rect }
     bubble.showAt({ top: rect.top, bottom: rect.bottom, left: rect.left, width: rect.right - rect.left })
   })
+}
+
+export function contentShortcuts(): ShortcutSettings {
+  return settings?.shortcuts ?? defaultShortcuts()
 }
 
 export function translateCurrentSelection(): boolean {

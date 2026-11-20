@@ -1,6 +1,8 @@
 import type { PageCommandName } from '../core/messaging'
+import type { ShortcutAction } from '../core/shortcuts'
+import { matchShortcut } from '../core/shortcuts'
 import { handlePageCommand } from './page/translate'
-import { initSelection, translateCurrentSelection } from './selection'
+import { contentShortcuts, initSelection, translateCurrentSelection } from './selection'
 
 type ContentMessage = {
   type?: string
@@ -8,7 +10,10 @@ type ContentMessage = {
 }
 
 const isTopFrame = window.top === window
+const ACTION_GRACE = 200
 let started = false
+let lastAction: ShortcutAction | null = null
+let lastActionAt = 0
 
 function start(): void {
   if (started) return
@@ -26,6 +31,40 @@ if (document.readyState === 'loading') {
   start()
 }
 
+function recentlyHandled(action: ShortcutAction): boolean {
+  return lastAction === action && Date.now() - lastActionAt < ACTION_GRACE
+}
+
+function markHandled(action: ShortcutAction): void {
+  lastAction = action
+  lastActionAt = Date.now()
+}
+
+function onShortcut(event: KeyboardEvent): void {
+  if (event.defaultPrevented || event.repeat || event.isComposing) return
+  const shortcuts = contentShortcuts()
+  if (matchShortcut(event, shortcuts.selection)) {
+    event.preventDefault()
+    event.stopPropagation()
+    if (recentlyHandled('selection')) return
+    markHandled('selection')
+    start()
+    translateCurrentSelection()
+    return
+  }
+  if (matchShortcut(event, shortcuts.page)) {
+    if (!isTopFrame) return
+    event.preventDefault()
+    event.stopPropagation()
+    if (recentlyHandled('page')) return
+    markHandled('page')
+    start()
+    void handlePageCommand('translate')
+  }
+}
+
+document.addEventListener('keydown', onShortcut, true)
+
 function handleMessage(message: ContentMessage, sendResponse: (value: unknown) => void): boolean {
   if (!message || typeof message !== 'object') return false
   if (message.type === 'yuyi:ping') {
@@ -34,6 +73,11 @@ function handleMessage(message: ContentMessage, sendResponse: (value: unknown) =
   }
   if (message.type === 'yuyi:translate-selection') {
     start()
+    if (recentlyHandled('selection')) {
+      sendResponse({ ok: true })
+      return false
+    }
+    markHandled('selection')
     const opened = translateCurrentSelection()
     sendResponse({ ok: opened, reason: opened ? undefined : '没有选中文本' })
     return false
@@ -45,6 +89,11 @@ function handleMessage(message: ContentMessage, sendResponse: (value: unknown) =
     }
     start()
     const command: PageCommandName = message.command ?? 'translate'
+    if (command === 'translate' && recentlyHandled('page')) {
+      sendResponse({ ok: true })
+      return false
+    }
+    if (command === 'translate') markHandled('page')
     void handlePageCommand(command).then(sendResponse)
     return true
   }

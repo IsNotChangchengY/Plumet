@@ -1,5 +1,7 @@
 import { newId, readLocal, writeLocal } from './local'
 import { SMART_TARGET_LANG } from '../core/lang'
+import type { ShortcutSettings } from '../core/shortcuts'
+import { defaultShortcuts, normalizeShortcuts } from '../core/shortcuts'
 
 export type ReasoningEffort = '' | 'low' | 'medium' | 'high'
 
@@ -73,6 +75,7 @@ export type Settings = {
   glossary: GlossaryEntry[]
   polishChips: string[]
   polishDirection: string
+  shortcuts: ShortcutSettings
 }
 
 export const SETTINGS_KEY = 'settings.v1'
@@ -134,6 +137,7 @@ export const DEFAULT_SETTINGS: Settings = {
   glossary: [],
   polishChips: [],
   polishDirection: '',
+  shortcuts: defaultShortcuts(),
 }
 
 function asString(value: unknown): string {
@@ -215,6 +219,7 @@ export function normalizeSettings(raw: unknown): Settings {
       translateEngines: [...DEFAULT_SETTINGS.translateEngines],
       services: defaultServices(),
       dictionary: defaultDictionary(),
+      shortcuts: defaultShortcuts(),
     }
   }
   const stored = raw as Record<string, unknown>
@@ -245,6 +250,7 @@ export function normalizeSettings(raw: unknown): Settings {
     glossary: Array.isArray(stored.glossary) ? (stored.glossary as GlossaryEntry[]) : [],
     polishChips: Array.isArray(stored.polishChips) ? (stored.polishChips as string[]) : [],
     polishDirection: asString(stored.polishDirection),
+    shortcuts: normalizeShortcuts(stored.shortcuts),
     checkEngine: asString(stored.checkEngine),
     polishEngine: asString(stored.polishEngine),
   }
