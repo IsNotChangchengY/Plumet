@@ -54,6 +54,42 @@
   flex-wrap: wrap;
 }
 
+.learn-card-toggle {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.learn-caret {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 14px;
+  height: 14px;
+  color: var(--text-faint);
+  transition:
+    transform var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.learn-card-toggle:hover .learn-caret {
+  color: var(--brand);
+}
+
+.learn-card.open .learn-caret {
+  transform: rotate(90deg);
+}
+
 .learn-card-text {
   font-size: 15px;
   font-weight: 600;

@@ -70,7 +70,8 @@ body {
 }
 
 .popup-footer .btn.primary {
-  flex: 1;
+  flex: 1 1 auto;
+  max-width: 232px;
   height: 32px;
   font-size: 13px;
 }
@@ -80,6 +81,82 @@ body {
   font-size: 11px;
   color: var(--text-faint);
   font-variant-numeric: tabular-nums;
+}
+
+.page-menu {
+  position: relative;
+  flex: none;
+  margin-left: auto;
+}
+
+.page-menu-btn {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition:
+    color var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+
+.page-menu-btn:hover,
+.page-menu-btn[aria-expanded="true"] {
+  color: var(--brand);
+  background: var(--brand-soft);
+  border-color: color-mix(in srgb, var(--brand) 38%, var(--border));
+}
+
+.page-menu-list {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 168px;
+  padding: 6px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+}
+
+.page-menu-title {
+  padding: 2px 8px 4px;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.page-menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  height: 28px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: calc(var(--radius-sm) - 4px);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  text-align: left;
+}
+
+.page-menu-item:disabled {
+  color: var(--text-faint);
+  cursor: not-allowed;
+}
+
+.page-menu-item span {
+  font-size: 10.5px;
+  color: var(--text-faint);
 }
 
 .setbar {
@@ -215,6 +292,10 @@ body {
   outline: none;
 }
 
+.composer-input.has-clear {
+  padding-right: 22px;
+}
+
 .composer-input:focus {
   border: 0;
   box-shadow: none;
@@ -233,12 +314,52 @@ body {
   padding: 0 14px;
 }
 
+.composer-clear {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  transition:
+    color var(--dur-fast) var(--ease),
+    background-color var(--dur-fast) var(--ease);
+}
+
+.composer-clear:hover {
+  color: var(--text);
+  background: var(--surface-2);
+}
+
+.composer-clear svg {
+  width: 13px;
+  height: 13px;
+}
+
 .polish-config {
   flex: none;
   border: 0;
   border-radius: var(--radius-sm);
   background: var(--surface-2);
   padding: 0;
+}
+
+.setbar .polish-config {
+  background: transparent;
+}
+
+.setbar .polish-config summary {
+  padding: 0 8px;
+}
+
+.setbar .polish-config .stack {
+  padding: 0 8px;
 }
 
 .polish-config summary {

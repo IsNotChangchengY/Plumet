@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { PageCommandName, PageCommandResult, PageState } from '../core/messaging'
 import { isPageStateEvent } from '../core/messaging'
 
@@ -31,6 +31,17 @@ type Props = {
 export function PageButton({ onStarted }: Props = {}) {
   const [status, setStatus] = useState<PageState | null>(null)
   const [reason, setReason] = useState('')
+  const [menuOpen, setMenuOpen] = useState(false)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!menuOpen) return
+    const onPointerDown = (event: PointerEvent): void => {
+      if (!menuRef.current?.contains(event.target as Node)) setMenuOpen(false)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [menuOpen])
 
   useEffect(() => {
     let alive = true
@@ -95,6 +106,39 @@ export function PageButton({ onStarted }: Props = {}) {
         </button>
       ) : null}
       {status && status.state !== 'idle' ? <span className="hint">{statusLabel(status)}</span> : null}
+      <div className="page-menu" ref={menuRef}>
+        <button
+          type="button"
+          className="page-menu-btn"
+          aria-haspopup="menu"
+          aria-expanded={menuOpen}
+          title="网页翻译设置"
+          aria-label="网页翻译设置"
+          onClick={() => setMenuOpen((value) => !value)}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M4 7h10" />
+            <path d="M18 7h2" />
+            <path d="M4 17h4" />
+            <path d="M12 17h8" />
+            <circle cx="16" cy="7" r="2" />
+            <circle cx="10" cy="17" r="2" />
+          </svg>
+        </button>
+        {menuOpen ? (
+          <div className="page-menu-list" role="menu" aria-label="网页翻译设置">
+            <span className="page-menu-title">页面显示</span>
+            <button type="button" className="page-menu-item" role="menuitem" disabled title="尚未实现">
+              双语显示
+              <span>待实现</span>
+            </button>
+            <button type="button" className="page-menu-item" role="menuitem" disabled title="尚未实现">
+              覆盖原文
+              <span>待实现</span>
+            </button>
+          </div>
+        ) : null}
+      </div>
     </>
   )
 }

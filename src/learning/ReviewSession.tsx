@@ -8,14 +8,6 @@ type Props = {
   onExit: () => void
 }
 
-function hostOf(url: string): string {
-  try {
-    return new URL(url).hostname.replace(/^www\./, '')
-  } catch {
-    return ''
-  }
-}
-
 export function ReviewSession({ cards, onGrade, onExit }: Props) {
   const [index, setIndex] = useState(0)
   const [revealed, setRevealed] = useState(false)
@@ -83,11 +75,6 @@ export function ReviewSession({ cards, onGrade, onExit }: Props) {
 
       <div className="review-card">
         <div className="review-word">{card.text}</div>
-        {card.sourceUrl ? (
-          <a className="learn-source" href={card.sourceUrl} target="_blank" rel="noreferrer">
-            {card.sourceTitle || hostOf(card.sourceUrl) || '来源'}
-          </a>
-        ) : null}
       </div>
 
       {revealed ? (

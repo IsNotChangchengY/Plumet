@@ -9,7 +9,6 @@ import type { Settings } from '../storage/settings'
 import { loadSettings, patchSettings } from '../storage/settings'
 import { applyTheme } from '../ui/apply-theme'
 import { openLearning, openOptions } from '../ui/nav'
-import { extensionVersion } from '../ui/version'
 
 type Tab = 'translate' | 'history'
 
@@ -102,7 +101,6 @@ export default function App() {
 
       <footer className="popup-footer">
         <PageButton onStarted={() => window.close()} />
-        <span className="hint">v{extensionVersion()}</span>
       </footer>
     </div>
   )

@@ -144,6 +144,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
     setSaved(false)
     setCopiedKey(null)
     job.reset()
+    inputRef.current?.focus()
   }
 
   const swap = () => {
@@ -191,6 +192,8 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
     state.status === 'running' && state.kind === 'check' && state.progress
       ? `已检查 ${Math.min(state.progress.done, state.progress.total)}/${state.progress.total} 段`
       : ''
+
+  const canClear = text.trim() !== '' || state.status !== 'idle' || manual !== null
 
   const renderParts = (parts: EngineRun[], active: boolean) => {
     if (parts.length <= 1) return <pre className="result-text">{parts[0]?.text ?? ''}</pre>
@@ -250,13 +253,38 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
             onChange={(ids) => void onPatch({ translateEngines: ids })}
           />
         </div>
+
+        <details className="polish-config">
+          <summary>润色方向{chips.length > 0 ? `（已选 ${chips.length}）` : ''}</summary>
+          <div className="stack" style={{ gap: 6, marginTop: 8 }}>
+            <div className="chips">
+              {POLISH_CHIPS.map((chip) => (
+                <button
+                  key={chip.id}
+                  type="button"
+                  className={`chip${chips.includes(chip.id) ? ' active' : ''}`}
+                  onClick={() => toggleChip(chip.id)}
+                >
+                  {chip.label}
+                </button>
+              ))}
+            </div>
+            <input
+              className="input"
+              placeholder="自定义要求，例如：更诗意一点、写给中学生看"
+              value={direction}
+              onChange={(event) => setDirection(event.target.value)}
+              onBlur={persistDirection}
+            />
+          </div>
+        </details>
       </div>
 
       <div className="composer">
         <textarea
-          className="textarea composer-input"
+          className={`textarea composer-input${canClear ? ' has-clear' : ''}`}
           ref={inputRef}
-          placeholder="输入或粘贴文本，Enter 翻译"
+          placeholder="输入或粘贴文本，Enter 翻译 · Shift+Enter 换行"
           value={text}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={(event) => {
@@ -294,32 +322,15 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
             翻译
           </button>
         </div>
+        {canClear ? (
+          <button type="button" className="composer-clear" onClick={clear} title="清空输入与结果" aria-label="清空输入与结果">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 6 6 18" />
+              <path d="m6 6 12 12" />
+            </svg>
+          </button>
+        ) : null}
       </div>
-
-      <details className="polish-config">
-        <summary>润色方向{chips.length > 0 ? `（已选 ${chips.length}）` : ''}</summary>
-        <div className="stack" style={{ gap: 6, marginTop: 8 }}>
-          <div className="chips">
-            {POLISH_CHIPS.map((chip) => (
-              <button
-                key={chip.id}
-                type="button"
-                className={`chip${chips.includes(chip.id) ? ' active' : ''}`}
-                onClick={() => toggleChip(chip.id)}
-              >
-                {chip.label}
-              </button>
-            ))}
-          </div>
-          <input
-            className="input"
-            placeholder="自定义要求，例如：更诗意一点、写给中学生看"
-            value={direction}
-            onChange={(event) => setDirection(event.target.value)}
-            onBlur={persistDirection}
-          />
-        </div>
-      </details>
 
       <div className="card result-card">
         <div className="result">
@@ -444,20 +455,7 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
 
           {state.status === 'idle' && !manual ? (
             <div className="empty">
-              <span className="re-icon" aria-hidden="true">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 3v4" />
-                  <path d="M12 17v4" />
-                  <path d="M3 12h4" />
-                  <path d="M17 12h4" />
-                  <path d="m5.6 5.6 2.8 2.8" />
-                  <path d="m15.6 15.6 2.8 2.8" />
-                  <path d="m18.4 5.6-2.8 2.8" />
-                  <path d="m8.4 15.6-2.8 2.8" />
-                </svg>
-              </span>
               <span className="re-title">结果会显示在这里</span>
-              <span className="re-hint">Shift+Enter 换行</span>
             </div>
           ) : null}
 
@@ -483,9 +481,6 @@ export function TranslatePanel({ settings, onPatch, external }: Props) {
                   {copiedKey === 'primary' ? '已复制' : '复制'}
                 </button>
               ) : null}
-              <button type="button" className="btn ghost small" onClick={clear}>
-                清空
-              </button>
             </div>
           ) : null}
         </div>
