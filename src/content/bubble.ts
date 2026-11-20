@@ -33,6 +33,7 @@ export type BubbleView =
       context?: string
       runs?: BubbleEngineRun[]
     }
+  | { status: 'guard'; text: string }
   | { status: 'error'; message: string }
 
 export type BubbleHandlers = {
@@ -42,6 +43,7 @@ export type BubbleHandlers = {
   onSave: (text: string) => Promise<boolean> | void
   onRetry: () => void
   onMoreContext: () => void
+  onContinue: () => void
   onClose: () => void
 }
 
@@ -473,6 +475,63 @@ const STYLE = `
   .dict-phrase b { margin-right: 6px; font-weight: 600; color: var(--text); }
   .dict-hint { margin: 0; font-size: 12px; line-height: 1.5; color: var(--text-muted); }
 
+  .guard-body {
+    position: relative;
+    background: color-mix(in srgb, var(--brand-soft) 62%, transparent);
+  }
+  .guard-text {
+    position: absolute;
+    top: 8px;
+    left: 12px;
+    right: 12px;
+    margin: 0;
+    max-height: 116px;
+    overflow: hidden;
+    filter: blur(4px);
+    opacity: 0.32;
+    pointer-events: none;
+    user-select: none;
+  }
+  .guard-layer {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 18px 14px 20px;
+    text-align: center;
+    background: color-mix(in srgb, var(--brand-soft) 78%, transparent);
+  }
+  .guard-msg {
+    margin: 0;
+    color: var(--warn);
+    font-size: 12.5px;
+    font-weight: 600;
+    line-height: 1.55;
+  }
+  .guard-hint {
+    margin: 0;
+    max-width: 30em;
+    color: var(--text-muted);
+    font-size: 11px;
+    line-height: 1.5;
+  }
+  .guard-go {
+    height: 28px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: var(--brand-grad);
+    color: var(--on-brand);
+    font-family: inherit;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    box-shadow: var(--brand-glow);
+  }
+  .guard-go:hover { filter: brightness(1.06); }
+
   @media (prefers-reduced-motion: reduce) {
     :host([data-open="1"]) .panel { animation: none; }
     .dots i, .cursor, .engine-dot.running { animation: none; opacity: 1; }
@@ -517,6 +576,11 @@ function element<K extends keyof HTMLElementTagNameMap>(
   if (className) node.className = className
   if (text !== undefined) node.textContent = text
   return node
+}
+
+function guardPreview(text: string): string {
+  const trimmed = text.trim()
+  return trimmed.length > 240 ? `${trimmed.slice(0, 240)}…` : trimmed
 }
 
 function sectionBlock(title: string): { root: HTMLElement; list: HTMLElement } {
@@ -1023,6 +1087,18 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
         meta.dataset.expandable = '1'
         meta.appendChild(element('span', 'meta-caret', '▾'))
       }
+    } else if (view.status === 'guard') {
+      body.className = 'body guard-body'
+      body.innerHTML = ''
+      const preview = element('pre', 'text guard-text', guardPreview(view.text))
+      const layer = element('div', 'guard-layer')
+      const message = element('p', 'guard-msg', '选中了隐藏内容，请重新选择或继续翻译')
+      const hint = element('p', 'guard-hint', '继续翻译会跳过这些隐藏内容；整段都不可见时会按原文发送，译文可能是一段代码。')
+      const go = element('button', 'guard-go', '继续翻译')
+      go.type = 'button'
+      go.dataset.guard = 'continue'
+      layer.append(message, hint, go)
+      body.append(preview, layer)
     } else {
       panel.className = 'panel error-state'
       body.innerHTML = ''
@@ -1077,6 +1153,10 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
     const target = event.target as Element | null
     if (target?.closest?.('.close')) {
       handlers.onClose()
+      return
+    }
+    if (target?.closest?.('[data-guard]')) {
+      handlers.onContinue()
       return
     }
     const cardAction = target?.closest?.('[data-card-action]') as HTMLButtonElement | null

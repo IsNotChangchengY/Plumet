@@ -9,7 +9,7 @@ import {
   looksLikeWord,
   normalizeSelectionText,
 } from '../src/content/context'
-import { pickBlock, toRect } from '../src/content/selection-hit'
+import { pickBlock, scanSelectionText, toRect } from '../src/content/selection-hit'
 
 describe('normalizeSelectionText', () => {
   it('保留换行，压掉行内多余空白', () => {
@@ -293,3 +293,43 @@ describe('calculatePlacement', () => {
     expect(placement.top).toBe(236)
   })
 })
+describe('scanSelectionText', () => {
+  function scanOf(html: string) {
+    document.body.innerHTML = html
+    const root = document.body.firstElementChild as Element
+    const range = document.createRange()
+    range.selectNodeContents(root)
+    return scanSelectionText(range)
+  }
+
+  it('选中的内联脚本不计入原文，但会标出隐藏内容', () => {
+    const scan = scanOf('<div>喜欢<script>var Feedback = 1;</script>不喜欢</div>')
+    expect(scan.text).toBe('喜欢不喜欢')
+    expect(scan.hidden).toBe(true)
+  })
+
+  it('display:none 与 visibility:hidden 的文字被剔除', () => {
+    const scan = scanOf('<div>甲<span style="display:none">乙</span>丙<span style="visibility:hidden">丁</span>戊</div>')
+    expect(scan.text).toBe('甲丙戊')
+    expect(scan.hidden).toBe(true)
+  })
+
+  it('可见的代码块与行内 code 不算隐藏内容', () => {
+    const scan = scanOf('<div><p>调用 <code>script</code> 标签</p><pre>var s = 1;</pre></div>')
+    expect(scan.text).toBe('调用 script 标签\nvar s = 1;')
+    expect(scan.hidden).toBe(false)
+  })
+
+  it('块级元素之间与 br 补换行', () => {
+    const scan = scanOf('<div><p>第一段</p><p>第二段</p><p>甲<br>乙</p></div>')
+    expect(scan.text).toBe('第一段\n第二段\n甲\n乙')
+    expect(scan.hidden).toBe(false)
+  })
+
+  it('整块不可见时原文为空且标出隐藏', () => {
+    const scan = scanOf('<div style="display:none">藏起来的字</div>')
+    expect(scan.text).toBe('')
+    expect(scan.hidden).toBe(true)
+  })
+})
+

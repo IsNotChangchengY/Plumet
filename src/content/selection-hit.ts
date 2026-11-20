@@ -303,6 +303,89 @@ function shadowRootFromSelection(selection: Selection): ShadowRoot | null {
   return root instanceof ShadowRoot ? root : null
 }
 
+const HIDDEN_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE'])
+
+export type SelectionScan = { text: string; hidden: boolean }
+
+export function scanSelectionText(range: Range): SelectionScan {
+  const parts: string[] = []
+  let hidden = false
+  let lastBlock: Element | null | undefined
+  const append = (value: string): void => {
+    if (value) parts.push(value)
+  }
+  const visit = (node: Node): void => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      if (!overlaps(range, node)) return
+      const text = sliceText(range, node as Text)
+      if (!text) return
+      const block = blockOf(node)
+      if (lastBlock !== undefined && block !== lastBlock) append('\n')
+      lastBlock = block
+      append(text)
+      return
+    }
+    if (node.nodeType !== Node.ELEMENT_NODE) return
+    if (!overlaps(range, node)) return
+    const element: Element = node as Element
+    if (isHiddenElement(element)) {
+      if (!hidden && (element.textContent ?? '').trim()) hidden = true
+      return
+    }
+    if (element.tagName === 'BR') {
+      append('\n')
+      return
+    }
+    for (let child: Node | null = element.firstChild; child; child = child.nextSibling) visit(child)
+  }
+  visit(range.commonAncestorContainer)
+  return { text: normalizeSelectionText(parts.join('')), hidden }
+}
+
+function overlaps(range: Range, node: Node): boolean {
+  try {
+    return range.intersectsNode(node)
+  } catch {
+    return true
+  }
+}
+
+function sliceText(range: Range, node: Text): string {
+  const start = node === range.startContainer ? Math.min(range.startOffset, node.data.length) : 0
+  const end = node === range.endContainer ? Math.max(start, Math.min(range.endOffset, node.data.length)) : node.data.length
+  return node.data.slice(start, end)
+}
+
+function isHiddenElement(element: Element): boolean {
+  if (HIDDEN_TAGS.has(element.tagName)) return true
+  let style: CSSStyleDeclaration
+  try {
+    style = window.getComputedStyle(element)
+  } catch {
+    return false
+  }
+  return (
+    style.display === 'none' ||
+    style.visibility === 'hidden' ||
+    style.visibility === 'collapse' ||
+    style.getPropertyValue('content-visibility') === 'hidden'
+  )
+}
+
+function blockOf(node: Node): Element | null {
+  let current: Node | null = node
+  while (current) {
+    if (current.nodeType === Node.ELEMENT_NODE && isBlockElement(current as Element)) return current as Element
+    const root: Node = current.getRootNode()
+    if (root instanceof ShadowRoot) {
+      current = root.host
+      continue
+    }
+    current = current.parentNode
+  }
+  return null
+}
+
 export function pickBlock(range: Range | null): Element | null {
   if (!range) return null
   const shadow = range.startContainer.getRootNode()

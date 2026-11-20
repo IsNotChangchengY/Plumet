@@ -13,7 +13,7 @@ import { createBubble } from './bubble'
 import { DEFAULT_CONTEXT_CHARS, MAX_SELECTION_CHARS, clampIconPosition, looksLikeWord } from './context'
 import { buildStructuredContext } from './structure'
 import type { SelectionHit, SelectionProbe } from './selection-hit'
-import { endPointOf, pageContext, readSelection, rectOf } from './selection-hit'
+import { endPointOf, pageContext, readSelection, rectOf, scanSelectionText } from './selection-hit'
 import type { EngineRunResult } from '../core/messaging'
 import type { EngineDeltaEvent } from './translate-client'
 import { requestSelectionTranslation, requestWordLookup } from './translate-client'
@@ -61,6 +61,7 @@ let current: SelectionHit | null = null
 let lastTranslation = ''
 let lastDictionary: DictionaryEntry | null = null
 let lastTargetLang = ''
+let pendingVisibleText = ''
 let cancelRequest: (() => void) | null = null
 let initialized = false
 let viewportFrame = 0
@@ -204,6 +205,9 @@ function ensureBubble(): Bubble {
     },
     onMoreContext: () => {
       expandContext()
+    },
+    onContinue: () => {
+      void continueHiddenSelection()
     },
     onClose: () => {
       closeBubble()
@@ -410,11 +414,32 @@ async function openBubble(hit: SelectionHit): Promise<void> {
   lastTranslation = ''
   lastDictionary = null
   lastTargetLang = ''
+  pendingVisibleText = ''
   view.setSource(hit.text)
   view.showAt(anchorOf(hit))
+  if (hit.range) {
+    const scan = scanSelectionText(hit.range)
+    if (scan.hidden) {
+      pendingVisibleText = scan.text
+      view.render({ status: 'guard', text: hit.text })
+      return
+    }
+  }
   view.render({ status: 'loading' })
   if (!settings) await refreshSettings()
   startTranslation(hit)
+}
+
+async function continueHiddenSelection(): Promise<void> {
+  if (!current) return
+  const visible = pendingVisibleText
+  pendingVisibleText = ''
+  current = { ...current, text: visible || current.text }
+  const view = ensureBubble()
+  view.setSource(current.text)
+  view.render({ status: 'loading' })
+  if (!settings) await refreshSettings()
+  startTranslation(current)
 }
 
 function anchorOf(hit: SelectionHit): BubbleAnchor {
@@ -431,6 +456,7 @@ function closeBubble(): void {
   lastTranslation = ''
   lastDictionary = null
   lastTargetLang = ''
+  pendingVisibleText = ''
   bubble?.hide()
 }
 

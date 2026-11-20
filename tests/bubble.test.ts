@@ -31,6 +31,7 @@ const handlers = {
   },
   onRetry: () => calls.push('retry'),
   onMoreContext: () => calls.push('more'),
+  onContinue: () => calls.push('continue'),
   onClose: () => calls.push('close'),
 }
 
@@ -654,5 +655,34 @@ describe('selection bubble', () => {
     view.render({ status: 'done', text: '已推迟发布。', engineLabel: 'DeepSeek', elapsedMs: 1400, word: false })
     await flush()
     expect(view.element.style.top).toBe('328px')
+  })
+
+  it('选到隐藏内容时模糊原文并给出继续翻译入口', () => {
+    const view = mount()
+    view.setSource('喜欢不喜欢')
+    view.showAt({ top: 200, bottom: 220, left: 100 })
+    view.render({ status: 'guard', text: '喜欢不喜欢\nvar Feedback = 1;' })
+    expect(partOf<HTMLElement>(view, '.guard-msg').textContent).toBe('选中了隐藏内容，请重新选择或继续翻译')
+    expect(partOf<HTMLElement>(view, '.guard-hint').textContent).toContain('整段都不可见')
+    expect(partOf<HTMLElement>(view, '.guard-text').textContent).toContain('喜欢不喜欢')
+    expect(partOf<HTMLElement>(view, '.foot').hidden).toBe(true)
+    const go = partOf<HTMLButtonElement>(view, '[data-guard="continue"]')
+    expect(go.textContent).toBe('继续翻译')
+    go.click()
+    expect(calls).toEqual(['continue'])
+    view.render({ status: 'loading' })
+    expect(rootOf(view).querySelector('.guard-msg')).toBe(null)
+    expect(rootOf(view).querySelector('.guard-hint')).toBe(null)
+    expect(partOf<HTMLElement>(view, '.body').className).toBe('body')
+  })
+
+  it('隐藏内容预览最多留 240 字', () => {
+    const view = mount()
+    view.setSource('字')
+    view.showAt({ top: 200, bottom: 220, left: 100 })
+    view.render({ status: 'guard', text: '字'.repeat(400) })
+    const preview = partOf<HTMLElement>(view, '.guard-text')
+    expect(preview.textContent).toHaveLength(241)
+    expect(preview.textContent?.endsWith('…')).toBe(true)
   })
 })
