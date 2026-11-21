@@ -199,20 +199,6 @@ svg {
   flex: none;
 }
 
-.brand-mark {
-  width: 24px;
-  height: 24px;
-  flex: none;
-  border-radius: var(--radius-sm);
-  background: var(--brand-grad);
-  color: var(--on-brand);
-  display: inline-grid;
-  place-items: center;
-  font-size: 12px;
-  font-weight: 700;
-  box-shadow: var(--brand-glow);
-}
-
 .tabs {
   position: relative;
   display: flex;
@@ -1519,18 +1505,6 @@ select option:checked {
   align-items: center;
   gap: 9px;
   flex: none;
-}
-
-.brand-mark {
-  width: 26px;
-  height: 26px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--radius-sm);
-  background: var(--brand-grad);
-  color: var(--on-brand);
-  font-size: 13px;
-  font-weight: 700;
 }
 
 .brand-txt {

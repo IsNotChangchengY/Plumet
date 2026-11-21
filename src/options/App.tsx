@@ -123,7 +123,6 @@ export default function App() {
       <header className="topbar">
         <div className="tb">
           <div className="brand">
-            <span className="brand-mark">羽</span>
             <span className="brand-txt">
               羽译<i>设置</i>
             </span>

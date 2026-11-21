@@ -55,7 +55,6 @@ export default function App() {
     <div className="popup">
       <header className="popup-header">
         <div className="brand">
-          <span className="brand-mark">羽</span>
           <span>羽译</span>
         </div>
         <div className="tabs" style={tabStyle}>
