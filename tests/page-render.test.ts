@@ -1,6 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest'
 import { collectUnits } from '../src/content/page/collect'
-import { hasPageTranslations, markUnitFailed, renderTranslation, restorePage } from '../src/content/page/render'
+import {
+  hasPageTranslations,
+  markUnitFailed,
+  renderTranslation,
+  restorePage,
+  switchPageMode,
+} from '../src/content/page/render'
 
 function setup(html: string): void {
   document.body.innerHTML = html
@@ -124,6 +130,42 @@ describe('renderTranslation', () => {
     markUnitFailed(unit)
     expect(document.querySelector('p')?.getAttribute('data-yuyi-state')).toBe('failed')
     expect(document.querySelector('[data-yuyi="trans"]')).toBeNull()
+  })
+
+  it('覆盖原文与双语可以来回切换且译文始终在末尾', () => {
+    setup('<p>Hello <b>world</b></p>')
+    const unit = collect().units[0]
+    if (!unit) throw new Error('缺少单元')
+    renderTranslation(unit, '你好世界', 'bilingual', 'zh-CN')
+    switchPageMode('replace')
+    const paragraph = document.querySelector('p')
+    expect(paragraph?.querySelector('[data-yuyi="orig"]')?.textContent).toBe('Hello world')
+    expect(paragraph?.lastElementChild?.getAttribute('data-yuyi')).toBe('trans')
+    expect(document.querySelectorAll('[data-yuyi="orig"]')).toHaveLength(1)
+    switchPageMode('bilingual')
+    expect(document.querySelector('[data-yuyi="orig"]')).toBeNull()
+    expect(paragraph?.firstChild?.textContent).toBe('Hello ')
+    expect(paragraph?.querySelector('[data-yuyi="trans"]')?.textContent).toBe('你好世界')
+    switchPageMode('replace')
+    expect(paragraph?.querySelector('[data-yuyi="orig"]')?.textContent).toBe('Hello world')
+  })
+
+  it('没有译文时切换模式不产生 orig 节点', () => {
+    setup('<p>Hello world</p>')
+    switchPageMode('replace')
+    expect(document.querySelector('[data-yuyi="orig"]')).toBeNull()
+  })
+
+  it('来回切换模式后还原页面与翻译前完全一致', () => {
+    setup('<div><p>Hello <b>world</b></p><ul><li>One</li><li>Two</li></ul></div>')
+    const before = document.body.innerHTML
+    for (const unit of collect().units) renderTranslation(unit, '译文：' + unit.text, 'bilingual', 'zh-CN')
+    switchPageMode('replace')
+    switchPageMode('bilingual')
+    switchPageMode('replace')
+    restorePage()
+    expect(document.body.innerHTML).toBe(before)
+    expect(hasPageTranslations()).toBe(false)
   })
 
   it('还原后 DOM 与翻译前完全一致', () => {

@@ -100,7 +100,13 @@ export default function App() {
       </div>
 
       <footer className="popup-footer">
-        <PageButton onStarted={() => window.close()} />
+        <PageButton
+          mode={settings.pageMode}
+          onModeChange={(mode) => {
+            void patch({ pageMode: mode })
+          }}
+          onStarted={() => window.close()}
+        />
       </footer>
     </div>
   )

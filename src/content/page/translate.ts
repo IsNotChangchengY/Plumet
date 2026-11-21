@@ -1,5 +1,5 @@
 import type { PageCommandName, PageCommandResult, PageState } from '../../core/messaging'
-import type { Settings } from '../../storage/settings'
+import type { PageMode, Settings } from '../../storage/settings'
 import { loadSettings } from '../../storage/settings'
 import { resolveTargetLang } from '../../core/lang'
 import { isYuyiNode } from '../ui-mark'
@@ -8,7 +8,14 @@ import type { PageUnit, SkipCounts } from './collect'
 import { collectUnits } from './collect'
 import type { Pill } from './pill'
 import { createPill } from './pill'
-import { ensurePageStyle, hasPageTranslations, markUnitFailed, renderTranslation, restorePage } from './render'
+import {
+  ensurePageStyle,
+  hasPageTranslations,
+  markUnitFailed,
+  renderTranslation,
+  restorePage,
+  switchPageMode,
+} from './render'
 import { MAX_UNITS, groupUnits, isTargetLanguageText, pickScanRoots } from './text'
 
 const CONCURRENCY = 2
@@ -178,10 +185,36 @@ export function pageStatus(): PageCommandResult {
   return { ok: true, state }
 }
 
-export async function handlePageCommand(command: PageCommandName): Promise<PageCommandResult> {
+async function applyPageMode(mode: PageMode): Promise<PageCommandResult> {
+  const next: PageMode = mode === 'replace' ? 'replace' : 'bilingual'
+  let current = settings
+  if (!current) {
+    try {
+      current = await loadSettings()
+    } catch {
+      return { ok: false, reason: '读取设置失败，请刷新页面后再试', state }
+    }
+    settings = current
+    pill?.setTheme(current.theme)
+  }
+  if (current.pageMode !== next) {
+    current = { ...current, pageMode: next }
+    settings = current
+  }
+  switchPageMode(next)
+  state = { ...state, mode: next }
+  if (state.state !== 'idle') broadcast()
+  return { ok: true, state }
+}
+
+export async function handlePageCommand(
+  command: PageCommandName,
+  mode?: PageMode,
+): Promise<PageCommandResult> {
   if (command === 'translate') return startPageTranslation()
   if (command === 'cancel') return cancelPageTranslation()
   if (command === 'restore') return restorePageTranslation()
+  if (command === 'mode') return applyPageMode(mode ?? 'bilingual')
   return pageStatus()
 }
 

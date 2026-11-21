@@ -1,4 +1,5 @@
 import type { PageCommandName } from '../core/messaging'
+import type { PageMode } from '../storage/settings'
 import type { ShortcutAction } from '../core/shortcuts'
 import { matchShortcut } from '../core/shortcuts'
 import { handlePageCommand } from './page/translate'
@@ -7,6 +8,7 @@ import { contentShortcuts, initSelection, translateCurrentSelection } from './se
 type ContentMessage = {
   type?: string
   command?: PageCommandName
+  mode?: PageMode
 }
 
 const isTopFrame = window.top === window
@@ -94,7 +96,7 @@ function handleMessage(message: ContentMessage, sendResponse: (value: unknown) =
       return false
     }
     if (command === 'translate') markHandled('page')
-    void handlePageCommand(command).then(sendResponse)
+    void handlePageCommand(command, message.mode).then(sendResponse)
     return true
   }
   return false

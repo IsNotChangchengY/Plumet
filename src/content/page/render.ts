@@ -46,6 +46,23 @@ export function markUnitFailed(unit: PageUnit): void {
   if (!records.has(unit.id)) records.set(unit.id, { unit, trans: null, orig: null })
 }
 
+function wrapOriginal(unit: PageUnit, keep: HTMLElement | null): HTMLElement {
+  const anchor = keep && keep.parentNode === unit.element ? keep : null
+  const orig = document.createElement('span')
+  orig.setAttribute('data-yuyi', 'orig')
+  for (const child of Array.from(unit.element.childNodes)) {
+    if (child === anchor) continue
+    orig.appendChild(child)
+  }
+  unit.element.insertBefore(orig, anchor)
+  return orig
+}
+
+function unwrapOriginal(element: HTMLElement, orig: HTMLElement): void {
+  while (orig.firstChild) element.insertBefore(orig.firstChild, orig)
+  orig.remove()
+}
+
 export function renderTranslation(
   unit: PageUnit,
   translated: string,
@@ -70,11 +87,8 @@ export function renderTranslation(
     return 'done'
   }
   let orig = existing?.orig ?? null
-  if (mode === 'replace' && !orig) {
-    orig = document.createElement('span')
-    orig.setAttribute('data-yuyi', 'orig')
-    while (unit.element.firstChild) orig.appendChild(unit.element.firstChild)
-    unit.element.appendChild(orig)
+  if (mode === 'replace' && !(orig && orig.isConnected)) {
+    orig = wrapOriginal(unit, null)
   }
   const trans = document.createElement('span')
   trans.setAttribute('data-yuyi', 'trans')
@@ -86,15 +100,25 @@ export function renderTranslation(
   return 'done'
 }
 
+export function switchPageMode(mode: PageMode): void {
+  for (const record of records.values()) {
+    const { unit, trans } = record
+    if (!trans || !trans.isConnected || !unit.element.isConnected) continue
+    if (mode === 'replace') {
+      if (record.orig && record.orig.isConnected) continue
+      record.orig = wrapOriginal(unit, trans)
+      continue
+    }
+    if (record.orig && record.orig.isConnected) unwrapOriginal(unit.element, record.orig)
+    record.orig = null
+  }
+}
+
 export function restorePage(): void {
   for (const record of records.values()) {
     const element = record.unit.element
     if (record.trans && record.trans.isConnected) record.trans.remove()
-    if (record.orig && record.orig.isConnected) {
-      const orig = record.orig
-      while (orig.firstChild) element.insertBefore(orig.firstChild, orig)
-      orig.remove()
-    }
+    if (record.orig && record.orig.isConnected) unwrapOriginal(element, record.orig)
     if (element.isConnected) {
       element.removeAttribute('data-yuyi-unit')
       element.removeAttribute('data-yuyi-state')

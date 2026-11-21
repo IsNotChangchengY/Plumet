@@ -331,7 +331,9 @@ export default function App() {
                   </select>
                 </label>
               </div>
-              <p className="hint">跳过代码块与输入框；改呈现方式后需重新翻译本页。</p>
+              <p className="hint">
+                跳过代码块与输入框；切换会立即应用到已翻译的页面，也可以在弹窗底部的网页翻译菜单里随时切换。
+              </p>
             </section>
           </>
         ) : null}

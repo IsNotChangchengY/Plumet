@@ -154,11 +154,12 @@ export type PageState = {
   mode: PageMode
 }
 
-export type PageCommandName = 'translate' | 'cancel' | 'restore' | 'status'
+export type PageCommandName = 'translate' | 'cancel' | 'restore' | 'mode' | 'status'
 
 export type PageCommand = {
   type: 'yuyi:page-command'
   command: PageCommandName
+  mode?: PageMode
 }
 
 export type PageCommandResult = {
@@ -172,7 +173,7 @@ export type PageStateEvent = {
   state: PageState
 }
 
-const PAGE_COMMANDS = new Set<string>(['translate', 'cancel', 'restore', 'status'])
+const PAGE_COMMANDS = new Set<string>(['translate', 'cancel', 'restore', 'mode', 'status'])
 
 export function isPageCommand(value: unknown): value is PageCommand {
   if (!value || typeof value !== 'object') return false
