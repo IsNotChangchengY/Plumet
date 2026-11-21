@@ -317,7 +317,7 @@ const STYLE = `
   .act:hover { background: var(--surface-3); color: var(--text); }
   .act[hidden] { display: none; }
   .act:disabled { color: var(--text-faint); cursor: default; background: transparent; }
-  .act.copied { color: var(--brand); background: var(--brand-soft); }
+  .act.copied { color: var(--brand-strong); background: var(--brand-soft); }
   .act svg { width: 12px; height: 12px; }
   .panel.compact .act { gap: 0; padding: 0 6px; }
   .panel.compact .act svg { display: none; }
@@ -447,7 +447,7 @@ const STYLE = `
     cursor: pointer;
     transition: color var(--dur-fast) var(--ease), border-color var(--dur-fast) var(--ease);
   }
-  .dict-phon:hover { color: var(--brand); border-color: color-mix(in srgb, var(--brand) 40%, var(--border)); }
+  .dict-phon:hover { color: var(--brand-strong); border-color: color-mix(in srgb, var(--brand) 40%, var(--border)); }
   .dict-phon-label { font-size: 10.5px; color: var(--text-faint); }
   .dict-phon:hover .dict-phon-label { color: inherit; }
   .dict-phon-audio { display: grid; place-items: center; width: 11px; height: 11px; }
@@ -462,7 +462,7 @@ const STYLE = `
   }
   .dict-sec-body { display: flex; flex-direction: column; gap: 5px; }
   .dict-tr, .dict-def, .dict-ex, .dict-phrase { margin: 0; font-size: 13.5px; line-height: 1.6; color: var(--text); word-break: break-word; }
-  .dict-pos { display: inline-block; margin-right: 5px; font-size: 11px; font-weight: 600; color: var(--brand); }
+  .dict-pos { display: inline-block; margin-right: 5px; font-size: 11px; font-weight: 600; color: var(--brand-strong); }
   .dict-def { font-size: 12.5px; line-height: 1.55; }
   .dict-def-ex { display: block; margin-top: 2px; font-size: 11.5px; font-style: normal; color: var(--text-muted); }
   .dict-forms { display: flex; flex-wrap: wrap; gap: 4px 12px; }

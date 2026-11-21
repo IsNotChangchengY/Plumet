@@ -28,9 +28,9 @@
 | `--text` | `#1A1D2B` | `#E9ECF5` | 正文与标题 |
 | `--text-muted` | `#5F6779` | `#9AA4BB` | 次要文字、元信息 |
 | `--text-faint` | `#98A0B3` | `#7A8399` | 占位、禁用、极弱信息 |
-| `--brand` | `#4F6BF0` | `#7D8EFF` | 主色 |
-| `--brand-strong` | `#3A54D8` | `#94A2FF` | 主色深一档（文字） |
-| `--brand-soft` | `#EDF1FF` | `rgba(125,142,255,.15)` | 主色浅底（聚焦环、激活底） |
+| `--brand` | `#1F8EE2` | `#4FA8EC` | 主色（与插件图标同族的蓝） |
+| `--brand-strong` | `#0B6CB8` | `#7CC4F6` | 主色深一档（文字） |
+| `--brand-soft` | `#E8F3FC` | `rgba(79,168,236,.15)` | 主色浅底（聚焦环、激活底） |
 | `--danger` / `--danger-soft` | `#D93B32` / `#FDECEA` | `#FF8078` / `#331B1B` | 错误 |
 | `--warn` / `--warn-soft` | `#A85A00` / `#FEF3E2` | `#E7A93C` / `#2C2413` | 警告 |
 | `--ok` / `--ok-soft` | `#067A4D` / `#E7F6EE` | `#4ADE80` / `#12291C` | 成功、改法 |
@@ -40,11 +40,11 @@
 
 | 变量 | 浅色 | 深色 | 说明 |
 |---|---|---|---|
-| `--brand-grad` | `linear-gradient(135deg,#5A78FF,#4F6BF0)` | `linear-gradient(135deg,#8C9BFF,#7D8EFF)` | 主按钮与页脚分体按钮底 |
+| `--brand-grad` | `linear-gradient(135deg,#1B87E2,#0E61D1)` | `linear-gradient(135deg,#6CBCF4,#4FA8EC)` | 主按钮与页脚分体按钮底（取插件图标渐变的中段到深端） |
 | `--on-brand` | `#FFFFFF` | `#10131C` | 主色底上的文字色（深色必须深字） |
 | `--raised` | `#FFFFFF` | `#262B3D` | 「浮起来」的块：tab 指示器、语言胶囊、空态图标座 |
 | `--field` | `#FFFFFF` | `#12141D` | 输入框底（深色比卡片更暗才像凹槽） |
-| `--brand-glow` | `0 6px 16px -10px rgba(79,107,240,.75)` | 同结构、提亮 | 主按钮/页脚分体按钮的彩影 |
+| `--brand-glow` | `0 6px 16px -10px rgba(31,142,226,.6)` | 同结构、提亮 | 主按钮/页脚分体按钮的彩影 |
 | `--mark-error-bg` / `--mark-add-bg` / `--mark-warn-bg` | 13% / 13% / 18% 透明 | 18% / 16% / 20% | 荧光笔底色 |
 | `--wash` | 左上角柔光径向渐变 | 同结构、低透明 | 页面/舞台的柔光背景，可选 |
 
@@ -198,15 +198,15 @@
 - `.detail-head` / `.detail-grid`：服务详情，左侧凭证卡 + 右侧 292px 说明栏（`.aside-card`：`.steps` 编号步骤、`.quota` 额度）。`.back` 返回「全部服务」。
 - `.kbd` / `.kv-row`：「其它」页的键帽与键值行。
 - `.shortcut-cell` / `.shortcut-acts` / `.shortcut-plus`：「其它 → 快捷键」的录制行。键帽沿用 `.kbd`，组合之间用分色的 `+` 连接，右侧动作（修改 / 恢复默认）用 `.shortcut-acts` 靠右；行内可换行，换行时错误文案独占一行。
-- `.shortcut-live` / `.shortcut-empty` / `.shortcut-error`：录制态提示用主色 11.5px；未设置用继承的灰字；非法或重复组合用 `--danger` 11.5px 且 `flex: 1 0 100%` 占满整行，不与键帽挤在一行。
+- `.shortcut-live` / `.shortcut-empty` / `.shortcut-error`：录制态提示用 `--brand-strong` 11.5px；未设置用继承的灰字；非法或重复组合用 `--danger` 11.5px 且 `flex: 1 0 100%` 占满整行，不与键帽挤在一行。
 
 ### 6.10 词典卡
 
 弹窗（`.dict` 在 `.result-card` 里）与划词气泡（`buildDictionaryCard()` 生成同构 DOM）共用这套排版：
 
 - 结构：`.dict-head`（`.dict-word` 原词 20px/650，气泡里 19px；下面一行 `.dict-phonetics` 音标胶囊）→ 若干 `.dict-sec`（10.5px 小字标题 + `.dict-sec-body`）。
-- 音标胶囊 `.dict-phon`：24px 高、`--surface`/`--surface-2` 底、1px 边框、圆角 10、12px 等宽数字；「英 / 美」标签 10.5px `--text-muted`；右侧 11px 喇叭图标；hover 转主色。点击播放发音。
-- 词性 `.dict-pos`：11px/600 `--brand`，跟在释义行首（`int.` / `n.` / `CONVENTION`）。中文查英文时释义标题改「英文释义」，音标胶囊标签改「拼音」（`nǐ hǎo`），正文是英文对应词（`hello` / `apple`）。
+- 音标胶囊 `.dict-phon`：24px 高、`--surface`/`--surface-2` 底、1px 边框、圆角 10、12px 等宽数字；「英 / 美」标签 10.5px `--text-muted`；右侧 11px 喇叭图标；hover 转主色深一档（`--brand-strong`）。点击播放发音。
+- 词性 `.dict-pos`：11px/600 `--brand-strong`，跟在释义行首（`int.` / `n.` / `CONVENTION`）。中文查英文时释义标题改「英文释义」，音标胶囊标签改「拼音」（`nǐ hǎo`），正文是英文对应词（`hello` / `apple`）。
 - 中文释义 13.5px；英英释义 12.5px，其下 `em.dict-def-ex` 11.5px `--text-muted`；词形变化是 12px 行内对（`.dict-form-name` `--text-muted` + 值）；例句英文一行、中文 `--text-muted` 一行；词组加粗短语 + 释义。
 - 六个区块（音标 / 中文释义（中文词为英文释义） / 英英释义 / 词形变化 / 例句 / 词组）由设置裁剪，服务没有的块与关闭的块都不渲染；全部关掉时显示一行 `在设置 → 词典里选择要展示的内容`。
 - 气泡里的词典卡固定用默认宽度（340，视口过窄时再收），不跟着被选中的短词一起收窄——240px 里两个音标胶囊会折行、释义挤成一根柱子。
@@ -222,7 +222,7 @@
 ### 7.2 划词气泡
 
 - 宽度跟随选区矩形宽并加卡片内边距：`clampBubbleWidth()` 取 `desired = 选区宽 + 56`（56 = 面板边框 2 + body 左右 padding 24 + 卡片边框 2 + 卡片左右 padding 20 + 8，让正文比选区宽约 8px），下限 240，上限 `max(240, min(视口宽 / 2, 视口宽 - 24))`；视口窄到半宽不足 240 时保留下限，拿不到选区宽度（Shadow DOM 文本兜底）时用 340。长句最多半屏、短词不窄于 240，滚动与缩放时随选区重算。查词命中词典时固定 340（短词选区不把词卡挤窄）。最大高度 `min(60vh, 420px)`，内部滚动；圆角 14、1px 边框、`--shadow-md`。
-- 译文区底色：`.body` 铺 `--brand-soft`（浅色 `#edf1ff` / 深色品牌蓝 15%），顶部 1px `color-mix(in srgb, var(--brand) 12%, transparent)` 分隔线，译文、单词卡、加载态都落在这一层上，与头部、底栏分层。错误态例外（透明底，保留 `--danger-soft` 图标语义）。骨架条用 `color-mix(in srgb, var(--brand) 22%, transparent)`，否则落在同色底上看不见。
+- 译文区底色：`.body` 铺 `--brand-soft`（浅色 `#e8f3fc` / 深色品牌蓝 15%），顶部 1px `color-mix(in srgb, var(--brand) 12%, transparent)` 分隔线，译文、单词卡、加载态都落在这一层上，与头部、底栏分层。错误态例外（透明底，保留 `--danger-soft` 图标语义）。骨架条用 `color-mix(in srgb, var(--brand) 22%, transparent)`，否则落在同色底上看不见。
 - 滚动条自绘 8px：`.panel::-webkit-scrollbar` 滑块 `--surface-3`、轨道透明、hover 变 `--text-faint`。不用系统滚动条——深色卡片里它会是一条浅色 17px 条；`scrollbar-color` 也不行，两端的箭头按钮仍是系统浅色（实测）。内层滚动容器（`.ctx-text` 的语境预览）不会继承这组规则，必须单独写一份；它铺在 `--surface-2` 上，滑块用 `color-mix(in srgb, var(--text-faint) 55%, transparent)` 才看得清。
 - 正文可拖选复制：`.panel` 显式 `user-select: text`，宿主页写了 `html/body { user-select: none }` 也照样能选（头部要拖动，`.head` 保持 `none`）。译文按原文换行分段（`pre-wrap`），多段选区不会挤成一段。
 - 选中高亮自带一条：`.panel ::selection` 用 `color-mix(in srgb, var(--brand) 40%, transparent)` + `color: var(--text)`，深浅色都清晰。宿主页的 `::selection`（编辑器、深色皮肤常写 `background: transparent`）会漏进 Shadow DOM，不写这条就会出现「明明选上了却没有高亮」；实测页面侧加 `!important` 也压不过这条。流式输出只追加文本节点，边生成边选不会被打断。
@@ -252,7 +252,7 @@
 
 主体自上而下：设置条 `.setbar`（语言两枚胶囊 + 交换 + 引擎多选 →「润色方向」折叠条 `.polish-config`，两者同一张框内）→ 输入卡 `.composer`（输入区 + 右上角 × 清空 + 右下动作：检查 / 润色 / 翻译）→ 结果卡 `.result-card`（`flex: 1`、内部滚动）。弹窗打开时输入框自动聚焦（`TranslatePanel` 挂载时 focus，从「历史」tab 切回也会重新聚焦），点图标即可直接打字。
 
-- 页脚只放一枚 `.page-ctl` 分体按钮：左段 `.page-run` 是主动作（`--on-brand` 13px/550、超长省略），右段 `.page-more` 固定 30px、左侧 1px `color-mix(in srgb, var(--on-brand) 24%, transparent)` 分隔线、14px 向下箭头（`aria-haspopup="menu"`、`aria-expanded` 跟随开合）。菜单 `.page-menu-list` 宽 176px、向上 `calc(100% + 8px)` 弹出：`.page-menu-head` 是「页面显示」+ 当前进度（如「已译 12 段」），两个 `role="menuitemradio"` 的 `.page-menu-item`（选中项文字 `--brand`、右侧 14px 对勾；hover 底 `--surface-2`、选中项 hover `--brand-soft`），有译文时一条 `.page-menu-sep` 分隔线后是「还原本页」；点菜单外关闭。原「还原」次级按钮与页脚进度 hint 已删，进度看页内状态条或菜单头。
+- 页脚只放一枚 `.page-ctl` 分体按钮：左段 `.page-run` 是主动作（`--on-brand` 13px/550、超长省略），右段 `.page-more` 固定 30px、左侧 1px `color-mix(in srgb, var(--on-brand) 24%, transparent)` 分隔线、14px 向下箭头（`aria-haspopup="menu"`、`aria-expanded` 跟随开合）。菜单 `.page-menu-list` 宽 176px、向上 `calc(100% + 8px)` 弹出：`.page-menu-head` 是「页面显示」+ 当前进度（如「已译 12 段」），两个 `role="menuitemradio"` 的 `.page-menu-item`（选中项文字 `--brand-strong`、右侧 14px 对勾；hover 底 `--surface-2`、选中项 hover `--brand-soft`），有译文时一条 `.page-menu-sep` 分隔线后是「还原本页」；点菜单外关闭。原「还原」次级按钮与页脚进度 hint 已删，进度看页内状态条或菜单头。
 - 结果卡状态行 `.result-meta` 只放状态与元信息；可用动作（收藏/复制）沉到卡片底部 `.result-actions`，用 1px 分隔线与正文分开；清空移到输入框右上角（22px 圆形 ×，输入框有内容或结果时才出现，点它清输入、结果与收藏态并回焦输入框）。查词结果在状态行里多一枚 `词典` 胶囊（`.tag.brand`）；回退翻译时多一枚说明胶囊（如「词典未收录，已改用翻译」）。点击「复制」后按钮短暂显示「已复制」，1.5 秒后恢复。
 - 多引擎对照（翻译面板勾了多个引擎时）：状态行显示「已用 N 个引擎」+ 成功/失败计数标签，正文变成 §6.7 的 `.engine-result` 小卡堆叠，每张卡单独复制、失败的卡只在自己的卡里报错；查词命中词典时仍只出词典卡，词典未收录而回退翻译时同样按勾选顺序堆叠每家的结果卡。
 - 检查结果：状态行（处数/保留/忽略/引擎/耗时 + 三视图切换）→ 高亮块（`.card.flat` + `.marks-view`）→ 问题卡列表（`.issue-item`）。列表可滚动，不压缩行高。
@@ -283,7 +283,7 @@
 - 布局沿用设置页：`.container`（`max-width: 880px`、`padding: 32px 24px 56px`）、页头 `.opts-head`、卡片 `.card` + `.section`。页头只放标题与副标题，右侧不放状态胶囊。
 - 统计卡：4 列网格 `.learn-stats`，每格 `.learn-stat`（`--surface-2` 底、圆角 14、内边距 12/14）里一个大数字（22px/700、tabular-nums）与一行 11.5px 说明；窄屏（≤720px）退化为 2 列。
 - 工具条：主操作「开始复习」（`.btn.primary`，显示 `（N 张）`）靠左，其余「导出 JSON / 导入 JSON / 清空」靠右；清空是 `.btn.danger` 且保留 `window.confirm`。
-- 卡片列表 `.learn-list` / `.learn-card`：默认收起，标题行是整行按钮 `.learn-card-toggle`（`>` 箭头 + 原文 15px/600 + 到期标签，右侧「删除」）；展开后才渲染正文与元信息。有词典快照时正文是富词条块 `.learn-dict`（音标 pill 10–11.5px 可点发声、释义带词性 `--brand`、英英释义/词形/双语例句/词组用 10px `--text-faint` 标签分段），没有快照才显示译文 13px；元信息一行 11px（来源域名链接、日期、语言对、复习次数、忘记次数）。到期显示 `.tag.brand`「待复习」，未到期显示「N 天后」。
+- 卡片列表 `.learn-list` / `.learn-card`：默认收起，标题行是整行按钮 `.learn-card-toggle`（`>` 箭头 + 原文 15px/600 + 到期标签，右侧「删除」）；展开后才渲染正文与元信息。有词典快照时正文是富词条块 `.learn-dict`（音标 pill 10–11.5px 可点发声、释义带词性 `--brand-strong`、英英释义/词形/双语例句/词组用 10px `--text-faint` 标签分段），没有快照才显示译文 13px；元信息一行 11px（来源域名链接、日期、语言对、复习次数、忘记次数）。到期显示 `.tag.brand`「待复习」，未到期显示「N 天后」。
 - 复习台 `.review-stage`：进度行（`第 i/N 张` + 「结束复习」）→ 进度轨 → 原文卡（`--surface-2` 底，28px/700 原文）→「显示答案」→ 答案块（17px，`--dur-base` 淡入）→ 四档评分格（`.review-grade`：46px 高、两行 = 档位名 + 10.5px 提示，`记得` 用 `.btn.primary`）。窄屏评分格退化为 2 列。
 - 复习完成态：`.review-done` 居中，44px `--ok-soft` 圆形勾图标 + 本轮统计 +「返回列表」。
 - 空态复用 `.empty` + `.re-icon` + `.re-title` + `.re-hint`，提示从气泡与弹窗两处收藏。
