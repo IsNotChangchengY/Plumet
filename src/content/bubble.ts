@@ -127,22 +127,10 @@ const STYLE = `
     user-select: none;
   }
   .head.dragging { cursor: grabbing; }
-  .title {
-    display: flex;
-    align-items: center;
-    gap: 6px;
+  .label {
     min-width: 0;
     font-size: 12px;
     color: var(--text-muted);
-  }
-  .feather {
-    width: 13px;
-    height: 13px;
-    flex: none;
-    border-radius: 3px;
-    background: var(--brand-grad);
-  }
-  .label {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -694,7 +682,7 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
   panel.className = 'panel'
   panel.innerHTML = [
     '<div class="head">',
-    '<div class="title"><span class="feather"></span><span class="label">羽译 · 划词翻译</span></div>',
+    '<span class="label">羽译 · 划词翻译</span>',
     `<button class="close" type="button" aria-label="关闭">${ICON_CLOSE}</button>`,
     '</div>',
     '<div class="body"></div>',

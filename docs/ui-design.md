@@ -214,7 +214,7 @@
 
 ### 7.1 划词触发图标
 
-- 28×28、圆角 10、`--surface` 底、1px 边框、`--brand` 字（700/13px，内容「译」）、`--shadow-md`；hover 抬 2px 并加深阴影。
+- 直接用插件图标本体：`assets/icon-master.svg` 经 Vite 的 `?raw` 内联进 Shadow DOM，按 22×22 渲染、圆角 4（约按图标自身 101/512 的圆角等比）、无边框无底色，`--shadow-md`；hover 抬 2px 并加深阴影（阴影取主色族 `rgba(15,105,214,.55)`），按下复位。图标随 content bundle 打包，不占 `web_accessible_resources`，也不受宿主页 CSP 影响。
 - 位置取鼠标释放点，出现在光标**右下角**（`+8px`）；右边或下边放不下时翻到光标左上角，四周留 6px。
 - 挂在 `document.documentElement` 下的 Shadow DOM 宿主里。
 - 主题：宿主上 `data-theme` 由设置决定；`auto` 时移除属性，走 `prefers-color-scheme`。
@@ -227,7 +227,7 @@
 - 正文可拖选复制：`.panel` 显式 `user-select: text`，宿主页写了 `html/body { user-select: none }` 也照样能选（头部要拖动，`.head` 保持 `none`）。译文按原文换行分段（`pre-wrap`），多段选区不会挤成一段。
 - 选中高亮自带一条：`.panel ::selection` 用 `color-mix(in srgb, var(--brand) 40%, transparent)` + `color: var(--text)`，深浅色都清晰。宿主页的 `::selection`（编辑器、深色皮肤常写 `background: transparent`）会漏进 Shadow DOM，不写这条就会出现「明明选上了却没有高亮」；实测页面侧加 `!important` 也压不过这条。流式输出只追加文本节点，边生成边选不会被打断。
 - 定位：默认贴在选区**正下方**（间距 8），不遮挡被选中的文字；下方空间不足才翻到上方，贴边修正。头部可拖动，拖动后改为固定位置、不再跟随滚动，关闭再打开恢复跟随。
-- 结构：头部（13×13 渐变羽毛点 +「羽译 · 划词翻译」+ 22×22 关闭按钮）→ 正文 → 底栏。整句翻译的正文是一叠 `.engine-result` 小卡，**单引擎也套卡**（不再直接铺 `pre.text`），卡按勾选顺序排列；每张卡的卡头一行放服务名与图标动作，下面是译文。整句卡没有底部动作组：底栏只留一行 10.5px「上下文预览」（有语境时整行可点，展开实际发出的上下文；没有语境时整条收起）。单词/词典/错误态仍用底栏动作；宽度不足 300px 时这些文字动作收成纯文字（隐藏图标、内边距收到 6px，240px 下四颗仍排一行），整句卡的动作在卡头，不受此影响。头部整条是拖动区（`cursor: grab`），关闭只有右上角这一个入口。
+- 结构：头部（「羽译 · 划词翻译」+ 22×22 关闭按钮）→ 正文 → 底栏。整句翻译的正文是一叠 `.engine-result` 小卡，**单引擎也套卡**（不再直接铺 `pre.text`），卡按勾选顺序排列；每张卡的卡头一行放服务名与图标动作，下面是译文。整句卡没有底部动作组：底栏只留一行 10.5px「上下文预览」（有语境时整行可点，展开实际发出的上下文；没有语境时整条收起）。单词/词典/错误态仍用底栏动作；宽度不足 300px 时这些文字动作收成纯文字（隐藏图标、内边距收到 6px，240px 下四颗仍排一行），整句卡的动作在卡头，不受此影响。头部整条是拖动区（`cursor: grab`），关闭只有右上角这一个入口。
 - 隐藏内容守卫（`.guard-*`）：气泡打开时若选区里混进脚本或隐藏节点，正文换成 `.guard-body`（`--brand-soft` 62% 蒙层）——原文 `.guard-text` 绝对定位在顶部（`top: 8px`，左右各 12px）加 `filter: blur(4px)` + `opacity: .32` 并禁用选择与指针（最高 116px 裁切，预览文本最多 240 字、超出补 `…`），上层的 `.guard-layer` 走正常文档流、由内容撑高气泡（内边距 18px 14px 20px、`gap: 8px`、`--brand-soft` 78% 蒙层，压住模糊预览保证可读），居中放 12.5px、字重 600 的提示 `.guard-msg`（`color: var(--warn)`，浅色 `#a85a00` / 深色 `#e7a93c`）、11px 后果说明 `.guard-hint`（`color: var(--text-muted)`、行高 1.5）与主按钮 `.guard-go`（28px 高、`--brand-grad` 底、`--on-brand` 字、`--radius-sm`、`--brand-glow` 阴影）；此时底栏整条收起（`.foot[hidden]` 仍需显式 `display: none`）。
 - 底栏元信息：整句卡显示「上下文预览」，有语境时整行是按钮，点击在正文与底栏之间展开 `pre`（`--surface-2` 底、虚线分隔、最高 120px、可拖选），再点收起；没有语境时整条底栏收起。单词/词典卡仍是「引擎 · 1.4s · 缓存」的纯文本，耗时与缓存标签同时显示在结果卡内。
 - 卡片动作：每张结果卡右上角固定三枚 22×22 纯图标按钮（`.engine-act`，12px 图标、圆角 6、默认 `--text-faint`，hover 出 `--surface-2`）——朗读、复制、收藏，作用只靠 `title` 与 `aria-label` 说明，不占文字宽度；复制后图标换对勾、品牌色 + `--brand-soft`，1.5 秒后恢复，收藏成功后变对勾并禁用；AI 服务卡在完成态多一枚「扩上下文」图标（范围已是整页或不满足条件时不出现），点击后回到加载态「正在带上整页结构重译」。失败卡不显示任何动作。单词/词典卡仍用底栏的文字动作（朗读/复制/收藏），错误态只有「重试」；文字动作均为 26px 高、11px，hover 出 `--surface-3`。
@@ -318,7 +318,7 @@ Shadow DOM 的限制：页面里的 `:root` 变量不会自动带进来，所以
 | 快捷键录制与冲突校验 | `src/options/ShortcutSection.tsx`、`src/core/shortcuts.ts` |
 | 词典服务与解析 | `src/core/providers/dict/{services,youdao,freedict}.ts`、`src/core/dictionary/` |
 | 气泡（样式字符串） | `src/content/bubble.ts` |
-| 触发图标 | `src/content/selection.ts` |
+| 触发图标（内联插件图标 SVG） | `src/content/selection.ts`、`assets/icon-master.svg` |
 | 页内状态条 | `src/content/page/pill.ts` |
 | 页面内共享主题变量 | `src/content/theme.ts` |
 | 设计对照板与截图 | `AGENTS/ui-design/`（不提交） |

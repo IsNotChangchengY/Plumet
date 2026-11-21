@@ -20,9 +20,10 @@ import type { EngineRunResult } from '../core/messaging'
 import type { EngineDeltaEvent } from './translate-client'
 import { requestSelectionTranslation, requestWordLookup } from './translate-client'
 import { applyHostTheme, CONTENT_THEME_CSS } from './theme'
+import iconSvg from '../../assets/icon-master.svg?raw'
 import { isYuyiNode, isYuyiPath, markUiHost } from './ui-mark'
 
-const ICON_SIZE = 28
+const ICON_SIZE = 22
 const ICON_GAP = 8
 const ICON_MARGIN = 6
 const CHECK_DELAY = 140
@@ -34,21 +35,26 @@ const ICON_STYLE = `
   .icon {
     width: ${ICON_SIZE}px;
     height: ${ICON_SIZE}px;
-    display: grid;
-    place-items: center;
+    display: block;
     padding: 0;
-    border: 1px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--surface);
-    color: var(--brand);
-    font: 700 13px/1 var(--font);
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
     box-shadow: var(--shadow-md);
     cursor: pointer;
     transition: transform var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
   }
+  .icon svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
   .icon:hover {
     transform: translateY(-2px);
-    box-shadow: 0 18px 30px -14px rgba(43, 60, 140, 0.4);
+    box-shadow: 0 18px 30px -14px rgba(15, 105, 214, 0.55);
+  }
+  .icon:active {
+    transform: translateY(0);
   }
   @media (prefers-reduced-motion: reduce) {
     .icon { transition: none; }
@@ -133,7 +139,7 @@ function ensureIcon(): HTMLElement {
   markUiHost(host, 'icon')
   host.style.cssText = 'all: initial; position: fixed; z-index: 2147483645; display: none;'
   const shadow = host.attachShadow({ mode: 'open' })
-  shadow.innerHTML = `<style>${ICON_STYLE}</style><button type="button" class="icon" title="翻译选中内容">译</button>`
+  shadow.innerHTML = `<style>${ICON_STYLE}</style><button type="button" class="icon" title="翻译选中内容" aria-label="翻译选中内容">${iconSvg}</button>`
   applyHostTheme(host, settings?.theme ?? 'auto')
   const button = shadow.querySelector('button')
   button?.addEventListener('click', (event) => {
