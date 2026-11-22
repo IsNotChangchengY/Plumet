@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url'
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const problems = []
 
-const PATH_FILES = ['AGENTS.md', 'docs/design.md', 'docs/providers.md']
+const PATH_FILES = ['AGENTS.md', 'CONTRIBUTING.md', 'docs/design.md', 'docs/providers.md']
 const PATH_PREFIXES = ['src/', 'scripts/', 'public/', 'tests/', 'assets/', 'docs/']
 const SKIP_PREFIXES = ['dist/']
 
@@ -58,7 +58,7 @@ function walkMarkdown(dir) {
   return result
 }
 
-const linkFiles = [join(root, 'README.md'), join(root, 'AGENTS.md'), ...walkMarkdown(join(root, 'docs'))]
+const linkFiles = [join(root, 'README.md'), join(root, 'AGENTS.md'), join(root, 'CONTRIBUTING.md'), ...walkMarkdown(join(root, 'docs'))]
 
 for (const file of linkFiles) {
   if (!existsSync(file)) continue
