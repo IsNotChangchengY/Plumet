@@ -1,0 +1,51 @@
+name: 部署隐私政策页
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'docs/privacy.html'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: 构建并部署到 GitHub Pages
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 准备站点目录
+        run: |
+          set -euo pipefail
+          mkdir -p _site
+          cp docs/privacy.html _site/privacy.html
+          cp docs/privacy.html _site/index.html
+
+      - name: 配置 Pages（首次运行时自动启用）
+        uses: actions/configure-pages@v5
+        with:
+          enablement: true
+
+      - name: 上传站点产物
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: 部署
+        id: deployment
+        uses: actions/deploy-pages@v4

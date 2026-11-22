@@ -32,6 +32,8 @@ pnpm check          一次性跑：类型 + 单测 + 构建 + verify + docs:chec
 
 发布流水线：推 `v*.*.*` 标签会触发 `.github/workflows/release.yml`（ubuntu + Node 24 + pnpm 11），依次跑 `pnpm check` → `pnpm package` → 把产物复制成 `release/extension.zip` → 创建 GitHub Release 并附 `extension.zip` 与 `SHA256SUMS.txt`；标签版本必须与 `package.json`、`public/manifest.json` 一致，否则 workflow 直接失败。Release 正文只取 `.github/release-notes/<标签>.md`（如 `v1.0.0.md`）的内容，原样发布、不自动追加日期、提交、校验值等任何内容；没有这个文件时 workflow 直接失败，所以打标签前必须先写本次更新说明。重建 Release 时正文会被重写。发布步骤见 `CONTRIBUTING.md` 第 8 节。
 
+隐私政策页：商店上架需要公开 URL，页面源码在 `docs/privacy.html`，由 `.github/workflows/pages.yml` 部署到 GitHub Pages（https://isnotchangchengy.github.io/Plumet/privacy.html）；数据处理方式、第三方服务或权限变化时同步更新这一页。
+
 真实网络冒烟测试（会联网）：
 
 ```
@@ -63,7 +65,7 @@ src/ui/            theme.css 设计变量与设置页组件、主题应用、页
 public/            manifest.json 与图标（原图在 assets/icon-master.png，矢量源在 assets/icon-master.svg）
 scripts/           build.mjs（三次构建）、verify-dist.mjs（产物自检）、check-docs.mjs（文档路径自检）、package.mjs（打 zip，纯 Node 无依赖）
 tests/             vitest 单测 + 可选真实网络测试
-docs/              README.md 文档索引与维护规则、design.md 设计大纲、ui-design.md UI 设计规范、providers.md 服务商对接、guide/ 新手四篇
+docs/              README.md 文档索引与维护规则、design.md 设计大纲、ui-design.md UI 设计规范、providers.md 服务商对接、privacy.html（商店用隐私政策页，GitHub Pages 发布）、guide/ 新手四篇
 ```
 
 ## 6. 关键设计（改代码前先理解）

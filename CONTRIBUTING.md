@@ -95,6 +95,8 @@ pnpm check
 
 首次发布若报 `Resource not accessible by integration`，去仓库 Settings → Actions → General → Workflow permissions 选「Read and write permissions」（workflow 里已声明 `contents: write`）。
 
+商店上架（Chrome Web Store / Microsoft Edge Add-ons）需要可公开访问的隐私政策页：页面源码在 `docs/privacy.html`，由 `.github/workflows/pages.yml` 部署到 GitHub Pages，地址是 https://isnotchangchengy.github.io/Plumet/privacy.html 。改动数据处理方式、第三方服务或权限时，同时更新这一页与商店后台填写的隐私政策 URL；首次部署时 workflow 会用 `configure-pages` 的 `enablement: true` 自动启用 Pages。
+
 ## 9. 许可与沟通
 
 - 项目以 Apache-2.0 发布，完整条款见 [LICENSE](LICENSE)。提交 PR 即表示同意你的贡献按同一许可分发，无需 CLA。

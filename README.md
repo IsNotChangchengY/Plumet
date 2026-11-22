@@ -127,7 +127,7 @@ src/ui/           设计变量（theme.css）与主题应用
 public/           manifest.json 与扩展图标（矢量源在 assets/icon-master.svg）
 scripts/          构建、产物自检、文档路径检查与零依赖打包
 tests/            Vitest 单元测试与可选的联网冒烟测试
-docs/             设计大纲、UI 规范、服务商文档与新手四篇教程
+docs/             设计大纲、UI 规范、服务商文档与新手四篇教程、隐私政策页
 ```
 
 ## 贡献指南
@@ -139,6 +139,10 @@ docs/             设计大纲、UI 规范、服务商文档与新手四篇教�
 3. 新增依赖前先确认现有 4 个运行时依赖与浏览器 API 做不到；新增服务商先读 [docs/providers.md](docs/providers.md)。
 
 提交信息用 `<type>: <中文摘要>` 的格式，一个 PR 只做一件事；沟通约定写在 CONTRIBUTING 第 9 节。
+
+## 隐私
+
+羽译不收集遥测、不要求账号、不出售数据。哪些文本会发往你配置的翻译服务、哪些数据只留在本机、扩展申请了哪些权限，见[隐私政策](https://isnotchangchengy.github.io/Plumet/privacy.html)（页面源码在 [docs/privacy.html](docs/privacy.html)，由 GitHub Actions 发布到 GitHub Pages）。
 
 ## 许可证
 
