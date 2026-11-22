@@ -56,6 +56,7 @@ export type TextInput = {
   engineId?: string
   engineIds?: string[]
   silent?: boolean
+  cacheSegments?: boolean
 }
 
 function newRequestId(): string {
@@ -133,6 +134,7 @@ export function requestTextTranslation(input: TextInput, handlers: TextHandlers)
       engineId: input.engineId || undefined,
       engineIds: input.engineIds && input.engineIds.length > 0 ? input.engineIds : undefined,
       silent: input.silent || undefined,
+      cacheSegments: input.cacheSegments || undefined,
     }
     port.postMessage(payload)
   } catch {

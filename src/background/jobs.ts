@@ -97,6 +97,7 @@ async function translateAndReport(
           engineId,
           (delta) =>
             sendTo(job, { kind: 'delta', requestId: request.requestId, text: delta, engineId }),
+          { cacheSegments: request.cacheSegments },
         )
         sendTo(job, {
           kind: 'engineDone',

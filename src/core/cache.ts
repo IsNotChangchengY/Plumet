@@ -1,13 +1,16 @@
 import { readLocal, writeLocal } from '../storage/local'
 
-const STORAGE_KEY = 'cache.v1'
+const MAIN_STORAGE_KEY = 'cache.v1'
+const SEGMENT_STORAGE_KEY = 'cache.segments.v1'
 const TTL_MS = 7 * 24 * 60 * 60 * 1000
+const FLUSH_MS = 1500
 export const CACHE_LIMIT = 1000
+export const SEGMENT_CACHE_LIMIT = 3000
 
 const ZERO_WIDTH = /[\u200b-\u200d\u2060\ufeff]/g
 const WIDE_SPACES = /[\u00a0\u1680\u2000-\u200a\u202f\u205f\u3000]/g
 
-function canonicalSegment(text: string): string {
+export function canonicalSegment(text: string): string {
   return text
     .normalize('NFC')
     .replace(ZERO_WIDTH, '')
@@ -26,14 +29,57 @@ export type CacheEntry = {
 
 type CacheBag = Record<string, CacheEntry>
 
-let memory: Map<string, CacheEntry> | null = null
-let flushTimer: ReturnType<typeof setTimeout> | null = null
+type CacheStore = {
+  storageKey: string
+  limit: number
+  memory: Map<string, CacheEntry> | null
+  loading: Promise<Map<string, CacheEntry>> | null
+  timer: ReturnType<typeof setTimeout> | null
+}
 
-async function ensureLoaded(): Promise<Map<string, CacheEntry>> {
-  if (memory) return memory
-  const stored = await readLocal<CacheBag>(STORAGE_KEY, {})
-  memory = new Map(Object.entries(stored))
-  return memory
+function createStore(storageKey: string, limit: number): CacheStore {
+  return { storageKey, limit, memory: null, loading: null, timer: null }
+}
+
+const mainStore = createStore(MAIN_STORAGE_KEY, CACHE_LIMIT)
+const segmentStore = createStore(SEGMENT_STORAGE_KEY, SEGMENT_CACHE_LIMIT)
+
+function normalizeEntry(value: unknown): CacheEntry | null {
+  if (!value || typeof value !== 'object') return null
+  const entry = value as Partial<CacheEntry>
+  if (typeof entry.text !== 'string' || typeof entry.at !== 'number') return null
+  return {
+    text: entry.text,
+    at: entry.at,
+    engineLabel: typeof entry.engineLabel === 'string' ? entry.engineLabel : '',
+  }
+}
+
+function normalizeBag(stored: unknown): Map<string, CacheEntry> {
+  const map = new Map<string, CacheEntry>()
+  if (!stored || typeof stored !== 'object') return map
+  const now = Date.now()
+  for (const [key, value] of Object.entries(stored as CacheBag)) {
+    const entry = normalizeEntry(value)
+    if (!entry) continue
+    if (now - entry.at > TTL_MS) continue
+    map.set(key, entry)
+  }
+  return map
+}
+
+async function ensureLoaded(store: CacheStore): Promise<Map<string, CacheEntry>> {
+  if (store.memory) return store.memory
+  const pending = store.loading
+  if (pending) return pending
+  const created = readLocal<CacheBag>(store.storageKey, {}).then((stored) => {
+    const map = store.memory ?? normalizeBag(stored)
+    store.memory = map
+    store.loading = null
+    return map
+  })
+  store.loading = created
+  return created
 }
 
 export function hashKey(parts: string[]): string {
@@ -60,53 +106,90 @@ export function makeCacheKey(input: {
     input.revision ?? '',
     input.sourceLang,
     input.targetLang,
-    input.context ?? '',
+    input.context ? canonicalSegment(input.context) : '',
     input.segments.map(canonicalSegment).join('\u0000'),
   ])
 }
 
-function scheduleFlush(): void {
-  if (flushTimer !== null) return
-  flushTimer = setTimeout(() => {
-    flushTimer = null
-    void flushNow()
-  }, 1500)
+export function makeSegmentCacheKey(input: {
+  engineId: string
+  sourceLang: string
+  targetLang: string
+  segment: string
+  revision?: string
+}): string {
+  return hashKey([
+    input.engineId,
+    input.revision ?? '',
+    input.sourceLang,
+    input.targetLang,
+    canonicalSegment(input.segment),
+  ])
 }
 
-async function flushNow(): Promise<void> {
-  if (!memory) return
+function scheduleFlush(store: CacheStore): void {
+  if (store.timer !== null) return
+  store.timer = setTimeout(() => {
+    store.timer = null
+    void flush(store)
+  }, FLUSH_MS)
+}
+
+async function flush(store: CacheStore): Promise<void> {
+  const map = store.memory
+  if (!map) return
   const bag: CacheBag = {}
-  for (const [key, value] of memory) bag[key] = value
-  await writeLocal(STORAGE_KEY, bag)
+  for (const [key, value] of map) bag[key] = value
+  await writeLocal(store.storageKey, bag)
 }
 
-export async function getCached(key: string): Promise<CacheEntry | null> {
-  const map = await ensureLoaded()
+async function readEntry(store: CacheStore, key: string): Promise<CacheEntry | null> {
+  const map = await ensureLoaded(store)
   const entry = map.get(key)
   if (!entry) return null
-  if (Date.now() - entry.at > TTL_MS) {
+  const now = Date.now()
+  if (now - entry.at > TTL_MS) {
     map.delete(key)
-    scheduleFlush()
+    scheduleFlush(store)
     return null
   }
+  const refreshed: CacheEntry = { text: entry.text, at: now, engineLabel: entry.engineLabel }
   map.delete(key)
-  map.set(key, entry)
-  return entry
+  map.set(key, refreshed)
+  scheduleFlush(store)
+  return refreshed
 }
 
-export async function setCached(key: string, text: string, engineLabel: string): Promise<void> {
-  const map = await ensureLoaded()
+async function writeEntry(store: CacheStore, key: string, text: string, engineLabel: string): Promise<void> {
+  const map = await ensureLoaded(store)
   map.delete(key)
   map.set(key, { text, at: Date.now(), engineLabel })
-  while (map.size > CACHE_LIMIT) {
+  while (map.size > store.limit) {
     const oldest = map.keys().next()
     if (oldest.done) break
     map.delete(oldest.value)
   }
-  scheduleFlush()
+  scheduleFlush(store)
+}
+
+export async function getCached(key: string): Promise<CacheEntry | null> {
+  return readEntry(mainStore, key)
+}
+
+export async function setCached(key: string, text: string, engineLabel: string): Promise<void> {
+  return writeEntry(mainStore, key, text, engineLabel)
+}
+
+export async function getCachedSegment(key: string): Promise<CacheEntry | null> {
+  return readEntry(segmentStore, key)
+}
+
+export async function setCachedSegment(key: string, text: string, engineLabel: string): Promise<void> {
+  return writeEntry(segmentStore, key, text, engineLabel)
 }
 
 export async function clearCache(): Promise<void> {
-  memory = new Map()
-  await writeLocal(STORAGE_KEY, {})
+  mainStore.memory = new Map()
+  segmentStore.memory = new Map()
+  await Promise.all([writeLocal(MAIN_STORAGE_KEY, {}), writeLocal(SEGMENT_STORAGE_KEY, {})])
 }

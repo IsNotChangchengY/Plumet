@@ -4,6 +4,7 @@ import { DEFAULT_SETTINGS, loadSettings, normalizeSettings, saveSettings } from 
 import { engineReadiness, listEngines } from '../core/providers/registry'
 import { LANGUAGES, SMART_TARGET_LANG, TARGET_LANGUAGES } from '../core/lang'
 import { clearCache } from '../core/cache'
+import { clearDictionaryCache } from '../core/dictionary/lookup'
 import { clearHistory } from '../storage/history'
 import { applyTheme } from '../ui/apply-theme'
 import { extensionVersion } from '../ui/version'
@@ -98,7 +99,8 @@ export default function App() {
 
   const handleClearCache = async () => {
     await clearCache()
-    setNotice('译文缓存已清空')
+    clearDictionaryCache()
+    setNotice('译文与词典缓存已清空')
   }
 
   const handleClearHistory = async () => {
@@ -364,7 +366,7 @@ export default function App() {
               <p className="hint">密钥只存在本机；清理操作不可撤销。</p>
               <div className="row wrap">
                 <button type="button" className="btn" onClick={() => void handleClearCache()}>
-                  清空译文缓存
+                  清空译文与词典缓存
                 </button>
                 <button type="button" className="btn" onClick={() => void handleClearHistory()}>
                   清空翻译历史

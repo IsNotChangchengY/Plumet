@@ -15,6 +15,7 @@ export type TranslateJobRequest = {
   engineId?: string
   engineIds?: string[]
   silent?: boolean
+  cacheSegments?: boolean
 }
 
 export type DictJobRequest = {

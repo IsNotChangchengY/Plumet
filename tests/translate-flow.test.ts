@@ -237,3 +237,92 @@ describe('多引擎翻译任务', () => {
     expect(engineResults(second)[0]).toMatchObject({ ok: true, cached: true })
   })
 })
+
+describe('网页翻译的段缓存', () => {
+  function translated(text: string): string {
+    return `中:${text}`
+  }
+
+  function batchResponse(segments: string[]): Response {
+    return new Response(JSON.stringify(segments.map((text) => [translated(text), 'en'])), {
+      status: 200,
+    })
+  }
+
+  function requestedSegments(url: string): string[] {
+    return new URL(url).searchParams.getAll('q')
+  }
+
+  it('跨批次只请求没命中过的段落，组装结果与命中批次缓存', async () => {
+    await saveMultiEngineSettings()
+    const requests: string[][] = []
+    vi.stubGlobal('fetch', async (input: string) => {
+      const url = String(input)
+      if (!url.includes('clients5.google.com')) throw new Error(`意外的请求 ${url}`)
+      const segments = requestedSegments(url)
+      requests.push(segments)
+      return batchResponse(segments)
+    })
+
+    const first: JobEvent[] = []
+    handleJobMessage(fakePort(first), {
+      kind: 'translate',
+      requestId: 'page-1',
+      segments: ['Alpha line', 'Beta line', 'Gamma line'],
+      sourceLang: 'en',
+      targetLang: 'zh-CN',
+      engineId: 'mt:google-free',
+      engineIds: ['mt:google-free'],
+      silent: true,
+      cacheSegments: true,
+    })
+    expect((await waitForTerminal(first)).kind).toBe('done')
+    expect(engineResults(first)[0]).toMatchObject({
+      ok: true,
+      cached: false,
+      segments: ['中:Alpha line', '中:Beta line', '中:Gamma line'],
+    })
+    expect(requests).toHaveLength(1)
+
+    const second: JobEvent[] = []
+    handleJobMessage(fakePort(second), {
+      kind: 'translate',
+      requestId: 'page-2',
+      segments: ['Beta line', 'Delta line'],
+      sourceLang: 'en',
+      targetLang: 'zh-CN',
+      engineId: 'mt:google-free',
+      engineIds: ['mt:google-free'],
+      silent: true,
+      cacheSegments: true,
+    })
+    expect((await waitForTerminal(second)).kind).toBe('done')
+    expect(engineResults(second)[0]).toMatchObject({
+      ok: true,
+      cached: false,
+      segments: ['中:Beta line', '中:Delta line'],
+    })
+    expect(requests).toHaveLength(2)
+    expect(requests[1]).toEqual(['Delta line'])
+
+    const third: JobEvent[] = []
+    handleJobMessage(fakePort(third), {
+      kind: 'translate',
+      requestId: 'page-3',
+      segments: ['Beta line', 'Delta line'],
+      sourceLang: 'en',
+      targetLang: 'zh-CN',
+      engineId: 'mt:google-free',
+      engineIds: ['mt:google-free'],
+      silent: true,
+      cacheSegments: true,
+    })
+    expect((await waitForTerminal(third)).kind).toBe('done')
+    expect(engineResults(third)[0]).toMatchObject({
+      ok: true,
+      cached: true,
+      segments: ['中:Beta line', '中:Delta line'],
+    })
+    expect(requests).toHaveLength(2)
+  })
+})

@@ -279,6 +279,7 @@ function runBatch(batch: PageUnit[]): Promise<void> {
         targetLang,
         engineId: settings?.pageEngine,
         silent: true,
+        cacheSegments: true,
       },
       {
         onDone(result) {

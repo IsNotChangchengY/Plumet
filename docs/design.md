@@ -77,7 +77,7 @@
 - 服务：`src/core/providers/dict/` 下两个免 Key 实现——有道词典 `dict.youdao.com/jsonapi`（英→中走 `ec`：音标 + 英美发音、中文释义、英英释义、词形变化、双语例句、常用词组；中→英走 `ce`：拼音 + 发音、英文对应词）与 Free Dictionary API（英英释义、音标、例句，仅英→中）。服务定义在 `providers/dict/services.ts`，各自带 `capabilities` 与 `supportsChinese`，设置页据此禁用当前服务不提供的展示项。
 - 数据：`DictionaryEntry`（`direction` + `phonetics / translations / definitions / forms / examples / phrases`）+ `settings.dictionary`（开关、服务、六个展示开关）；展示开关只影响呈现，不影响抓取。中文词条复用同一结构：`direction: 'zh-en'`，`translations` 放英文对应词，`phonetics` 是拼音，例句是「中文原句 + 英文译文」，所以卡片只需把释义标题从「中文释义」换成「英文释义」。
 - 回退：词典未收录（适配器返回 `null`）或请求失败时，静默改用翻译，并在 `JobResult.notice` 里带一句说明；勾了多个引擎时回退会跑全部已勾选引擎（`settings.translateEngines`，请求带 `engineIds`），弹窗与气泡按顺序逐引擎出结果卡，没带 `engineIds` 的旧调用仍回退主引擎。这是唯一允许的降级，只作用于查词；命中词典仍只回一张词典卡。
-- 缓存：SW 内存 Map，键 `服务:小写词`，TTL 24 小时、上限 200 条，不落盘（词条体量大，且丢了重查成本低）。
+- 缓存：落盘在 `chrome.storage.local` 的 `dict.v1`（版本化载荷），键 `服务:小写词`，TTL 24 小时滑动（命中刷新时间）、上限 200 条，整包 1.5 秒防抖写入；SW 约 30 秒空闲就可能被回收，内存缓存留不住，而两百条词条的体量远小于译文缓存，落盘后重开浏览器也能命中。
 - 发音：有道用 `dictvoice?audio=<词>&type=1|2`（英式 / 美式）直接播；无音频或播放失败时退回 `speechSynthesis`。气泡里的播放受宿主页 CSP 影响，弹窗不受影响（待验证：`media-src` 白名单站点）。
 
 ### 2.9 快捷键编辑（已实现）
@@ -134,7 +134,7 @@ Mark = { kind: 'equal'|'del'|'ins'|'warn', text, issueId?, severity?, state? }
 
 ## 7. 数据与存储
 
-全部 `chrome.storage.local`：`settings.v1`（载荷 version 2：`translateEngines` 多选引擎 + `services` 凭证表 + `dictionary` 词典开关/服务/展示项 + `aiProviders`；旧的 `mtEnabled` 与单个 `translateEngine` 在读取时自动迁移）、`history.v1`（最多 200 条，网页翻译不写入）、`cache.v1`（分片缓存，TTL 7 天、上限 1000 条、LRU，网页翻译按批命中）、`learning.v1`（生词卡片 + 每日复习次数 + 正确次数；卡片量小，暂不迁 IndexedDB）。
+全部 `chrome.storage.local`：`settings.v1`（载荷 version 2：`translateEngines` 多选引擎 + `services` 凭证表 + `dictionary` 词典开关/服务/展示项 + `aiProviders`；旧的 `mtEnabled` 与单个 `translateEngine` 在读取时自动迁移）、`history.v1`（最多 200 条，网页翻译不写入）、`cache.v1`（主缓存：TTL 7 天滑动、上限 1000 条、LRU）、`cache.segments.v1`（段缓存：TTL 7 天滑动、上限 3000 条，网页翻译逐段复用）、`dict.v1`（查词缓存：TTL 24 小时滑动、上限 200 条）、`learning.v1`（生词卡片 + 每日复习次数 + 正确次数；卡片量小，暂不迁 IndexedDB）。
 
 ## 8. 里程碑与状态
 
