@@ -1,0 +1,10 @@
+{
+  "extName": {
+    "message": "羽译",
+    "description": "扩展在浏览器、扩展管理页与商店中显示的名称"
+  },
+  "extDesc": {
+    "message": "翻译、语法检查、润色与生词学习一体的浏览器翻译扩展",
+    "description": "扩展简短描述，Chrome 上限 132 字符"
+  }
+}

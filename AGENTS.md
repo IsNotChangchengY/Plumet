@@ -62,7 +62,7 @@ src/app/           弹窗里用的 React 组件：TranslatePanel / EnginePicker 
 src/core/          与界面无关的逻辑：providers/ 引擎（services.ts 服务定义与就绪判定、labels.ts 引擎显示名（content 侧也用，不拖入 provider 实现）、ai/ 预设与 OpenAI 兼容适配、mt/ 谷歌、MyMemory、百度、微软、md5、lang-map、batch、dict/ 有道与 Free Dictionary 词典）、dictionary/ 词判断与查词缓存、收藏用的词条快照（snapshot.ts）、engine 路由、cache、lang、text、errors、messaging、check、marks、polish、shortcuts 快捷键绑定与录入规则
 src/storage/       chrome.storage.local 封装：local / settings / history / learning（卡片与 SM-2 排程、统计、导入导出）
 src/ui/            theme.css 设计变量与设置页组件、主题应用、页面跳转（openOptions 支持 hash 深链）
-public/            manifest.json 与图标（原图在 assets/icon-master.png，矢量源在 assets/icon-master.svg）
+public/            manifest.json、图标（原图在 assets/icon-master.png，矢量源在 assets/icon-master.svg）与 _locales/zh_CN/messages.json（manifest 的 name / description 走 __MSG_extName__ / __MSG_extDesc__，改文案改这里）
 scripts/           build.mjs（三次构建）、verify-dist.mjs（产物自检）、check-docs.mjs（文档路径自检）、package.mjs（打 zip，纯 Node 无依赖）
 tests/             vitest 单测 + 可选真实网络测试
 docs/              README.md 文档索引与维护规则、design.md 设计大纲、ui-design.md UI 设计规范、providers.md 服务商对接、privacy.html（商店用隐私政策页，GitHub Pages 发布）、store-listing.md（商店上架文案与素材）、guide/ 新手四篇
@@ -212,6 +212,7 @@ docs/              README.md 文档索引与维护规则、design.md 设计大�
 - **MV3 的 `chrome.commands` 没有 `update()`**：扩展只能 `getAll()` 读，不能改原生快捷键（`update` 只有 Firefox 有）。所以 manifest 里的 `Alt+T` / `Alt+P` 永远是这两个键，改键只能靠 content script 捕获 `keydown`；SW 收到 `onCommand` 后必须先 `loadSettings()`，只有该动作仍是默认绑定才转发，否则自定义键会变成「旧键 + 新键」都能用。两套路径同时命中时靠 content 的 200ms `lastAction` 去重，别去掉。
 - **页面内快捷键会被焦点和站点抢占**：自定义键只在网页有焦点时生效（地址栏、开发者工具、扩展弹窗里都不触发）；页面自己更早的 capture 监听或 `preventDefault` 会把按键吞掉；`page` 动作只认顶层帧，iframe 里按无效；用户在 `edge://extensions/shortcuts`（Chrome 为 `chrome://extensions/shortcuts`）改的原生键设置页看不到，浏览器里显示的仍是 manifest 的值（待验证具体表现）。
 - **GitHub Pages 首次启用需要仓库管理员权限**：默认 `GITHUB_TOKEN` 访问 Pages API 一律 404，`.github/workflows/pages.yml` 里 `configure-pages` 的 `enablement: true` 因此在未启用 Pages 的仓库上失败（实测 2026-11-22：匿名与 GITHUB_TOKEN 都返回 404，带仓库管理员权限的 OAuth 凭据 `POST /repos/{owner}/{repo}/pages` 带 `{"build_type":"workflow"}` 才 201，随后重跑 workflow 成功）。首次部署前先让管理员在 Settings → Pages 把 Source 选成 GitHub Actions（或用带 admin 权限的凭据建 Pages 站点），再重跑失败的 run；启用后 workflow 正常发布，页面地址 https://isnotchangchengy.github.io/Plumet/privacy.html。
+- **manifest 的 name / description 走 _locales 本地化**：两者现在是 `__MSG_extName__` / `__MSG_extDesc__`，实际文案在 `public/_locales/zh_CN/messages.json`；manifest 必须同时有 `default_locale: "zh_CN"`，目录名用下划线（`zh-CN` 浏览器不认）。只提供 zh_CN，其他语言环境的浏览器回落到默认语言，仍显示中文。改文案后要重新 `pnpm build` → `pnpm package`；`scripts/verify-dist.mjs` 会检查默认语言消息文件与 `__MSG_` 键是否可解析。Edge 商店的 listing 语言也按包内 `_locales` 识别（实测 2026-11-22：没有 `_locales` 时后台只有 English (United States)，Add a language 无可选项）。
 
 ## 10. 每次改动后的验证清单
 

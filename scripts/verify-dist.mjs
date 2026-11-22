@@ -40,6 +40,31 @@ check(manifest.manifest_version === 3, 'manifest_version 必须是 3')
 check(typeof manifest.name === 'string' && manifest.name.length > 0, 'manifest 缺少 name')
 check(typeof manifest.version === 'string' && manifest.version.length > 0, 'manifest 缺少 version')
 
+const localizedField = /^__MSG_([A-Za-z0-9_@]+)__$/
+if (!manifest.default_locale) {
+  check(false, 'manifest 缺少 default_locale，_locales 里的本地化消息不会被浏览器采用')
+} else {
+  const messagesPath = `_locales/${manifest.default_locale}/messages.json`
+  if (!exists(messagesPath)) {
+    problems.push(`默认语言的消息文件缺失：${messagesPath}`)
+  } else {
+    try {
+      const messages = JSON.parse(readFileSync(join(dist, messagesPath), 'utf8'))
+      for (const field of ['name', 'description']) {
+        const match = typeof manifest[field] === 'string' ? manifest[field].match(localizedField) : null
+        if (!match) continue
+        const message = messages[match[1]]?.message
+        check(
+          typeof message === 'string' && message.trim().length > 0,
+          `${messagesPath} 缺少 ${match[1]} 的 message（manifest.${field} 引用了它）`,
+        )
+      }
+    } catch (error) {
+      problems.push(`无法解析 ${messagesPath}：${error.message}`)
+    }
+  }
+}
+
 const referenced = []
 referenced.push(manifest.background?.service_worker)
 referenced.push(manifest.side_panel?.default_path)
@@ -98,4 +123,6 @@ if (problems.length > 0) {
   process.exit(1)
 }
 
-console.log(`[verify] 通过：manifest 与 ${htmlFiles.length} 个页面、${assetRefs.length} 个资源引用全部有效`)
+console.log(
+  `[verify] 通过：manifest（默认语言 ${manifest.default_locale}）与 ${htmlFiles.length} 个页面、${assetRefs.length} 个资源引用全部有效`,
+)

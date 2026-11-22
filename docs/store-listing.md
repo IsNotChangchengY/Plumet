@@ -8,7 +8,7 @@
 
 | 项目 | 值 |
 |---|---|
-| 名称 | 羽译（与 `public/manifest.json` 的 `name` 一致，商店展示名不改） |
+| 名称 | 羽译（manifest 的 `name` 是 `__MSG_extName__`，实际文案在 `public/_locales/zh_CN/messages.json`；商店展示名不改） |
 | 当前版本 | 1.0.0（`package.json` 与 `public/manifest.json` 两处必须一致） |
 | 上传包 | `pnpm package` 生成的 `release/yuyi-1.0.0.zip`，zip 根目录下直接是 `manifest.json` |
 | 定价 | 免费，无内购 |
@@ -34,7 +34,7 @@
 翻译、语法检查、润色与生词学习一体的浏览器翻译扩展
 ```
 
-这一段与 `public/manifest.json` 的 `description` 完全相同（Chrome 上限 132 字符，当前 27 字）。两店都保持与 manifest 一致；改这里必须同时改 manifest。
+这一段与扩展包内 `_locales/zh_CN/messages.json` 的 `extDesc` 完全相同（manifest 的 `description` 是 `__MSG_extDesc__`；Chrome 上限 132 字符，当前 27 字）。两店都保持与扩展包一致；改这里必须同时改 `public/_locales/zh_CN/messages.json`。
 
 ### 2.3 详细描述
 
@@ -60,13 +60,19 @@ Chrome 与 Edge 都按纯文本渲染，不支持 Markdown；下面的行与符�
 
 ### 2.4 类别、语言与链接
 
-- Chrome Web Store：类别选「生产工具 / Productivity」；语言「中文（简体）」；隐私政策 URL 见第 1 节；支持 URL 用仓库地址。
-- Microsoft Edge Add-ons：类别选「Productivity」；语言「中文（简体）」；隐私政策 URL 同上；支持 URL 用仓库地址。
+- Chrome Web Store：类别选「生产工具 / Productivity」；语言「中文（简体）」（Chrome 的 listing 语言是后台独立下拉，与包内 `_locales` 无关）；隐私政策 URL 见第 1 节；支持 URL 用仓库地址。
+- Microsoft Edge Add-ons：类别选「Productivity」；语言选「中文（简体）」（1.0.0 包已带 `_locales/zh_CN` 与 `default_locale: "zh_CN"`，Edge 按包内本地化识别 listing 语言，详见 8.2）；隐私政策 URL 同上；支持 URL 用仓库地址。
 
-### 2.5 单一用途声明（Chrome 必填）
+### 2.5 单一用途声明（两店必填）
 
 ```text
 羽译是外语阅读与写作的辅助工具：在用户主动触发时翻译选中的文字或整页内容、检查与润色用户输入的外文，并把生词收藏到本机生词本供复习。所有功能都围绕「帮用户读和写外语」这一件事。
+```
+
+English（两店后台是英文界面，审核按英文读；控制台若接受中文就直接用上面那段）：
+
+```text
+YuYi (羽译) is an assistance tool for reading and writing foreign languages. At the user's explicit request it translates selected text or whole web pages, grammar-checks and polishes foreign-language text the user enters, and looks up words and saves them to an on-device vocabulary list for spaced review. All features serve this one purpose: helping the user read and write foreign languages. There is no account system, no ads, no telemetry, and no developer-operated server.
 ```
 
 ### 2.6 Edge 搜索词（最多 7 个）
@@ -147,6 +153,12 @@ English: Used for user-defined OpenAI-compatible endpoints, including local mode
 English: Selection and full-page translation must work on any page the user is reading. The content script does not read or upload page content on its own: it reads the selection or paragraphs only after the user selects text or clicks "Translate this page", and sends only the text to be translated (plus a small context window) to the selected translation service. Frames are included because article text is often embedded in iframes. Browser-internal pages, extension pages, and the new tab page are never injected.
 ```
 
+主机权限合并说明（Edge 的隐私页只有一个 Host permission justification 框，Chrome 只有一个主机权限框时也用它）：下面这版 975 字符，覆盖内置域名、内容脚本 `<all_urls>` 与可选主机权限，可直接粘贴。
+
+```text
+Two scopes. (1) Built-in API endpoints for the translation, AI and dictionary services the extension ships with: Google (clients5.google.com, translate.googleapis.com), MyMemory, Baidu, Microsoft Azure Translator, OpenAI, Gemini, xAI, DeepSeek, SiliconFlow, Moonshot, Zhipu, Alibaba DashScope, Youdao Dictionary, and Free Dictionary API. Requests are made only when the user explicitly translates, checks, polishes or looks up a word, and only to the service selected in Settings. (2) The content script matches <all_urls> with all_frames: selection and full-page translation must work on any page the user reads, including article text inside iframes. It never reads or uploads page content on its own; only the selection or paragraphs are read after the user selects text or clicks "Translate this page". Optional https://*/*, localhost and 127.0.0.1 are used only for user-defined OpenAI-compatible endpoints, granted after a user click and revocable. No developer server.
+```
+
 ### 3.3 明确没有申请的权限
 
 `tabs`、`activeTab`、`scripting`、`webRequest`、`cookies`、`history`、`bookmarks`、`downloads`、`identity`、`notifications` 都没有申请：
@@ -167,7 +179,7 @@ English: Selection and full-page translation must work on any page the user is r
 ### 4.1 Chrome Web Store 的「隐私」页
 
 - 单一用途：填 2.5 的文本。
-- 远程代码：**否**。全部代码都在扩展安装包内，不使用远程加载的脚本，也没有 `eval` / `new Function`。
+- 远程代码：选 **No, I am not using remote code**。全部代码都在扩展安装包内，不使用远程加载的脚本，也没有 `eval` / `new Function`；Justification 框可填：`All code is bundled in the extension package: no remote scripts, no eval / new Function, no external module loading.`
 - 数据使用：按上面的口径，勾选「网站内容 / Website content」——待译文字会发往用户选择的第三方服务。其余类别（个人身份信息、健康、金融、身份验证信息、个人通信、位置、网络历史、用户活动）都不勾：开发者拿不到这些数据，扩展也不向第三方发送这些数据。
 - 三项认证勾选（不售卖数据、不用于与单一用途无关的用途、不用于信用评估）：本项目全部符合，如实勾选。
 - 隐私政策 URL：填第 1 节的地址。
@@ -176,9 +188,16 @@ English: Selection and full-page translation must work on any page the user is r
 
 ### 4.2 Microsoft Edge Add-ons
 
-- 隐私政策 URL：同上。
-- 「是否收集个人数据」按第 4 节统一口径回答；审核备注写明数据传输链路与「无开发者服务器」。
-- 权限理由按第 3 节填写。
+Edge 的「Privacy」页逐项对应（页面是英文，粘贴英文版）：
+
+- **Single purpose description**：粘 2.5 的 English 段落。
+- **storage / unlimitedStorage / contextMenus justification**：分别粘 3.2 对应条目的 English 段。
+- **Host permission justification**：粘 3.2 末尾的「主机权限合并说明」段落（已覆盖内置域名、`<all_urls>` 内容脚本与可选主机权限）。
+- **Are you using remote code?**：选 **No, I am not using remote code**；Justification 可留空或粘 4.1 那句英文。
+- **Data usage**：只勾 **Website content（网站内容）**；其余（PII、健康、金融、身份验证、个人通信、位置、网络历史、用户活动）都不勾，因为开发者拿不到这些数据，扩展也不向第三方发送这些数据。若审核把「本地翻译历史」理解成 user activity，按最保守口径解释：历史只在本机 `chrome.storage.local`，从不上传，因此不属于收集。
+- **Privacy policy URL**：同上（https://isnotchangchengy.github.io/Plumet/privacy.html）。
+- **三项认证**（不出售/不转交、不用于单一用途之外、不用于信用评估）：全部勾选，项目如实符合。
+- 审核备注与测试说明见第 5 节；若后台另有 Notes for certification 页，也粘第 5 节英文段。
 
 ## 5. 审核测试说明（Test instructions / Notes for certification）
 
@@ -241,6 +260,7 @@ Privacy: no account, no analytics, no developer server. History, vocabulary card
 - [ ] `package.json` 与 `public/manifest.json` 的版本一致，且与要提交的包名一致（当前 1.0.0）。
 - [ ] `pnpm check` 全绿（类型 + 单测 + 构建 + verify + docs:check）。
 - [ ] `pnpm package` 生成 `release/yuyi-1.0.0.zip`；解压后 zip 根目录直接是 `manifest.json`。
+- [ ] 解压包里 `_locales/zh_CN/messages.json` 存在，且 `manifest.json` 的 `name` / `description` 是 `__MSG_extName__` / `__MSG_extDesc__`。
 - [ ] 本地手动加载解压包过一遍 AGENTS.md 第 10 节的冒烟清单（权限瘦身后尤其要过划词与网页翻译）。
 - [ ] 隐私政策 URL 返回 200（https://isnotchangchengy.github.io/Plumet/privacy.html）。
 - [ ] 5 张截图、300×300 logo、128×128 图标都已按尺寸准备好。
@@ -264,7 +284,8 @@ Privacy: no account, no analytics, no developer server. History, vocabulary card
 1. 用 Microsoft 账号注册 Partner Center 的 Microsoft Edge 程序（免费）。
 2. 新建扩展，上传同一个 `release/yuyi-1.0.0.zip`。
 3. 填写商店信息：名称、简短 / 详细描述、类别、语言、搜索词、5 张 1280×800 截图、300×300 store logo、隐私政策 URL、支持 URL。
-4. 填写权限理由与 Notes for certification（见第 3、5 节），提交认证。认证通常 1–7 个工作日。
+4. **listing 语言（实测 2026-11-22）**：Edge 按扩展包内实际存在的 `_locales` 识别可用的 listing 语言。1.0.0 之前的包没有本地化，后台只识别出 **English (United States)** 一条、**Add a language 下拉无选项**；现在包内已加 `_locales/zh_CN/messages.json` 与 `default_locale: "zh_CN"`，重新上传后应识别出 **中文（简体）**，在 Edit details 里把中文文案填在这条 listing 上。（待核实：Edge 后台对新包的语言识别结果；若仍只显示 English (United States)，直接在那条里填中文即可——单一 listing 会作为所有语言用户的回退展示，照样过审。）
+5. 填写权限理由与 Notes for certification（见第 3、5 节），提交认证。认证通常 1–7 个工作日。
 
 ### 8.3 后续版本更新
 
@@ -281,13 +302,14 @@ Privacy: no account, no analytics, no developer server. History, vocabulary card
 - 商店后台字段名、字数上限、数据类别名称会变化；本文件标注的 132 字符、16000 字符、7 个搜索词等按当前控制台口径写，提交时以页面为准（待核对）。
 - 商店图是宣传合成图，若被要求换成纯 UI 截图，按第 6 节回退。
 - 开发者账号、发布者名称、支持邮箱、上架地区由维护者决定，属于人工操作，脚本与 AI 不能代填。
+- **Edge listing 语言（实测 2026-11-22，已处理）**：旧包没有 `_locales` / `default_locale`，Edge 只识别 English (United States)、Add a language 无可选项。1.0.0 包已加 `_locales/zh_CN/messages.json`，并把 manifest 的 name/description 改为 `__MSG_extName__` / `__MSG_extDesc__`、声明 `default_locale: "zh_CN"`；重新上传后 Edge 应把语言识别为中文（简体）。即便后台仍只给 en-US，在唯一 listing 填中文文案也能过审并对中文用户展示（待核实：Edge 后台语言列表）。
 
 ## 10. 维护对照
 
 | 改了什么 | 同步哪里 |
 |---|---|
 | 新增 / 删除功能 | 第 2 节文案、第 6 节截图 |
-| 改 `public/manifest.json` 的 description | 第 2.2 节简短描述 |
+| 改扩展名 / 简短描述 | `public/_locales/zh_CN/messages.json` 的 `extName` / `extDesc`（manifest 里是 `__MSG_*` 占位），同步第 2.1、2.2 节 |
 | 权限、主机权限、内置服务商变化 | 第 3 节理由、第 4 节数据披露、[隐私政策页](privacy.html) |
 | 界面或品牌变化 | 第 6 节素材重拍 |
 | 发布流程或版本号规则变化 | 第 7、8 节与 CONTRIBUTING.md 第 8 节 |
