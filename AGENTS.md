@@ -211,6 +211,7 @@ docs/              README.md 文档索引与维护规则、design.md 设计大�
 - **思考强度默认不下发**：`reasoningEffort` 默认空串（「跟随模型默认」），`postChat` 只在非空时才把 `reasoning_effort` 塞进请求体。OpenAI 兼容层对这个字段的接受度不一致（不支持的老模型或网关直接 400），默认带上等于把本来能用的服务打挂。设置页的档位只对这一家的翻译 / 检查 / 润色生效，报错就改回默认。
 - **MV3 的 `chrome.commands` 没有 `update()`**：扩展只能 `getAll()` 读，不能改原生快捷键（`update` 只有 Firefox 有）。所以 manifest 里的 `Alt+T` / `Alt+P` 永远是这两个键，改键只能靠 content script 捕获 `keydown`；SW 收到 `onCommand` 后必须先 `loadSettings()`，只有该动作仍是默认绑定才转发，否则自定义键会变成「旧键 + 新键」都能用。两套路径同时命中时靠 content 的 200ms `lastAction` 去重，别去掉。
 - **页面内快捷键会被焦点和站点抢占**：自定义键只在网页有焦点时生效（地址栏、开发者工具、扩展弹窗里都不触发）；页面自己更早的 capture 监听或 `preventDefault` 会把按键吞掉；`page` 动作只认顶层帧，iframe 里按无效；用户在 `edge://extensions/shortcuts`（Chrome 为 `chrome://extensions/shortcuts`）改的原生键设置页看不到，浏览器里显示的仍是 manifest 的值（待验证具体表现）。
+- **GitHub Pages 首次启用需要仓库管理员权限**：默认 `GITHUB_TOKEN` 访问 Pages API 一律 404，`.github/workflows/pages.yml` 里 `configure-pages` 的 `enablement: true` 因此在未启用 Pages 的仓库上失败（实测 2026-11-22：匿名与 GITHUB_TOKEN 都返回 404，带仓库管理员权限的 OAuth 凭据 `POST /repos/{owner}/{repo}/pages` 带 `{"build_type":"workflow"}` 才 201，随后重跑 workflow 成功）。首次部署前先让管理员在 Settings → Pages 把 Source 选成 GitHub Actions（或用带 admin 权限的凭据建 Pages 站点），再重跑失败的 run；启用后 workflow 正常发布，页面地址 https://isnotchangchengy.github.io/Plumet/privacy.html。
 
 ## 10. 每次改动后的验证清单
 
