@@ -34,11 +34,15 @@
 翻译、语法检查、润色与生词学习一体的浏览器翻译扩展
 ```
 
-这一段与扩展包内 `_locales/zh_CN/messages.json` 的 `extDesc` 完全相同（manifest 的 `description` 是 `__MSG_extDesc__`；Chrome 上限 132 字符，当前 27 字）。两店都保持与扩展包一致；改这里必须同时改 `public/_locales/zh_CN/messages.json`。
+这一段与扩展包内 `_locales/zh_CN/messages.json` 的 `extDesc` 完全相同（manifest 的 `description` 是 `__MSG_extDesc__`；Chrome 上限 132 字符，当前 25 字符）。两店都保持与扩展包一致；改这里必须同时改 `public/_locales/zh_CN/messages.json`。
+
+Edge 的 **Short description 不在后台手填**：Microsoft 文档写明它取自扩展包 manifest 的 `description`，改文案要改 `_locales` 后重新打包上传；所以 Edge 的 Store listings 里需要粘贴的只有 **Description（详细描述）**，见 2.3。
 
 ### 2.3 详细描述
 
 Chrome 与 Edge 都按纯文本渲染，不支持 Markdown；下面的行与符号在后台直接粘贴即可。
+
+字数要求（Edge，实测 2026-11-22）：**Description（详细描述）** 字段要求 **最少 250 字符、最多 10,000 字符**（Microsoft Learn《Publish a Microsoft Edge extension》的 store listing 字段表）。少于 250 时后台报 `The description does not meet the minimum character limit of 250.`——常见原因是把 25 字符的简短描述填进了这个框，或只粘了第一段。下面整段共 939 字符，整段粘贴即可；Chrome 后台的详细描述上限 16,000 字符，同样用这一段。
 
 ```text
 羽译（Plumet）：把「翻译 → 检查 → 润色 → 记住」串成一条线的浏览器扩展。
@@ -197,11 +201,11 @@ Edge 的「Privacy」页逐项对应（页面是英文，粘贴英文版）：
 - **Data usage**：只勾 **Website content（网站内容）**；其余（PII、健康、金融、身份验证、个人通信、位置、网络历史、用户活动）都不勾，因为开发者拿不到这些数据，扩展也不向第三方发送这些数据。若审核把「本地翻译历史」理解成 user activity，按最保守口径解释：历史只在本机 `chrome.storage.local`，从不上传，因此不属于收集。
 - **Privacy policy URL**：同上（https://isnotchangchengy.github.io/Plumet/privacy.html）。
 - **三项认证**（不出售/不转交、不用于单一用途之外、不用于信用评估）：全部勾选，项目如实符合。
-- 审核备注与测试说明见第 5 节；若后台另有 Notes for certification 页，也粘第 5 节英文段。
+- 审核备注与测试说明见第 5 节；Edge 的 Notes for certification 只在提交页选 Yes（需要给测试者提供账号/信息）时可填，选 No 时字段置灰、直接跳过。
 
 ## 5. 审核测试说明（Test instructions / Notes for certification）
 
-两店都不需要账号或测试密钥。中文版与英文版各取一份粘贴。
+两店都不需要账号或测试密钥。中文版与英文版各取一份粘贴。Edge 的 Notes for certification 字段只在提交页问「是否需要给测试者提供账号/信息」选 **Yes** 时才可填写；选 **No** 后字段置灰、不需要填（实测 2026-11-22）。该字段上限 **2,000 字符**，完整英文版 2,065 字符超限；需要填时用 5 节末尾的精简英文版（1793 字符）。
 
 ```text
 无需账号、无需测试密钥，安装后即可验证核心功能。默认使用免 Key 的谷歌翻译与有道词典；语法检查与润色需要用户自备 AI API Key，属可选功能，不影响其余功能验收。
@@ -237,6 +241,25 @@ Network note: the default free channel uses clients5.google.com and dict.youdao.
 Privacy: no account, no analytics, no developer server. History, vocabulary cards, and caches stay in the browser's local storage. Privacy policy: https://isnotchangchengy.github.io/Plumet/privacy.html .
 ```
 
+Edge 提交页若需要填 Notes for certification（提交页选 Yes 时），用下面这版（1793 字符，< 2,000；只压缩措辞，保留全部测试步骤与网络 / 隐私说明）：
+
+```text
+No account or test credentials are required. The extension works out of the box with the default free translation channel (Google Translate, no API key) and the built-in dictionary (Youdao, no key). Grammar check and polish are optional features that require the user to add an AI service API key; they are not needed to verify the rest of the extension.
+
+How to test:
+1. Install the extension and open any English article, for example https://example.com.
+2. Click the YuYi toolbar icon, type an English sentence and press Enter. A Chinese translation should appear.
+3. Select an English sentence on a page. A small YuYi icon appears next to the selection; click it to open the translation bubble. Expand the context preview to see the page title, headings and adjacent paragraphs sent with the request.
+4. Open the popup again and click "Translate this page". Paragraphs get Chinese translations; the bottom-right status pill switches between bilingual, translation-only and restore.
+5. Type a single word such as "hello" in the popup: a dictionary card appears (phonetics, Chinese and English definitions).
+6. The context menu entries and Alt+T / Alt+P shortcuts trigger the same features; the gear icon opens Settings.
+7. Optional: add an AI service and API key in Settings → Services to test grammar check and polish.
+
+Network note: the default free channel uses clients5.google.com and dict.youdao.com. If unreachable in the review environment, add MyMemory as an engine in Settings → Engines, or configure Baidu / Microsoft Translator in Settings → Services. UI, settings and local data work offline.
+
+Privacy: no account, analytics or developer server; history, vocabulary and caches stay in browser local storage. Privacy policy: https://isnotchangchengy.github.io/Plumet/privacy.html
+```
+
 ## 6. 商店素材
 
 | 文件 | 尺寸 | 画面 | 用途 |
@@ -265,7 +288,9 @@ Privacy: no account, no analytics, no developer server. History, vocabulary card
 - [ ] 隐私政策 URL 返回 200（https://isnotchangchengy.github.io/Plumet/privacy.html）。
 - [ ] 5 张截图、300×300 logo、128×128 图标都已按尺寸准备好。
 - [ ] Chrome：单一用途、权限理由、远程代码=否、数据使用、三项认证都已填写。
-- [ ] Edge：搜索词、隐私政策 URL、权限理由、Notes for certification 都已填写。
+- [ ] Edge：搜索词、隐私政策 URL、权限理由都已填写；**Notes for certification** 只在 tester credentials 选 Yes 时需要（选 No 时字段置灰）。
+- [ ] Edge：**Description（详细描述）** 已整段粘贴 2.3 的内容（939 字符，≥ 250）；不要把 25 字符的简短描述填进这个框（会报 minimum character limit of 250）；Short description 由包内 manifest 的 `description` 决定，不在后台手填。
+- [ ] Edge：提交页的 tester credentials 问题已选 **No**，此时 Notes 字段不可填也不需要填；若改为 Yes 则粘第 5 节末尾精简英文版（1793 字符，< 2,000）。
 - [ ] 开发者账号已注册并完成发布者验证；支持邮箱可收信。
 - [ ] 上架地区与可见性已确认（默认全部地区、公开）。
 
@@ -285,7 +310,7 @@ Privacy: no account, no analytics, no developer server. History, vocabulary card
 2. 新建扩展，上传同一个 `release/yuyi-1.0.0.zip`。
 3. 填写商店信息：名称、简短 / 详细描述、类别、语言、搜索词、5 张 1280×800 截图、300×300 store logo、隐私政策 URL、支持 URL。
 4. **listing 语言（实测 2026-11-22）**：Edge 按扩展包内实际存在的 `_locales` 识别可用的 listing 语言。1.0.0 之前的包没有本地化，后台只识别出 **English (United States)** 一条、**Add a language 下拉无选项**；现在包内已加 `_locales/zh_CN/messages.json` 与 `default_locale: "zh_CN"`，重新上传后应识别出 **中文（简体）**，在 Edit details 里把中文文案填在这条 listing 上。（待核实：Edge 后台对新包的语言识别结果；若仍只显示 English (United States)，直接在那条里填中文即可——单一 listing 会作为所有语言用户的回退展示，照样过审。）
-5. 填写权限理由与 Notes for certification（见第 3、5 节），提交认证。认证通常 1–7 个工作日。
+5. 填写权限理由（见第 3 节）。提交页询问 **Does a tester need credentials, accounts, or any other info to test your extension?** 时选 **No**：扩展不需要账号与测试密钥，装好即用；AI 检查与润色属可选能力（需用户自备 Key），不必提供任何密钥。选 No 后 **Notes for certification** 字段会置灰、不可填写，直接点提交即可（实测 2026-11-22；页面上那句通用 warning 不适用于这种情况）。认证通常 1–7 个工作日。
 
 ### 8.3 后续版本更新
 
@@ -299,7 +324,7 @@ Privacy: no account, no analytics, no developer server. History, vocabulary card
 - 内容脚本覆盖 `<all_urls>` 会带来「读取所有网站数据」的安装警告，这是划词翻译的固有代价；用第 3 节的理由解释。若审核持续质疑，可评估改为「用户手势后按需注入」，但需要重新引入 `scripting` 权限并重做划词链路的冒烟，回归成本高，暂不做。
 - 免费通道（谷歌 `clients5.google.com`、MyMemory）是非官方公开端点，可能限流或失效（实测记录见 [docs/providers.md](providers.md)）；商店文案不承诺长期可用，审核环境访问不到时用第 5 节的替代路径说明。
 - 语法检查与润色必须由用户自备 AI Key，审核人员无法完整验证；文案与测试说明都把它标为可选能力，避免被判定为「功能不完整」。
-- 商店后台字段名、字数上限、数据类别名称会变化；本文件标注的 132 字符、16000 字符、7 个搜索词等按当前控制台口径写，提交时以页面为准（待核对）。
+- 商店后台字段名、字数上限、数据类别名称会变化；本文件标注的 132 字符、16000 字符、7 个搜索词等按当前控制台口径写，提交时以页面为准（已有依据的：Edge Description 为 250–10,000 字符，来自 Microsoft Learn 的 store listing 字段表，实测 2026-11-22；其余待核对）。
 - 商店图是宣传合成图，若被要求换成纯 UI 截图，按第 6 节回退。
 - 开发者账号、发布者名称、支持邮箱、上架地区由维护者决定，属于人工操作，脚本与 AI 不能代填。
 - **Edge listing 语言（实测 2026-11-22，已处理）**：旧包没有 `_locales` / `default_locale`，Edge 只识别 English (United States)、Add a language 无可选项。1.0.0 包已加 `_locales/zh_CN/messages.json`，并把 manifest 的 name/description 改为 `__MSG_extName__` / `__MSG_extDesc__`、声明 `default_locale: "zh_CN"`；重新上传后 Edge 应把语言识别为中文（简体）。即便后台仍只给 en-US，在唯一 listing 填中文文案也能过审并对中文用户展示（待核实：Edge 后台语言列表）。
