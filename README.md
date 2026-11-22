@@ -5,6 +5,7 @@
 > 把「翻译 → 检查 → 润色 → 记住」串成一条线的浏览器扩展。
 
 <p align="center">
+  <a href="https://microsoftedge.microsoft.com/addons/detail/cmcfmbmapffophfccompdeefdabhfafa"><img src="https://img.shields.io/badge/Microsoft%20Edge-%E5%8A%A0%E8%BD%BD%E9%A1%B9-0078D4?logo=microsoftedge&logoColor=white" alt="Microsoft Edge 加载项" /></a>
   <img src="https://img.shields.io/badge/version-1.0.0-brightgreen" alt="version" />
   <img src="https://img.shields.io/badge/Manifest-V3-blue" alt="Manifest V3" />
   <img src="https://img.shields.io/badge/TypeScript-5.9.3-3178C6?logo=typescript&logoColor=white" alt="TypeScript" />
@@ -64,6 +65,11 @@ AI 服务与机器翻译可勾选多个并拖动排序，同一句按顺序并�
 </p>
 <p align="center"><sub>勾选多个引擎，同一句按顺序各出一张结果卡</sub></p>
 
+### 从商店安装
+
+- **Microsoft Edge**：已上架 [Microsoft Edge 加载项](https://microsoftedge.microsoft.com/addons/detail/cmcfmbmapffophfccompdeefdabhfafa)，点「获取」即可安装，后续版本由商店自动更新。
+- **Google Chrome**：Chrome Web Store 上架后在此补充链接；现在可以先用下面的「打包分发包」或「从源码加载」。
+
 ### 前置要求
 
 - Chromium 内核浏览器 **≥ 114**：Microsoft Edge 或 Chrome
@@ -93,7 +99,7 @@ pnpm package
 
 生成 `release/yuyi-1.0.0.zip`，解压到任意目录后，按「从源码加载」的步骤加载解压出来的文件夹即可（Edge 与 Chrome 都支持）。
 
-不想装开发环境也行：维护者推送 `v<版本>` 标签后，GitHub Actions 会自动构建 `extension.zip` 并发布到 [Releases](https://github.com/IsNotChangchengY/Plumet/releases)（同时附 `SHA256SUMS.txt` 校验文件），Release 正文是维护者写的本次更新说明；下载解压后按「从源码加载」的步骤选择解压目录即可。
+或者从[Releases](https://github.com/IsNotChangchengY/Plumet/releases)页下载extension.zip。
 
 ### 配置翻译服务
 

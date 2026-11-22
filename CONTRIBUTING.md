@@ -90,8 +90,8 @@ pnpm check
 1. 同步升级 `package.json` 与 `public/manifest.json` 里的版本号（两处必须一致；打 tag 前不一致会让发布流水线直接失败）。
 2. 写本次更新说明：把内容放进 `.github/release-notes/v<版本>.md`（文件名用完整标签，例如 `v1.0.0.md`）。这个文件会原样作为 Release 正文，不追加日期、提交、校验值等任何自动内容；缺少它流水线会直接失败。
 3. 本地预检（可选但推荐）：`pnpm check` 全绿 → `pnpm package` 生成 `release/yuyi-<版本>.zip`，解压后按第 2 节的加载步骤（Edge / Chrome 均可）跑一遍第 7 节。
-4. 打 tag `v<版本>` 并推送。`.github/workflows/release.yml` 会自动跑 `pnpm check` 与 `pnpm package`，把产物复制成 `extension.zip`、生成 `SHA256SUMS.txt`，再把更新说明复制成 `RELEASE_NOTES.md`，然后创建 GitHub Release：标题带版本号，正文就是更新说明原文；进度看仓库的 Actions 页。
-5. 发布后确认 Release 说明与资产（`extension.zip`、`SHA256SUMS.txt`）。失败就修代码后移动标签重推；已存在的 Release 在重跑时只覆盖资产、重写说明，不会重复创建；也可以在 Actions 页手动触发 workflow 并填已存在的标签重发。
+4. 打 tag `v<版本>` 并推送。`.github/workflows/release.yml` 会自动跑 `pnpm check` 与 `pnpm package`，把产物复制成 `extension.zip`，再把更新说明复制成 `RELEASE_NOTES.md`，然后创建 GitHub Release：标题带版本号，正文就是更新说明原文；进度看仓库的 Actions 页。
+5. 发布后确认 Release 说明与资产（`extension.zip`）。失败就修代码后移动标签重推；已存在的 Release 在重跑时只覆盖资产、重写说明，不会重复创建；也可以在 Actions 页手动触发 workflow 并填已存在的标签重发。
 
 首次发布若报 `Resource not accessible by integration`，去仓库 Settings → Actions → General → Workflow permissions 选「Read and write permissions」（workflow 里已声明 `contents: write`）。
 

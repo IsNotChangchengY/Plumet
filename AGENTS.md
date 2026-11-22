@@ -30,7 +30,7 @@ pnpm docs:check     检查 AGENTS.md / CONTRIBUTING.md / docs 里提到的路径
 pnpm check          一次性跑：类型 + 单测 + 构建 + verify + docs:check
 ```
 
-发布流水线：推 `v*.*.*` 标签会触发 `.github/workflows/release.yml`（ubuntu + Node 24 + pnpm 11），依次跑 `pnpm check` → `pnpm package` → 把产物复制成 `release/extension.zip` → 创建 GitHub Release 并附 `extension.zip` 与 `SHA256SUMS.txt`；标签版本必须与 `package.json`、`public/manifest.json` 一致，否则 workflow 直接失败。Release 正文只取 `.github/release-notes/<标签>.md`（如 `v1.0.0.md`）的内容，原样发布、不自动追加日期、提交、校验值等任何内容；没有这个文件时 workflow 直接失败，所以打标签前必须先写本次更新说明。重建 Release 时正文会被重写。发布步骤见 `CONTRIBUTING.md` 第 8 节。
+发布流水线：推 `v*.*.*` 标签会触发 `.github/workflows/release.yml`（ubuntu + Node 24 + pnpm 11），依次跑 `pnpm check` → `pnpm package` → 把产物复制成 `release/extension.zip` → 创建 GitHub Release 并附 `extension.zip`；标签版本必须与 `package.json`、`public/manifest.json` 一致，否则 workflow 直接失败。Release 正文只取 `.github/release-notes/<标签>.md`（如 `v1.0.0.md`）的内容，原样发布、不自动追加日期、提交、校验值等任何内容；没有这个文件时 workflow 直接失败，所以打标签前必须先写本次更新说明。重建 Release 时正文会被重写。发布步骤见 `CONTRIBUTING.md` 第 8 节。
 
 隐私政策页：商店上架需要公开 URL，页面源码在 `docs/privacy.html`，由 `.github/workflows/pages.yml` 部署到 GitHub Pages（https://isnotchangchengy.github.io/Plumet/privacy.html）；数据处理方式、第三方服务或权限变化时同步更新这一页。
 

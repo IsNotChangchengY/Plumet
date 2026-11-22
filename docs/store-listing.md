@@ -19,6 +19,7 @@
 | Chrome 开发者账号 | 一次性注册费 5 美元（需信用卡与邮箱验证） |
 | Edge 开发者账号 | 免费（Microsoft 账号 + Partner Center 注册） |
 | 商店素材目录 | `assets/store/` |
+| 上架状态 | Microsoft Edge：**已通过审核上架**（2026-11-22），https://microsoftedge.microsoft.com/addons/detail/cmcfmbmapffophfccompdeefdabhfafa ；Chrome：尚未提交 |
 
 ## 2. 文案（可直接粘贴）
 
@@ -311,6 +312,7 @@ Privacy: no account, analytics or developer server; history, vocabulary and cach
 3. 填写商店信息：名称、简短 / 详细描述、类别、语言、搜索词、5 张 1280×800 截图、300×300 store logo、隐私政策 URL、支持 URL。
 4. **listing 语言（实测 2026-11-22）**：Edge 按扩展包内实际存在的 `_locales` 识别可用的 listing 语言。1.0.0 之前的包没有本地化，后台只识别出 **English (United States)** 一条、**Add a language 下拉无选项**；现在包内已加 `_locales/zh_CN/messages.json` 与 `default_locale: "zh_CN"`，重新上传后应识别出 **中文（简体）**，在 Edit details 里把中文文案填在这条 listing 上。（待核实：Edge 后台对新包的语言识别结果；若仍只显示 English (United States)，直接在那条里填中文即可——单一 listing 会作为所有语言用户的回退展示，照样过审。）
 5. 填写权限理由（见第 3 节）。提交页询问 **Does a tester need credentials, accounts, or any other info to test your extension?** 时选 **No**：扩展不需要账号与测试密钥，装好即用；AI 检查与润色属可选能力（需用户自备 Key），不必提供任何密钥。选 No 后 **Notes for certification** 字段会置灰、不可填写，直接点提交即可（实测 2026-11-22；页面上那句通用 warning 不适用于这种情况）。认证通常 1–7 个工作日。
+6. 审核通过后把商店地址补进 README 顶部徽章与「从商店安装」小节（Edge 已上架，地址见第 1 节速查）；Chrome 上架后再补 Chrome 链接。
 
 ### 8.3 后续版本更新
 
@@ -338,3 +340,4 @@ Privacy: no account, analytics or developer server; history, vocabulary and cach
 | 权限、主机权限、内置服务商变化 | 第 3 节理由、第 4 节数据披露、[隐私政策页](privacy.html) |
 | 界面或品牌变化 | 第 6 节素材重拍 |
 | 发布流程或版本号规则变化 | 第 7、8 节与 CONTRIBUTING.md 第 8 节 |
+| 商店上架 / 审核状态变化 | 第 1 节速查、README 顶部的商店徽章与「从商店安装」小节 |
