@@ -95,7 +95,7 @@ pnpm check
 
 首次发布若报 `Resource not accessible by integration`，去仓库 Settings → Actions → General → Workflow permissions 选「Read and write permissions」（workflow 里已声明 `contents: write`）。
 
-商店上架（Chrome Web Store / Microsoft Edge Add-ons）需要可公开访问的隐私政策页：页面源码在 `docs/privacy.html`，由 `.github/workflows/pages.yml` 部署到 GitHub Pages，地址是 https://isnotchangchengy.github.io/Plumet/privacy.html 。改动数据处理方式、第三方服务或权限时，同时更新这一页与商店后台填写的隐私政策 URL；仓库首次部署前必须在 Settings → Pages 把 Source 选成 GitHub Actions，默认 `GITHUB_TOKEN` 没有启用 Pages 的权限，workflow 里 `configure-pages` 的 `enablement: true` 在未启用时会失败（管理员可用 `POST /repos/{owner}/{repo}/pages` 带 `{"build_type":"workflow"}` 启用，再重跑 workflow）。
+商店上架（Chrome Web Store / Microsoft Edge Add-ons）需要可公开访问的隐私政策页：页面源码在 `docs/privacy.html`，由 `.github/workflows/pages.yml` 部署到 GitHub Pages，地址是 https://isnotchangchengy.github.io/Plumet/privacy.html 。改动数据处理方式、第三方服务或权限时，同时更新这一页与商店后台填写的隐私政策 URL；仓库首次部署前必须在 Settings → Pages 把 Source 选成 GitHub Actions，默认 `GITHUB_TOKEN` 没有启用 Pages 的权限，workflow 里 `configure-pages` 的 `enablement: true` 在未启用时会失败（管理员可用 `POST /repos/{owner}/{repo}/pages` 带 `{"build_type":"workflow"}` 启用，再重跑 workflow）。商店上架所需的文案、权限理由、隐私披露、审核测试说明与截图素材清单见 [docs/store-listing.md](docs/store-listing.md)。
 
 ## 9. 许可与沟通
 

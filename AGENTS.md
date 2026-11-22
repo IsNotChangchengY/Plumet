@@ -65,7 +65,7 @@ src/ui/            theme.css 设计变量与设置页组件、主题应用、页
 public/            manifest.json 与图标（原图在 assets/icon-master.png，矢量源在 assets/icon-master.svg）
 scripts/           build.mjs（三次构建）、verify-dist.mjs（产物自检）、check-docs.mjs（文档路径自检）、package.mjs（打 zip，纯 Node 无依赖）
 tests/             vitest 单测 + 可选真实网络测试
-docs/              README.md 文档索引与维护规则、design.md 设计大纲、ui-design.md UI 设计规范、providers.md 服务商对接、privacy.html（商店用隐私政策页，GitHub Pages 发布）、guide/ 新手四篇
+docs/              README.md 文档索引与维护规则、design.md 设计大纲、ui-design.md UI 设计规范、providers.md 服务商对接、privacy.html（商店用隐私政策页，GitHub Pages 发布）、store-listing.md（商店上架文案与素材）、guide/ 新手四篇
 ```
 
 ## 6. 关键设计（改代码前先理解）

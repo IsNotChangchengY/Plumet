@@ -24,36 +24,34 @@
 工具栏弹窗中输入要翻译的内容：`Enter` 直接翻译，点「检查」用荧光笔标出错误，点「润色」拿到可复制的 diff 改稿。
 
 <p align="center">
-  <img src="assets/screenshots/popup-translate.png" width="250" alt="弹窗翻译" />
-  <img src="assets/screenshots/popup-check.png" width="250" alt="语法检查" />
-  <img src="assets/screenshots/popup-polish.png" width="250" alt="润色" />
+  <img src="assets/store/screenshots/04-check-polish.png" width="720" alt="检查与润色" />
 </p>
-<p align="center"><sub>同一个输入框，翻译 · 语法检查 · 润色</sub></p>
+<p align="center"><sub>同一个输入框：翻译入口、语法检查标注与润色 diff</sub></p>
 
 ### 划词翻译自带上下文
 
 选中文字出现插件图标，点击即翻；自动带上所在段落、标题链、相邻段落与列表/表格，多义词与代词按语境落地，而不是孤立地翻译一句。
 
 <p align="center">
-  <img src="assets/screenshots/selection-context.png" width="640" alt="划词气泡与上下文预览" />
+  <img src="assets/store/screenshots/01-selection-translate.png" width="720" alt="划词气泡与上下文预览" />
 </p>
 <p align="center"><sub>气泡贴着选区；展开「上下文预览」能看到本次实际发出的段落与章节</sub></p>
 
-### 单词直接查词典
+### 查词典、收藏、复习
 
-英文词与 1–4 个汉字不走句子翻译，直接查有道词典或 Free Dictionary：音标与真人发音、中文释义、英英释义、词形变化、双语例句、常用词组；未收录时自动回退句翻模式。
+英文词与 1–4 个汉字不走句子翻译，直接查有道词典或 Free Dictionary：音标与真人发音、中文释义、英英释义、词形变化、双语例句、常用词组；未收录时自动回退句翻模式。词句连同词典快照收进生词本，按简化 SM-2 排期复习，统计今日新增、待复习、连续天数与正确率，JSON 导入导出。
 
 <p align="center">
-  <img src="assets/screenshots/popup-dict.png" width="250" alt="弹窗词典卡" />
+  <img src="assets/store/screenshots/05-dictionary-learning.png" width="720" alt="词典卡与生词本" />
 </p>
-<p align="center"><sub>输入或划选单个词，结果直接是词典卡</sub></p>
+<p align="center"><sub>左边是词典卡，右边是生词本：查词、收藏、复习一条线</sub></p>
 
 ### 整页双语对照
 
 段落级翻译，双语显示与仅译文可随时切换；重复翻译与页面改版后的段落命中缓存，不重复计费。
 
 <p align="center">
-  <img src="assets/screenshots/page-translate.png" width="640" alt="整页双语翻译" />
+  <img src="assets/store/screenshots/02-page-translate.png" width="720" alt="整页双语翻译" />
 </p>
 <p align="center"><sub>整页双语对照；右下角状态条可切换呈现、重试失败段落或还原本页</sub></p>
 
@@ -62,18 +60,9 @@
 AI 服务与机器翻译可勾选多个并拖动排序，同一句按顺序并排每家译文，每张卡单独复制、朗读、收藏；只用配置完整的服务，失败直接报错，不偷偷换引擎。
 
 <p align="center">
-  <img src="assets/screenshots/popup-multi.png" width="250" alt="多引擎翻译结果" />
+  <img src="assets/store/screenshots/03-multi-engine.png" width="720" alt="多引擎翻译结果" />
 </p>
 <p align="center"><sub>勾选多个引擎，同一句按顺序各出一张结果卡</sub></p>
-
-### 收藏即进入复习
-
-词句连同词典快照收进生词本，按简化 SM-2 排期复习，统计今日新增、待复习、连续天数与正确率，JSON 导入导出。
-
-<p align="center">
-  <img src="assets/screenshots/learning.png" width="540" alt="生词本" />
-</p>
-<p align="center"><sub>生词本：学习概况、卡片列表与复习入口</sub></p>
 
 ### 前置要求
 
