@@ -7,7 +7,7 @@
 ## 1. 项目是什么
 
 浏览器翻译扩展「羽译」：翻译、语法检查、润色、生词学习一条线。AI 负责语境与表达，传统机器翻译负责快和便宜。
-目标平台：Chromium MV3（本机只装了 Edge 157，全部验收在 Edge 上做；Chrome 可直接复用）。
+目标平台：Chromium MV3（本机装了 Edge 157 与 Chrome 158.0.8127.37，Edge 与 Chrome 都可加载验收；`public/manifest.json` 的 `minimum_chrome_version` 是 114，两家都满足）。
 
 ## 2. 技术栈（不要随意换）
 
@@ -30,6 +30,8 @@ pnpm docs:check     检查 AGENTS.md / CONTRIBUTING.md / docs 里提到的路径
 pnpm check          一次性跑：类型 + 单测 + 构建 + verify + docs:check
 ```
 
+发布流水线：推 `v*.*.*` 标签会触发 `.github/workflows/release.yml`（ubuntu + Node 24 + pnpm 11），依次跑 `pnpm check` → `pnpm package` → 把产物复制成 `release/extension.zip` → 创建 GitHub Release 并附 `extension.zip` 与 `SHA256SUMS.txt`；标签版本必须与 `package.json`、`public/manifest.json` 一致，否则 workflow 直接失败。Release 正文只取 `.github/release-notes/<标签>.md`（如 `v1.0.0.md`）的内容，原样发布、不自动追加日期、提交、校验值等任何内容；没有这个文件时 workflow 直接失败，所以打标签前必须先写本次更新说明。重建 Release 时正文会被重写。发布步骤见 `CONTRIBUTING.md` 第 8 节。
+
 真实网络冒烟测试（会联网）：
 
 ```
@@ -39,10 +41,12 @@ $env:NODE_OPTIONS='--use-system-ca'; $env:YUYI_LIVE='1'; pnpm vitest run tests/l
 ## 4. 加载与调试
 
 1. `pnpm build`
-2. Edge 打开 `edge://extensions` → 打开「开发人员模式」→「加载解压缩的扩展」→ 选项目根下的 `dist/` 目录
-3. 点工具栏的「羽 en」图标 → 图标下方弹出翻译窗口（`action.default_popup` → `src/popup/`）
-4. Service Worker 日志：扩展卡片上的「Service Worker」→ 点「检查」
-5. 改了代码：`pnpm build` → 回 `edge://extensions` 点该扩展的刷新按钮 → 打开的弹窗关掉重开
+2. 加载（Edge 与 Chrome 流程相同，入口位置与按钮文案不同）：
+   - Edge：打开 `edge://extensions` → 左下角「开发人员模式」→「加载解压缩的扩展」→ 选项目根下的 `dist/` 目录
+   - Chrome：打开 `chrome://extensions` → 右上角「开发者模式」→「加载已解压的扩展程序」→ 选同一个 `dist/` 目录
+3. 点工具栏的「羽 en」图标 → 图标下方弹出翻译窗口（`action.default_popup` → `src/popup/`）；图标没出现就点工具栏的拼图按钮固定
+4. Service Worker 日志：扩展卡片上的「Service Worker」→ 点「检查」（Edge 与 Chrome 相同）
+5. 改了代码：`pnpm build` → 回扩展页点该扩展的刷新按钮 → 打开的弹窗关掉重开；已打开的网页也要刷新（旧 content script 已失效）
 
 ## 5. 目录结构
 
@@ -129,6 +133,7 @@ docs/              README.md 文档索引与维护规则、design.md 设计大�
 - **本地网络是 MITM 代理**：Node 直接 fetch 谷歌等域名会报 `UNABLE_TO_GET_ISSUER_CERT_LOCALLY`；跑联网测试要 `NODE_OPTIONS=--use-system-ca`（浏览器用 Windows 证书库，不受影响）。偶发 502/504 重试即可。
 - **happy-dom 会做 CORS 拦截**：联网测试必须 `// @vitest-environment node`。
 - **免费通道现状**（详见 `docs/providers.md`）：谷歌 `clients5.google.com/translate_a/t?client=dict-chrome-ex` 可用（支持多 `q`、1200 字符实测正常）；`translate.googleapis.com/gtx` 会 429；微软 `edge.microsoft.com/translate/auth` 已 404；有道旧接口下线；腾讯 transmart 需鉴权。
+- **正式版 Chrome 137+ 不再支持命令行 `--load-extension`**：用带该参数的 Chrome 158 启动不会加载未打包扩展（CDP 实测只有 Google Hangouts / Gemini in Chrome / Google Network Speech 三个组件扩展），验收只能在 `chrome://extensions` 手动加载；要自动化 E2E 得用 Chrome for Testing（158 可下载，约 215 MB）或 Chromium。另注意内置「Gemini in Chrome」也跑 `background.js`，别按 Service Worker 是否存在判断扩展是否加载。
 - **权限**：`<all_urls>` 内容脚本会带来「读取所有网站数据」安装警告；内置服务商（谷歌、MyMemory、百度、Azure、OpenAI、Gemini、xAI、DeepSeek、硅基流动、Moonshot、智谱、通义）的固定域名已写进 `host_permissions`，装好即可用；自定义 / 本地端点仍走 `optional_host_permissions` + `chrome.permissions.request()`（必须在用户点击里调用，所以放在「添加 / 授权并测试」按钮）。
 - **有道词典接口不是官方公开 API**：`GET https://dict.youdao.com/jsonapi?q=<词>` 免 Key 可用，字段是嵌套对象——`simple.word[0]` 给英美音标，`ec.word[0]` 给中文释义（`trs`）与词形（`wfs`），`ee.word.trs` 给 WordNet 英英释义（例句在 `tr[].exam.i.f.l[].i`），但 `ee.source.name` 可能是 Wikipedia（hello 这类词返回的是百科句子），所以解析器优先取 `collins_primary.gramcat[].senses[].definition`，没有柯林斯时才退回 `ee`，`blng_sents_part['sentence-pair']` 给双语例句，`phrs.phrs` 给词组。**未收录的词不报错**：返回 200 且只有 `input/meta/le/lang`（`meta.isHasSimpleDict === "0"`），所以判「找到」的标准是中文释义或英英释义非空，不能只看 HTTP 状态。发音走 `dict.youdao.com/dictvoice?audio=<词>&type=1|2`（1 英 2 美，实测 200 audio/mpeg 约 10 KB）。接口可能限流或改结构，解析失败按「查词失败」回退翻译。
 - **有道中文词的字段在 `ce` 里**：中→英不是 `ec`，而是 `ce.word[].trs[].tr[].l`——英文对应词藏在 `l.i` 的节点数组里（`{"#text":"hello"}`，中间还夹空格字符串，要按顺序拼起来），词性在 `l.pos`，中文解释在 `l.#tran`（不用）；拼音优先 `ce.word[].phone`，没有就退回 `simple.word[].phone` 或 `ce_new.word[].phone`（苹果只有 `ce_new` 有拼音）；中文发音同样走 `dictvoice?audio=<词>&type=1`（实测 200 audio/mpeg）。`阿巴阿巴` 这类不是词的查询没有 `ce`，解析器返回 `null` 退回翻译。
@@ -144,7 +149,7 @@ docs/              README.md 文档索引与维护规则、design.md 设计大�
 - **Gemini 走 OpenAI 兼容层**：Base URL 是 `https://generativelanguage.googleapis.com/v1beta/openai`（不是 `/v1beta/models`），这样直接复用 OpenAI 适配器；模型 ID 变动快，预设里的只是建议，可手改。
 - **settings v2 迁移**：`settings.v1` 载荷 `version` 升到 2，旧 `mtEnabled` 读入即合并进 `services`，单个 `translateEngine` 迁移成单元素 `translateEngines`，随后两个旧字段都删除；不要再写 `mtEnabled` 或 `translateEngine`。`normalizeSettings()` 对所有凭证字段做字符串收敛。
 - **设置页深链**：`openOptions('services:baidu')` → `options.html#services:baidu`；`chrome.runtime.openOptionsPage()` 不能带 hash，所以改用 `chrome.tabs.create`。设置页按 hash 决定分类与详情。
-- **设置页本地截图夹具**：`AGENTS/ui-design/_verify/make-verify-pages.mjs` 生成注入了假 `chrome.storage` 的验证页，配合 `serve-dist.mjs` 起静态服务（127.0.0.1:4399）再用 Edge 无头截图；`pnpm build` 会清空 `dist/`，每次重建后先跑一遍生成脚本。
+- **设置页本地截图夹具**：`AGENTS/ui-design/_verify/make-verify-pages.mjs` 生成注入了假 `chrome.storage` 的验证页，配合 `serve-dist.mjs` 起静态服务（127.0.0.1:4399）再用无头 Chromium 截图（本机是 Edge）；`pnpm build` 会清空 `dist/`，每次重建后先跑一遍生成脚本。
 - **可选主机权限不支持端口**：`originPattern()` 只拼协议+主机名，端口不写进模式。
 - **划词 UI 全在 Shadow DOM 里**：气泡与图标挂在 `document.documentElement` 下、样式用字符串注入；content script 不引 React。加入页面内 UI 的样式后 `content.js` 约 82 KB（gzip 26 KB），其中大半是三套 Shadow DOM 的样式字符串（含词典卡）；界面侧只许 import `core/dictionary/{word,query,format,audio}.ts` 这类轻模块，`lookup.ts` / `providers/dict/*` 会通过 `registry.ts` 把解析器与 http 层一起拖进 content bundle（实测 +8 KB）。
 - **自己的 UI 不能触发划词**：监听里要用 `event.composedPath()` 判断是否含自己的宿主，否则点气泡按钮会被当成新的选择。
@@ -203,14 +208,14 @@ docs/              README.md 文档索引与维护规则、design.md 设计大�
 - **iframe 里的页面标题要问同源顶层窗口**：iframe 自己的 `document.title` 常为空、`location.hostname` 是内嵌内容的域名；`pageContext()` 在同源且 `top !== window` 时改用顶层标题与域名，跨域才回落本帧。
 - **思考强度默认不下发**：`reasoningEffort` 默认空串（「跟随模型默认」），`postChat` 只在非空时才把 `reasoning_effort` 塞进请求体。OpenAI 兼容层对这个字段的接受度不一致（不支持的老模型或网关直接 400），默认带上等于把本来能用的服务打挂。设置页的档位只对这一家的翻译 / 检查 / 润色生效，报错就改回默认。
 - **MV3 的 `chrome.commands` 没有 `update()`**：扩展只能 `getAll()` 读，不能改原生快捷键（`update` 只有 Firefox 有）。所以 manifest 里的 `Alt+T` / `Alt+P` 永远是这两个键，改键只能靠 content script 捕获 `keydown`；SW 收到 `onCommand` 后必须先 `loadSettings()`，只有该动作仍是默认绑定才转发，否则自定义键会变成「旧键 + 新键」都能用。两套路径同时命中时靠 content 的 200ms `lastAction` 去重，别去掉。
-- **页面内快捷键会被焦点和站点抢占**：自定义键只在网页有焦点时生效（地址栏、开发者工具、扩展弹窗里都不触发）；页面自己更早的 capture 监听或 `preventDefault` 会把按键吞掉；`page` 动作只认顶层帧，iframe 里按无效；用户在 `edge://extensions/shortcuts` 改的原生键设置页看不到，浏览器里显示的仍是 manifest 的值（待验证具体表现）。
+- **页面内快捷键会被焦点和站点抢占**：自定义键只在网页有焦点时生效（地址栏、开发者工具、扩展弹窗里都不触发）；页面自己更早的 capture 监听或 `preventDefault` 会把按键吞掉；`page` 动作只认顶层帧，iframe 里按无效；用户在 `edge://extensions/shortcuts`（Chrome 为 `chrome://extensions/shortcuts`）改的原生键设置页看不到，浏览器里显示的仍是 manifest 的值（待验证具体表现）。
 
 ## 10. 每次改动后的验证清单
 
 完整清单由机器执行；人类贡献者的最小冒烟集见 `CONTRIBUTING.md` 第 7 节，两边冲突时以本清单为准。
 
 1. `pnpm check` 全绿（类型 + 单测 + 构建 + verify + docs:check）
-2. Edge 里重新加载扩展
+2. 在 Edge 或 Chrome 里重新加载扩展
 3. 弹窗：点图标 → 光标已在输入框 → 输入一句英文 → `Enter` → 出中文；再输入一句中文 → `Enter` → 出英文（默认目标语言「智能」）；在引擎多选里勾两个引擎（结果卡按勾选顺序排列；拖动第一位的把手或聚焦后按 ↑ / ↓ 换序，重开菜单顺序与「主引擎」标记都还在，再翻同一句时结果卡顺序跟着变，查一个单词仍只出词典卡）；点「历史」再切回「翻译」，光标回到输入框；点到别处关掉弹窗再打开，切到「历史」tab 能找回刚才的结果；再输入一个单词（如 `hello`）→ 结果显示词典卡（音标与发音、中文释义、英英释义、词形变化），点音节按钮能出声；翻译后点「复制」→ 按钮短暂显示「已复制」；点输入框右上角 × → 输入、结果与收藏/复制态一起清空并回到空态；点页脚分体按钮右侧箭头 → 向上弹出「网页翻译设置」菜单，点「覆盖原文」后菜单关闭、勾选改到「覆盖原文」，再点菜单外空白处关闭；输入一个中文词（如 `苹果`）→ 词典卡标题变「英文释义」、拼音可点发音、正文是 apple；输入一个词典没有的人名或自造词 → 自动改用翻译并在结果里标「词典未收录，已改用翻译」（勾两个引擎时应同时出两张结果卡）
 4. 检查：弹窗输入框粘一段有拼写/语法错误的英文 → 点框内右下角「检查」→ 错误处红底划掉、黄色表示警告、绿色给改法；点「忽略」变灰；「终稿」里的替换正确
 5. 润色：在引擎选择下的设置条里展开「润色方向」勾「更诗意」并写一句自定义要求 → 点「润色」→ 合并视图里删除是红色划线、新增是绿底；「纯净稿」可复制；「再来一版」能重跑
@@ -224,7 +229,7 @@ docs/              README.md 文档索引与维护规则、design.md 设计大�
 13. 失败路径（已无降级）：断网或把 Key 改错 → 弹窗/状态条直接显示错误文案与「去设置」，**不会**换成免费通道；失败段落带虚线框，点「重试失败」只重发那几批
 14. 外观：浅色与深色各过一遍弹窗、划词气泡、页内状态条、设置页，逐条对照 `docs/ui-design.md` 第 10 节的验收清单（主色只做主事、圆角四档、动效可降级）
 15. 生词本：网页划词划到一个单词 → 气泡显示词典卡 → 点底栏「收藏」→ 弹窗头部书本图标打开生词本 → 卡片列表出现富词典卡（默认收起，只显示词句与到期标签，点标题行展开后才看到音标可点发音、中文释义、英英释义、词形变化、双语例句、词组），卡片不带上下文引文；划一句话收藏则是纯译文卡；再点一次「收藏」不会新增卡片，按钮直接显示「已收藏」（换目标语言再收会得到另一张卡）；弹窗里翻译一段再点「收藏」也进列表；点「开始复习」→ 显示原文 →「显示答案」出译文 → 四种评分各点一次（again 的卡 10 分钟后回到待复习）→ 统计里的今日新增/待复习/正确率跟着变；「导出 JSON」能下载、「导入 JSON」回来提示新增/跳过、「清空」需要确认
-16. 打包：`pnpm package` → `release/yuyi-<版本>.zip` 解压到任意目录 → `edge://extensions` 用「加载解压缩的扩展」指向解压目录 → 弹窗、生词本、划词都正常
+16. 打包：`pnpm package` → `release/yuyi-<版本>.zip` 解压到任意目录 → 扩展页（`edge://extensions` / `chrome://extensions`）用「加载解压缩的扩展」/「加载已解压的扩展程序」指向解压目录 → 弹窗、生词本、划词都正常
 
 ## 11. 路线图状态
 

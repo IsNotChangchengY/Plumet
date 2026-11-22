@@ -103,7 +103,7 @@ interface TranslateProvider {
 - 语言码用 BCP-47：`zh-CN→zh-Hans`、`zh-TW→zh-Hant`；源语言为 `auto` 时不传 `from`。
 - 免费层 F0 约 200 万字符/月（以官网为准）。
 
-## 7. 免费通道实测记录（2026 年实测，环境：本机 Edge 157）
+## 7. 免费通道实测记录（2026 年实测，环境：本机 Edge 157；Chrome 158 同属 Chromium 内核，可复用同一结论）
 
 | 通道 | 结果 | 结论 |
 |---|---|---|

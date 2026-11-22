@@ -1,0 +1,149 @@
+name: 发布
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要重新发布的版本标签（已存在的 tag，例如 v1.0.0）'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: 构建 extension.zip 并发布 Release
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: 检出标签对应的代码
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: 安装 pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.25.0
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: 校验标签与版本号
+        id: version
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::标签必须是 vX.Y.Z 形式，实际是「$RELEASE_TAG」"
+            exit 1
+          fi
+
+          version="${RELEASE_TAG#v}"
+          read_version() {
+            node --input-type=module -e "import { readFileSync } from 'node:fs'; console.log(JSON.parse(readFileSync(process.argv[1], 'utf8')).version)" "$1"
+          }
+          pkg_version="$(read_version package.json)"
+          manifest_version="$(read_version public/manifest.json)"
+
+          if [[ "$pkg_version" != "$version" ]]; then
+            echo "::error::package.json 的版本是 $pkg_version，与标签 $RELEASE_TAG 不一致（先同步 version 再打 tag）"
+            exit 1
+          fi
+          if [[ "$manifest_version" != "$version" ]]; then
+            echo "::error::public/manifest.json 的版本是 $manifest_version，与标签 $RELEASE_TAG 不一致（先同步 version 再打 tag）"
+            exit 1
+          fi
+
+          {
+            echo "tag=$RELEASE_TAG"
+            echo "version=$version"
+          } >> "$GITHUB_OUTPUT"
+          echo "版本校验通过：$RELEASE_TAG"
+
+      - name: 安装依赖
+        run: pnpm install --frozen-lockfile
+
+      - name: 门禁（类型 / 单测 / 构建 / 产物自检 / 文档检查）
+        run: pnpm check
+
+      - name: 打包
+        run: pnpm package
+
+      - name: 准备发布资产
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          test -f "release/yuyi-${VERSION}.zip"
+          cp "release/yuyi-${VERSION}.zip" release/extension.zip
+
+          cd release
+          sha256sum extension.zip > SHA256SUMS.txt
+          unzip -t extension.zip
+          echo "发布资产："
+          ls -lh extension.zip
+          cat SHA256SUMS.txt
+
+      - name: 校验并复制 Release 说明
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          notes_file=".github/release-notes/${RELEASE_TAG}.md"
+          if [[ ! -f "$notes_file" ]]; then
+            echo "::error::缺少 ${notes_file}：请先把本次更新说明写进这个文件（文件名用完整标签，例如 v1.0.0.md）再推标签"
+            exit 1
+          fi
+          cp "$notes_file" release/RELEASE_NOTES.md
+          echo "Release 正文（取自 ${notes_file}，原样发布）："
+          cat release/RELEASE_NOTES.md
+
+      - name: 上传 Actions 构建产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: extension-${{ steps.version.outputs.version }}
+          path: |
+            release/extension.zip
+            release/SHA256SUMS.txt
+            release/RELEASE_NOTES.md
+          if-no-files-found: error
+
+      - name: 创建或更新 GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" > /dev/null 2>&1; then
+            gh release edit "$RELEASE_TAG" \
+              --title "羽译 $RELEASE_TAG" \
+              --notes-file release/RELEASE_NOTES.md
+            gh release upload "$RELEASE_TAG" release/extension.zip release/SHA256SUMS.txt --clobber
+            echo "Release $RELEASE_TAG 已存在，说明与资产已覆盖更新"
+          else
+            gh release create "$RELEASE_TAG" \
+              release/extension.zip \
+              release/SHA256SUMS.txt \
+              --title "羽译 $RELEASE_TAG" \
+              --notes-file release/RELEASE_NOTES.md \
+              --verify-tag
+          fi

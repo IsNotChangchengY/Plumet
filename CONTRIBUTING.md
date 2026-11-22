@@ -21,7 +21,7 @@
 ## 1. 环境
 
 - Node.js >= 22.12，用 pnpm（仓库有 `pnpm-lock.yaml`）。
-- Chromium >= 114；维护者在 Edge 157 上验收，Chrome 可直接复用，Firefox / Safari 未适配。
+- Chromium >= 114；Edge 与 Chrome 都可加载验收（本机装了 Edge 157 与 Chrome 158；入口与按钮文案的差异见 AGENTS.md 第 4 节与 [docs/guide/01-加载与调试.md](docs/guide/01-加载与调试.md)），Firefox / Safari 未适配。
 - 不需要后端：扩展只调用你自己配置的服务商（含免 Key 的免费通道）。
 - 本机 PowerShell 5.1 读写 UTF-8 中文文件默认走 GBK，会乱码甚至损坏：改 `.md` / `.ts` 用编辑器或 Node，不要用 `Get-Content -Raw` + `Set-Content` 整篇重写（更多实测见 AGENTS.md 第 9 节）。
 
@@ -32,7 +32,7 @@ pnpm install
 pnpm build
 ```
 
-装载、刷新与 Service Worker 日志的完整步骤在 [AGENTS.md](AGENTS.md) 第 4 节；更细的调试流程见 [docs/guide/01-加载与调试.md](docs/guide/01-加载与调试.md)。加载目录选项目根下的 `dist/`，不是项目根目录。
+装载、刷新与 Service Worker 日志的完整步骤在 [AGENTS.md](AGENTS.md) 第 4 节；更细的调试流程见 [docs/guide/01-加载与调试.md](docs/guide/01-加载与调试.md)。Edge 与 Chrome 加载的是同一个 `dist/`（不是项目根目录）。
 
 ## 3. 提交前的门禁
 
@@ -42,7 +42,7 @@ pnpm build
 pnpm check
 ```
 
-它等于 `tsc --noEmit` → `vitest run` → 三次 Vite 构建 → `dist/` 产物自检 → 文档路径与链接检查。任何一项失败都不要提 PR。纯逻辑改动（解析、缓存键、消息协议、SM-2 排程、快捷键、错误映射等）必须带单测。联网测试默认跳过；完整玩法（`--use-system-ca`、`YUYI_LIVE=1`）见 AGENTS.md 第 3 节。不要提交 `dist/`、`release/`、`node_modules/`、任何密钥；截图与测试一律用假值。仓库暂未配置 CI，合入前由维护者本地跑 `pnpm check`——欢迎帮忙接 CI（见第 6 节）。
+它等于 `tsc --noEmit` → `vitest run` → 三次 Vite 构建 → `dist/` 产物自检 → 文档路径与链接检查。任何一项失败都不要提 PR。纯逻辑改动（解析、缓存键、消息协议、SM-2 排程、快捷键、错误映射等）必须带单测。联网测试默认跳过；完整玩法（`--use-system-ca`、`YUYI_LIVE=1`）见 AGENTS.md 第 3 节。不要提交 `dist/`、`release/`、`node_modules/`、任何密钥；截图与测试一律用假值。仓库目前只接了发布流水线（推标签时自动打包发 Release，见第 8 节），PR 门禁仍由维护者本地跑 `pnpm check`——欢迎帮忙补 PR CI（见第 6 节）。
 
 ## 4. 改代码前的硬约束
 
@@ -76,7 +76,7 @@ pnpm check
 
 ## 7. 人工验收（最低集）
 
-没有自动化 E2E；合 PR 前在 Edge 上过一遍。完整清单（含边界场景与已知陷阱）是 AGENTS.md 第 10 节，AI 贡献按那里跑，人工只需这遍：
+没有自动化 E2E：正式版 Chrome 137 起不再支持用命令行 `--load-extension` 加载未打包扩展，只能在扩展页手动加载（要做自动化冒烟得换 Chrome for Testing）；合 PR 前在 Edge 或 Chrome 上过一遍。完整清单（含边界场景与已知陷阱）是 AGENTS.md 第 10 节，AI 贡献按那里跑，人工只需这遍：
 
 - 弹窗：英文 → 中文、中文 → 英文（默认目标语言「智能」）；输入单词出词典卡；复制 / 收藏 / 清空；「历史」切回「翻译」后焦点回到输入框。
 - 划词：普通页面、输入框、contenteditable、Shadow DOM（如 B 站新版评论）、iframe 里都能出图标并翻译；勾两个引擎出两张结果卡；选中隐藏内容时先出守卫态。
@@ -87,10 +87,13 @@ pnpm check
 
 ## 8. 发布（维护者）
 
-1. 同步升级 `package.json` 与 `public/manifest.json` 里的版本号（两处必须一致）。
-2. `pnpm check` 全绿。
-3. `pnpm package` → 生成 `release/yuyi-<版本>.zip`；解压后用「加载解压缩的扩展」再跑一遍第 7 节。
-4. 打 tag `v<版本>`，在 GitHub Release 附上 zip（同时给出 sha256）。
+1. 同步升级 `package.json` 与 `public/manifest.json` 里的版本号（两处必须一致；打 tag 前不一致会让发布流水线直接失败）。
+2. 写本次更新说明：把内容放进 `.github/release-notes/v<版本>.md`（文件名用完整标签，例如 `v1.0.0.md`）。这个文件会原样作为 Release 正文，不追加日期、提交、校验值等任何自动内容；缺少它流水线会直接失败。
+3. 本地预检（可选但推荐）：`pnpm check` 全绿 → `pnpm package` 生成 `release/yuyi-<版本>.zip`，解压后按第 2 节的加载步骤（Edge / Chrome 均可）跑一遍第 7 节。
+4. 打 tag `v<版本>` 并推送。`.github/workflows/release.yml` 会自动跑 `pnpm check` 与 `pnpm package`，把产物复制成 `extension.zip`、生成 `SHA256SUMS.txt`，再把更新说明复制成 `RELEASE_NOTES.md`，然后创建 GitHub Release：标题带版本号，正文就是更新说明原文；进度看仓库的 Actions 页。
+5. 发布后确认 Release 说明与资产（`extension.zip`、`SHA256SUMS.txt`）。失败就修代码后移动标签重推；已存在的 Release 在重跑时只覆盖资产、重写说明，不会重复创建；也可以在 Actions 页手动触发 workflow 并填已存在的标签重发。
+
+首次发布若报 `Resource not accessible by integration`，去仓库 Settings → Actions → General → Workflow permissions 选「Read and write permissions」（workflow 里已声明 `contents: write`）。
 
 ## 9. 许可与沟通
 

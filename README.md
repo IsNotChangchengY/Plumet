@@ -1,6 +1,8 @@
 <h1 align="center">羽译（Plumet）</h1>
 
-> 把「翻译 → 语法检查 → 润色 → 记住」串成一条线的浏览器扩展。
+> 是「词元」还是「令牌」抑或「代币」？
+>
+> 把「翻译 → 检查 → 润色 → 记住」串成一条线的浏览器扩展。
 
 <p align="center">
   <img src="https://img.shields.io/badge/version-1.0.0-brightgreen" alt="version" />
@@ -87,11 +89,12 @@ pnpm install
 pnpm build
 ```
 
-1. Edge 打开 `edge://extensions`，开启左下角「开发人员模式」，点「加载解压缩的扩展」，选择 **`dist`** 目录（不是项目根目录）。
-2. Chrome 同理打开 `chrome://extensions`。加载成功后点工具栏「羽 en」图标弹出翻译窗口。
-3. 输入一句英文按 `Enter`，应看到译文。
+- Edge：地址栏输入 `edge://extensions` → 左下角「开发人员模式」→「加载解压缩的扩展」→ 选择 **`dist`** 目录。
+- Chrome：地址栏输入 `chrome://extensions` → 右上角「开发者模式」→「加载已解压的扩展程序」→ 选择同一个 **`dist`** 目录。
 
-改完代码需要 `pnpm build` 后在扩展页点一次刷新，再关掉弹窗重开。
+加载成功后点工具栏的「羽 en」图标（没看到就点浏览器右上角的拼图按钮固定），图标下方弹出翻译窗口；输入一句英文按 `Enter`，应看到译文。
+
+改完代码需要 `pnpm build` 后在扩展页点一次刷新；弹窗关掉重开，已打开的网页也要刷新。正式版 Chrome 137 起不再支持用命令行 `--load-extension` 加载未打包扩展，请按上面的步骤手动加载。
 
 ### 打包分发包
 
@@ -99,7 +102,9 @@ pnpm build
 pnpm package
 ```
 
-生成 `release/yuyi-1.0.0.zip`，解压到任意目录后同样用「加载解压缩的扩展」加载解压出来的文件夹即可。
+生成 `release/yuyi-1.0.0.zip`，解压到任意目录后，按「从源码加载」的步骤加载解压出来的文件夹即可（Edge 与 Chrome 都支持）。
+
+不想装开发环境也行：维护者推送 `v<版本>` 标签后，GitHub Actions 会自动构建 `extension.zip` 并发布到 [Releases](https://github.com/IsNotChangchengY/Plumet/releases)（同时附 `SHA256SUMS.txt` 校验文件），Release 正文是维护者写的本次更新说明；下载解压后按「从源码加载」的步骤选择解压目录即可。
 
 ### 配置翻译服务
 

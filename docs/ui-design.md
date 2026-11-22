@@ -346,7 +346,7 @@ Shadow DOM 的限制：页面里的 `:root` 变量不会自动带进来，所以
 2. 需要新的视觉方案时，在 `AGENTS/ui-design/` 用设计板对比，选定后再落到变量。
 3. 改了变量或结构：同步本文件对应章节，并在 `docs/design.md` 的「UI/UX」里更新取舍。
 4. 用真实 CSS 快速回归：`AGENTS/ui-design/_verify/` 里是渲染弹窗/设置页/气泡/状态条/生词本（`learning.html`）的静态夹具，
-   先跑 `node AGENTS/ui-design/_verify/build-bubble-css.mjs` 生成 Shadow DOM 样式，再用 Edge 无头截图对比。
+   先跑 `node AGENTS/ui-design/_verify/build-bubble-css.mjs` 生成 Shadow DOM 样式，再用无头 Chromium 截图对比（本机是 Edge）。
 
 ## 12. 已知取舍
 
