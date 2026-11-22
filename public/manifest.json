@@ -7,8 +7,6 @@
   "permissions": [
     "storage",
     "unlimitedStorage",
-    "scripting",
-    "activeTab",
     "contextMenus"
   ],
   "host_permissions": [

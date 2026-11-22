@@ -117,7 +117,7 @@ Mark = { kind: 'equal'|'del'|'ins'|'warn', text, issueId?, severity?, state? }
 - 扩展页面（弹窗/设置/生词本）：React 渲染，直接用 `chrome.storage`。
 - 通信：Port 协议（`translate` / `dict` / `check` / `polish` / `cancel` / `test` → `delta`（多引擎时带 `engineId`）/ `progress` / `engineDone` / `done` / `dictDone` / `checkDone` / `polishDone` / `testDone` / `error`），`requestId` 对齐；网页翻译的控制走一次性消息：弹窗 → `runtime.sendMessage` → SW 取当前标签页 → `tabs.sendMessage` → content script，进度反方向 `runtime.sendMessage` 广播回弹窗。
 - 构建：一个 `scripts/build.mjs` 连跑三次 Vite（页面多入口三条：`popup` / `options` / `learning`、background ESM、content IIFE）。
-- 权限：`storage / unlimitedStorage / scripting / activeTab / contextMenus`；`<all_urls>` 内容脚本；内置服务商（谷歌、MyMemory、百度、Azure、OpenAI、Gemini、xAI 等固定域名）写进 `host_permissions`，自定义 / 本地端点仍走 `optional_host_permissions` + 点击授权。
+- 权限：`storage / unlimitedStorage / contextMenus`（`scripting` / `activeTab` 代码里零使用，已移除）；`<all_urls>` 内容脚本；内置服务商（谷歌、MyMemory、百度、Azure、OpenAI、Gemini、xAI 等固定域名）写进 `host_permissions`，自定义 / 本地端点仍走 `optional_host_permissions` + 点击授权。
 
 ## 6. 服务商策略
 
