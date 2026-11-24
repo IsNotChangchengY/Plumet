@@ -71,6 +71,8 @@ let lastDictionary: DictionaryEntry | null = null
 let lastTargetLang = ''
 let pendingVisibleText = ''
 let cancelRequest: (() => void) | null = null
+let engineMode = false
+let dictionaryAvailable = false
 let initialized = false
 let viewportFrame = 0
 let pendingCheck = 0
@@ -211,6 +213,20 @@ function ensureBubble(): Bubble {
       bubble?.render({ status: 'loading' })
       startTranslation(current)
     },
+    onEngineTranslate: () => {
+      if (!current) return
+      engineMode = true
+      dictionaryAvailable = true
+      lastDictionary = null
+      startTranslation(current)
+    },
+    onDictionaryTranslate: () => {
+      if (!current) return
+      engineMode = false
+      dictionaryAvailable = false
+      lastDictionary = null
+      startTranslation(current)
+    },
     onMoreContext: () => {
       expandContext()
     },
@@ -266,7 +282,7 @@ function startTranslation(hit: SelectionHit): void {
   const word = looksLikeWord(hit.text)
   const targetLang = resolveTargetLang(settings.targetLang, hit.text)
   lastTargetLang = targetLang
-  const query = dictionaryQueryFor(settings.dictionary, hit.text)
+  const query = engineMode ? null : dictionaryQueryFor(settings.dictionary, hit.text)
   const expandable = !word && !query && hit.scope !== 'page' && hit.block !== null && hit.text.length <= MAX_SELECTION_CHARS
   const prefs = settings
   const runs: BubbleEngineRun[] = prefs.translateEngines.map((engineId) => ({
@@ -382,11 +398,12 @@ function startTranslation(hit: SelectionHit): void {
           context: hit.context,
           cached: result.cached,
           runs: runs.map((run) => ({ ...run })),
+          dictionaryAvailable,
         })
       },
       onError(message) {
         cancelRequest = null
-        bubble?.render({ status: 'error', message })
+        bubble?.render({ status: 'error', message, dictionaryAvailable })
       },
     },
   )
@@ -423,6 +440,8 @@ async function openBubble(hit: SelectionHit): Promise<void> {
   lastDictionary = null
   lastTargetLang = ''
   pendingVisibleText = ''
+  engineMode = false
+  dictionaryAvailable = false
   view.setSource(hit.text)
   view.showAt(anchorOf(hit))
   if (hit.range) {
@@ -465,6 +484,8 @@ function closeBubble(): void {
   lastDictionary = null
   lastTargetLang = ''
   pendingVisibleText = ''
+  engineMode = false
+  dictionaryAvailable = false
   bubble?.hide()
 }
 

@@ -32,9 +32,10 @@ export type BubbleView =
       cached?: boolean
       context?: string
       runs?: BubbleEngineRun[]
+      dictionaryAvailable?: boolean
     }
   | { status: 'guard'; text: string }
-  | { status: 'error'; message: string }
+  | { status: 'error'; message: string; dictionaryAvailable?: boolean }
 
 export type BubbleHandlers = {
   onCopy: (text: string) => void
@@ -42,6 +43,8 @@ export type BubbleHandlers = {
   onAudio: (url: string, word: string) => void
   onSave: (text: string) => Promise<boolean> | void
   onRetry: () => void
+  onEngineTranslate: () => void
+  onDictionaryTranslate: () => void
   onMoreContext: () => void
   onContinue: () => void
   onClose: () => void
@@ -308,7 +311,9 @@ const STYLE = `
   .act.copied { color: var(--brand-strong); background: var(--brand-soft); }
   .act svg { width: 12px; height: 12px; }
   .panel.compact .act { gap: 0; padding: 0 6px; }
-  .panel.compact .act svg { display: none; }
+  .panel.compact .act[data-action="engine"],
+  .panel.compact .act[data-action="dictionary"] { gap: 4px; }
+  .panel.compact .act:not([data-action="engine"]):not([data-action="dictionary"]) svg { display: none; }
 
   .engine-results { display: flex; flex-direction: column; gap: 8px; }
   .engine-result {
@@ -539,6 +544,10 @@ const ICON_SAVE =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z"/></svg>'
 const ICON_MORE =
   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 9V4h5"/><path d="M20 9V4h-5"/><path d="M4 15v5h5"/><path d="M20 15v5h-5"/></svg>'
+const ICON_ENGINE =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="m14 18h6"/></svg>'
+const ICON_DICT =
+  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>'
 const ICON_CLOSE =
   '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>'
 const ICON_ERROR =
@@ -690,6 +699,8 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
     '<div class="foot">',
     '<button class="meta" type="button" aria-expanded="false"></button>',
     '<div class="acts">',
+    `<button class="act" type="button" data-action="engine" hidden title="跳过词典，直接用翻译引擎翻译">${ICON_ENGINE}引擎翻译</button>`,
+    `<button class="act" type="button" data-action="dictionary" hidden title="切回词典翻译">${ICON_DICT}词典翻译</button>`,
     `<button class="act" type="button" data-action="speak" hidden>${ICON_SPEAK}朗读</button>`,
     `<button class="act" type="button" data-action="copy" hidden>${ICON_COPY}复制</button>`,
     `<button class="act" type="button" data-action="save" hidden>${ICON_SAVE}收藏</button>`,
@@ -706,6 +717,8 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
   const ctxText = panel.querySelector('.ctx-text') as HTMLElement
   const foot = panel.querySelector('.foot') as HTMLElement
   const meta = panel.querySelector('.meta') as HTMLButtonElement
+  const engineButton = panel.querySelector('[data-action="engine"]') as HTMLButtonElement
+  const dictionaryButton = panel.querySelector('[data-action="dictionary"]') as HTMLButtonElement
   const speakButton = panel.querySelector('[data-action="speak"]') as HTMLButtonElement
   const copyButton = panel.querySelector('[data-action="copy"]') as HTMLButtonElement
   const saveButton = panel.querySelector('[data-action="save"]') as HTMLButtonElement
@@ -770,6 +783,8 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
   }
 
   function resetActions(): void {
+    engineButton.hidden = true
+    dictionaryButton.hidden = true
     speakButton.hidden = true
     copyButton.hidden = true
     saveButton.hidden = true
@@ -814,6 +829,8 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
     const metaVisible = !meta.hidden && Boolean(meta.textContent)
     foot.hidden =
       !metaVisible &&
+      engineButton.hidden &&
+      dictionaryButton.hidden &&
       speakButton.hidden &&
       copyButton.hidden &&
       saveButton.hidden &&
@@ -1060,6 +1077,8 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
         }
         renderRuns(latestRuns, Boolean(view.expandable))
       }
+      if (view.dictionary) engineButton.hidden = false
+      else if (view.dictionaryAvailable) dictionaryButton.hidden = false
       if (view.dictionary || wordCard) {
         meta.hidden = false
         meta.textContent = `${view.engineLabel} · ${Math.max(1, Math.round(view.elapsedMs / 100) / 10)}s${view.cached ? ' · 缓存' : ''}`
@@ -1097,6 +1116,7 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
       message.textContent = view.message
       body.appendChild(error)
       retryButton.hidden = false
+      dictionaryButton.hidden = !view.dictionaryAvailable
     }
     applyWidth()
     syncFoot()
@@ -1182,6 +1202,14 @@ export function createBubble(handlers: BubbleHandlers): Bubble {
       return
     }
     const action = (target?.closest?.('[data-action]') as HTMLElement | null)?.dataset.action
+    if (action === 'engine') {
+      handlers.onEngineTranslate()
+      return
+    }
+    if (action === 'dictionary') {
+      handlers.onDictionaryTranslate()
+      return
+    }
     if (action === 'copy') {
       handlers.onCopy(latestText)
       return

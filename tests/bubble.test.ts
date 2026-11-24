@@ -30,6 +30,8 @@ const handlers = {
     return Promise.resolve(saveResult)
   },
   onRetry: () => calls.push('retry'),
+  onEngineTranslate: () => calls.push('engine'),
+  onDictionaryTranslate: () => calls.push('dictionary'),
   onMoreContext: () => calls.push('more'),
   onContinue: () => calls.push('continue'),
   onClose: () => calls.push('close'),
@@ -329,6 +331,139 @@ describe('selection bubble', () => {
     expect(played).toBe('https://dict.youdao.com/dictvoice?audio=hello&type=1')
     buttonOf(view, 'speak').click()
     expect(spoken).toEqual({ text: 'hello', lang: 'en' })
+  })
+
+  it('词典卡底栏最左多一枚引擎翻译，点击切走后按钮收起', () => {
+    const view = mount()
+    view.setSource('hello')
+    view.showAt({ top: 200, bottom: 220, left: 100 })
+    view.render({
+      status: 'done',
+      text: 'int. 喂，你好',
+      engineLabel: '有道词典',
+      elapsedMs: 800,
+      word: true,
+      dictionary: {
+        word: 'hello',
+        direction: 'en-zh',
+        phonetics: [],
+        translations: [{ pos: 'int.', text: '喂，你好' }],
+        definitions: [],
+        forms: [],
+        examples: [],
+        phrases: [],
+      },
+    })
+    const engine = buttonOf(view, 'engine')
+    expect(engine.hidden).toBe(false)
+    expect(engine.textContent).toContain('引擎翻译')
+    expect(engine.title).toContain('词典')
+    expect(engine.querySelector('svg')).not.toBeNull()
+    const acts = partOf<HTMLElement>(view, '.acts')
+    expect(acts.querySelector('.act:not([hidden])')?.getAttribute('data-action')).toBe('engine')
+    engine.click()
+    expect(calls).toEqual(['engine'])
+    view.render({ status: 'loading' })
+    expect(buttonOf(view, 'engine').hidden).toBe(true)
+  })
+
+  it('不是词典卡时不出现引擎翻译与词典翻译按钮', () => {
+    const view = mount()
+    view.setSource('ephemeral')
+    view.showAt({ top: 200, bottom: 220, left: 100 })
+    view.render({ status: 'done', text: '短暂的', engineLabel: 'DeepSeek', elapsedMs: 900, word: true })
+    expect(buttonOf(view, 'engine').hidden).toBe(true)
+    expect(buttonOf(view, 'dictionary').hidden).toBe(true)
+    view.render({ status: 'done', text: '已推迟发布。', engineLabel: 'DeepSeek', elapsedMs: 1400, word: false })
+    expect(buttonOf(view, 'engine').hidden).toBe(true)
+    expect(buttonOf(view, 'dictionary').hidden).toBe(true)
+  })
+
+  it('引擎结果底栏最左多一枚词典翻译，点击切回词典', () => {
+    const view = mount()
+    view.setSource('ephemeral')
+    view.showAt({ top: 200, bottom: 220, left: 100 })
+    view.render({
+      status: 'done',
+      text: '短暂的',
+      engineLabel: 'DeepSeek',
+      elapsedMs: 900,
+      word: true,
+      dictionaryAvailable: true,
+    })
+    const back = buttonOf(view, 'dictionary')
+    expect(back.hidden).toBe(false)
+    expect(back.textContent).toContain('词典翻译')
+    expect(back.title).toContain('切回')
+    expect(back.querySelector('svg')).not.toBeNull()
+    const acts = partOf<HTMLElement>(view, '.acts')
+    expect(acts.querySelector('.act:not([hidden])')?.getAttribute('data-action')).toBe('dictionary')
+    expect(buttonOf(view, 'engine').hidden).toBe(true)
+    expect(buttonOf(view, 'speak').hidden).toBe(false)
+    expect(partOf<HTMLElement>(view, '.foot').hidden).toBe(false)
+    back.click()
+    expect(calls).toEqual(['dictionary'])
+    view.render({ status: 'loading' })
+    expect(buttonOf(view, 'dictionary').hidden).toBe(true)
+  })
+
+  it('多引擎的引擎结果卡也能切回词典', () => {
+    const view = mount()
+    view.setSource('ephemeral')
+    view.showAt({ top: 200, bottom: 220, left: 100 })
+    view.render({
+      status: 'done',
+      text: '短暂的',
+      engineLabel: '谷歌翻译',
+      elapsedMs: 700,
+      word: true,
+      dictionaryAvailable: true,
+      runs: [
+        { engineId: 'mt:google-free', label: '谷歌翻译', text: '短暂的', done: true },
+        { engineId: 'ai:deepseek', label: 'DeepSeek', text: '转瞬即逝的', done: true },
+      ],
+    })
+    expect(cardOf(view, 0).querySelector('.engine-name')?.textContent).toBe('谷歌翻译')
+    expect(buttonOf(view, 'dictionary').hidden).toBe(false)
+    expect(partOf<HTMLElement>(view, '.foot').hidden).toBe(false)
+  })
+
+  it('词典卡只显示引擎翻译，不显示词典翻译', () => {
+    const view = mount()
+    view.setSource('hello')
+    view.showAt({ top: 200, bottom: 220, left: 100 })
+    view.render({
+      status: 'done',
+      text: 'int. 喂，你好',
+      engineLabel: '有道词典',
+      elapsedMs: 800,
+      word: true,
+      dictionaryAvailable: true,
+      dictionary: {
+        word: 'hello',
+        direction: 'en-zh',
+        phonetics: [],
+        translations: [{ pos: 'int.', text: '喂，你好' }],
+        definitions: [],
+        forms: [],
+        examples: [],
+        phrases: [],
+      },
+    })
+    expect(buttonOf(view, 'engine').hidden).toBe(false)
+    expect(buttonOf(view, 'dictionary').hidden).toBe(true)
+  })
+
+  it('引擎翻译失败时底栏也能切回词典', () => {
+    const view = mount()
+    view.setSource('ephemeral')
+    view.showAt({ top: 200, bottom: 220, left: 100 })
+    view.render({ status: 'error', message: '请求失败，请稍后重试', dictionaryAvailable: true })
+    expect(buttonOf(view, 'retry').hidden).toBe(false)
+    expect(buttonOf(view, 'dictionary').hidden).toBe(false)
+    expect(partOf<HTMLElement>(view, '.foot').hidden).toBe(false)
+    buttonOf(view, 'dictionary').click()
+    expect(calls).toEqual(['dictionary'])
   })
 
   it('中文词气泡卡片的释义标题是英文释义', () => {
