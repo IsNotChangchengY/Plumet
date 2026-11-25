@@ -1,3 +1,7 @@
+import { containsMarkerSyntax, parseInlineMarkers } from '../../core/inline-markup'
+
+export { stripInlineMarkers } from '../../core/inline-markup'
+
 export type InlineMarkStyle = {
   backgroundColor?: string
   color?: string
@@ -23,9 +27,6 @@ export type InlineTemplate = {
 export const MAX_INLINE_MARKERS = 48
 
 const MAX_STYLE_PROBES = 80
-const MARKER = /<y(\d+)>|<\/y(\d+)>/i
-const MARKER_ALL = /<\/?y\d+>/gi
-const ESCAPED_MARKER = /&lt;(\/?y\d+)&gt;/gi
 const SAFE_COLOR = /^(?:#[\da-f]{3,8}|(?:rgb|rgba|hsl|hsla|lab|lch|oklab|oklch|color)\([^()]*\))$/i
 const LINK_PROTOCOLS = new Set(['http:', 'https:', 'mailto:', 'tel:'])
 const LINK_TARGETS = new Set(['_blank', '_self', '_parent', '_top'])
@@ -281,7 +282,7 @@ export function buildInlineTemplate(element: Element, expectedText: string): Inl
   if (raw.length === 0) return null
   const normalized = normalizeRuns(raw)
   if (!normalized.text || normalized.text !== expectedText) return null
-  if (MARKER.test(normalized.text)) return null
+  if (containsMarkerSyntax(normalized.text)) return null
   const markedRuns = normalized.runs.filter((run) => run.marks.length > 0 && run.text.trim() !== '')
   if (markedRuns.length === 0 || markedRuns.length > MAX_INLINE_MARKERS) return null
   const marks: InlineMark[][] = []
@@ -298,14 +299,6 @@ export function buildInlineTemplate(element: Element, expectedText: string): Inl
   return { text: normalized.text, marked: parts.join(''), marks }
 }
 
-function decodeMarkerEscapes(text: string): string {
-  return text.replace(ESCAPED_MARKER, '<$1>')
-}
-
-export function stripInlineMarkers(text: string): string {
-  return decodeMarkerEscapes(text).replace(MARKER_ALL, '')
-}
-
 function mergePlainRuns(runs: InlineRun[]): InlineRun[] {
   const merged: InlineRun[] = []
   for (const run of runs) {
@@ -320,41 +313,13 @@ function mergePlainRuns(runs: InlineRun[]): InlineRun[] {
 }
 
 export function parseInlineTranslation(template: InlineTemplate, translated: string): InlineRun[] | null {
-  const source = decodeMarkerEscapes(translated)
-  const pattern = new RegExp(MARKER.source, 'gi')
-  const runs: InlineRun[] = []
-  const seen = new Set<number>()
-  let plain = ''
-  let open: { index: number; text: string } | null = null
-  let lastIndex = 0
-  for (;;) {
-    const match = pattern.exec(source)
-    if (!match) break
-    const between = source.slice(lastIndex, match.index)
-    lastIndex = match.index + match[0].length
-    if (open) open.text += between
-    else plain += between
-    if (match[1] !== undefined) {
-      if (open) return null
-      const index = Number(match[1])
-      if (!Number.isInteger(index) || index < 0 || index >= template.marks.length || seen.has(index)) return null
-      if (plain) {
-        runs.push({ text: plain, marks: [] })
-        plain = ''
-      }
-      seen.add(index)
-      open = { index, text: '' }
-      continue
-    }
-    if (!open || match[2] === undefined) return null
-    if (Number(match[2]) !== open.index) return null
-    runs.push({ text: open.text, marks: template.marks[open.index] ?? [] })
-    open = null
-  }
-  if (open) return null
-  plain += source.slice(lastIndex)
-  if (plain) runs.push({ text: plain, marks: [] })
-  if (seen.size !== template.marks.length) return null
+  const pieces = parseInlineMarkers(translated, template.marks.length)
+  if (!pieces) return null
+  const runs: InlineRun[] = pieces.map((piece) =>
+    piece.mark === null
+      ? { text: piece.text, marks: [] }
+      : { text: piece.text, marks: template.marks[piece.mark] ?? [] },
+  )
   return mergePlainRuns(runs)
 }
 

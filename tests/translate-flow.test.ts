@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { handleJobMessage } from '../src/background/jobs'
-import { clearCache } from '../src/core/cache'
+import { clearCache, makeSegmentCacheKey, setCachedSegment } from '../src/core/cache'
 import type { EngineRunResult, JobEvent } from '../src/core/messaging'
 import { clearLocal, readLocal } from '../src/storage/local'
 import { DEFAULT_SETTINGS, defaultServices, saveSettings } from '../src/storage/settings'
@@ -324,5 +324,154 @@ describe('网页翻译的段缓存', () => {
       segments: ['中:Beta line', '中:Delta line'],
     })
     expect(requests).toHaveLength(2)
+  })
+})
+describe('网页翻译的内联标记', () => {
+  function translatedBatch(segments: string[]): Response {
+    return new Response(JSON.stringify(segments.map((text) => [text, 'en'])), { status: 200 })
+  }
+
+  function requestedSegments(url: string): string[] {
+    return new URL(url).searchParams.getAll('q')
+  }
+
+  function pageRequest(requestId: string, segments: string[], extra: Record<string, unknown> = {}) {
+    const events: JobEvent[] = []
+    handleJobMessage(fakePort(events), {
+      kind: 'translate',
+      requestId,
+      segments,
+      sourceLang: 'en',
+      targetLang: 'zh-CN',
+      engineId: 'mt:google-free',
+      engineIds: ['mt:google-free'],
+      silent: true,
+      cacheSegments: true,
+      ...extra,
+    })
+    return events
+  }
+
+  it('沿 MT 引擎发送占位符，回包再还原成标记并缓存', async () => {
+    await saveMultiEngineSettings()
+    const requests: string[][] = []
+    vi.stubGlobal('fetch', async (input: string) => {
+      const url = String(input)
+      if (!url.includes('clients5.google.com')) throw new Error(`意外的请求 ${url}`)
+      const segments = requestedSegments(url)
+      requests.push(segments)
+      return translatedBatch(segments.map(() => '请阅读【0】文档【/0】。'))
+    })
+
+    const first = pageRequest('inline-1', ['Read <y0>docs</y0> now.'])
+    expect((await waitForTerminal(first)).kind).toBe('done')
+    expect(engineResults(first)[0]).toMatchObject({
+      ok: true,
+      cached: false,
+      segments: ['请阅读<y0>文档</y0>。'],
+    })
+    expect(requests).toEqual([['Read 【0】docs【/0】 now.']])
+
+    const second = pageRequest('inline-2', ['Read <y0>docs</y0> now.'])
+    expect((await waitForTerminal(second)).kind).toBe('done')
+    expect(engineResults(second)[0]).toMatchObject({
+      ok: true,
+      cached: true,
+      segments: ['请阅读<y0>文档</y0>。'],
+    })
+    expect(requests).toHaveLength(1)
+  })
+
+  it('批量结果破坏标记时把每段单独重发一次', async () => {
+    await saveMultiEngineSettings()
+    const requests: string[][] = []
+    vi.stubGlobal('fetch', async (input: string) => {
+      const url = String(input)
+      if (!url.includes('clients5.google.com')) throw new Error(`意外的请求 ${url}`)
+      const segments = requestedSegments(url)
+      requests.push(segments)
+      if (segments.length > 1) return translatedBatch(segments.map(() => '被吃掉的译文'))
+      return translatedBatch(segments.map((text) => `译:${text}`))
+    })
+
+    const events = pageRequest('inline-repair', [
+      'Read <y0>docs</y0> now.',
+      'Install <y0>this</y0>.',
+    ])
+    expect((await waitForTerminal(events)).kind).toBe('done')
+    const result = engineResults(events)[0]
+    expect(result).toMatchObject({ ok: true, cached: false })
+    if (!result || !result.ok) throw new Error('缺少结果')
+    expect(result.segments[0]).toContain('<y0>docs</y0>')
+    expect(result.segments[1]).toContain('<y0>this</y0>')
+    expect(requests.map((segments) => segments.length)).toEqual([2, 1, 1])
+  })
+
+  it('重发也失败时降级成纯文本，并且不把坏结果写进缓存', async () => {
+    await saveMultiEngineSettings()
+    let calls = 0
+    vi.stubGlobal('fetch', async (input: string) => {
+      const url = String(input)
+      if (!url.includes('clients5.google.com')) throw new Error(`意外的请求 ${url}`)
+      calls += 1
+      const segments = requestedSegments(url)
+      return translatedBatch(segments.map(() => '坏掉的译文'))
+    })
+
+    const first = pageRequest('inline-degrade', ['Read <y0>docs</y0> now.'])
+    expect((await waitForTerminal(first)).kind).toBe('done')
+    expect(engineResults(first)[0]).toMatchObject({
+      ok: true,
+      cached: false,
+      segments: ['坏掉的译文'],
+    })
+    expect(calls).toBe(2)
+
+    const second = pageRequest('inline-degrade-2', ['Read <y0>docs</y0> now.'])
+    expect((await waitForTerminal(second)).kind).toBe('done')
+    expect(engineResults(second)[0]).toMatchObject({ ok: true, cached: false })
+    expect(calls).toBe(4)
+  })
+
+  it('读到旧的损坏段缓存时丢弃并重新翻译', async () => {
+    await saveMultiEngineSettings()
+    const segment = 'Read <y0>docs</y0> now.'
+    await setCachedSegment(
+      makeSegmentCacheKey({
+        engineId: 'mt:google-free',
+        sourceLang: 'en',
+        targetLang: 'zh-CN',
+        segment,
+        revision: '2',
+      }),
+      '损坏的旧译文',
+      '谷歌翻译（免费通道）',
+    )
+    const requests: string[][] = []
+    vi.stubGlobal('fetch', async (input: string) => {
+      const url = String(input)
+      if (!url.includes('clients5.google.com')) throw new Error(`意外的请求 ${url}`)
+      const segments = requestedSegments(url)
+      requests.push(segments)
+      return translatedBatch(['请阅读【0】文档【/0】。'])
+    })
+
+    const first = pageRequest('inline-stale', [segment])
+    expect((await waitForTerminal(first)).kind).toBe('done')
+    expect(engineResults(first)[0]).toMatchObject({
+      ok: true,
+      cached: false,
+      segments: ['请阅读<y0>文档</y0>。'],
+    })
+    expect(requests).toHaveLength(1)
+
+    const second = pageRequest('inline-stale-2', [segment])
+    expect((await waitForTerminal(second)).kind).toBe('done')
+    expect(engineResults(second)[0]).toMatchObject({
+      ok: true,
+      cached: true,
+      segments: ['请阅读<y0>文档</y0>。'],
+    })
+    expect(requests).toHaveLength(1)
   })
 })

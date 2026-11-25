@@ -1,6 +1,8 @@
 import { AppError, isAbortError, toAppError } from './errors'
 import {
   canonicalSegment,
+  dropCached,
+  dropCachedSegment,
   getCached,
   getCachedSegment,
   makeCacheKey,
@@ -8,10 +10,18 @@ import {
   setCached,
   setCachedSegment,
 } from './cache'
+import {
+  fromPlaceholderMarkup,
+  hasInlineMarkers,
+  inlineMarkupIntact,
+  toPlaceholderMarkup,
+} from './inline-markup'
 import { resolveEngine } from './providers/registry'
 import { PROMPT_VERSION } from './providers/ai/prompts'
-import type { TranslateRequest } from './providers/types'
+import type { TranslateProvider, TranslateRequest } from './providers/types'
 import type { Settings } from '../storage/settings'
+
+const PLACEHOLDER_PREFIX = 'mt:'
 
 function engineRevision(engineId: string, settings: Settings): string {
   if (!engineId.startsWith('ai:')) return '2'
@@ -45,6 +55,19 @@ function segmentKeys(input: TranslateInput, engineId: string, revision: string):
   )
 }
 
+function encodeForProvider(engineId: string, segments: string[]): { segments: string[]; placeholder: boolean[] } {
+  const supported = engineId.startsWith(PLACEHOLDER_PREFIX)
+  const placeholder = segments.map((segment) => supported && hasInlineMarkers(segment))
+  return {
+    segments: segments.map((segment, index) => (placeholder[index] ? toPlaceholderMarkup(segment) : segment)),
+    placeholder,
+  }
+}
+
+function decodeFromProvider(placeholder: boolean[], segments: string[]): string[] {
+  return segments.map((segment, index) => (placeholder[index] ? fromPlaceholderMarkup(segment) : segment))
+}
+
 async function storeSegments(
   input: TranslateInput,
   engineId: string,
@@ -54,9 +77,42 @@ async function storeSegments(
 ): Promise<void> {
   const keys = segmentKeys(input, engineId, revision)
   for (let index = 0; index < input.segments.length; index += 1) {
-    if (!canonicalSegment(input.segments[index] ?? '')) continue
-    await setCachedSegment(keys[index] ?? '', translated[index] ?? '', engineLabel)
+    const source = input.segments[index] ?? ''
+    if (!canonicalSegment(source)) continue
+    const text = translated[index] ?? ''
+    if (!inlineMarkupIntact(source, text)) continue
+    await setCachedSegment(keys[index] ?? '', text, engineLabel)
   }
+}
+
+async function repairMarkup(
+  provider: TranslateProvider,
+  engineId: string,
+  sources: string[],
+  translated: string[],
+  input: TranslateInput,
+): Promise<string[]> {
+  const repaired = translated.slice()
+  for (let index = 0; index < sources.length; index += 1) {
+    const source = sources[index] ?? ''
+    if (inlineMarkupIntact(source, repaired[index] ?? '')) continue
+    const encoded = encodeForProvider(engineId, [source])
+    try {
+      const response = await provider.translate({
+        segments: encoded.segments,
+        sourceLang: input.sourceLang,
+        targetLang: input.targetLang,
+        context: input.context,
+        glossary: input.glossary,
+        signal: input.signal,
+      })
+      const retried = decodeFromProvider(encoded.placeholder, response.segments)[0] ?? ''
+      if (inlineMarkupIntact(source, retried)) repaired[index] = retried
+    } catch (error) {
+      if (isAbortError(error)) throw error
+    }
+  }
+  return repaired
 }
 
 async function translateFresh(
@@ -100,13 +156,15 @@ async function translateBySegments(
   let cachedLabel = ''
   for (let index = 0; index < input.segments.length; index += 1) {
     const source = input.segments[index] ?? ''
-    const hit = canonicalSegment(source) ? await getCachedSegment(keys[index] ?? '') : null
-    if (hit) {
+    const key = keys[index] ?? ''
+    const hit = canonicalSegment(source) ? await getCachedSegment(key) : null
+    if (hit && inlineMarkupIntact(source, hit.text)) {
       translated[index] = hit.text
       if (!cachedLabel) cachedLabel = hit.engineLabel
-    } else {
-      missing.push(index)
+      continue
     }
+    if (hit) await dropCachedSegment(key)
+    missing.push(index)
   }
   if (missing.length === 0) {
     const joined = translated.join('\u0000')
@@ -123,9 +181,10 @@ async function translateBySegments(
   const pending = missing.map((index) => input.segments[index] ?? '')
   const whole = missing.length === input.segments.length
   try {
+    const encoded = encodeForProvider(engineId, pending)
     const response = await provider.translate({
       ...input,
-      segments: pending,
+      segments: encoded.segments,
       onDelta: whole ? onDelta : undefined,
     })
     if (response.segments.length !== pending.length) {
@@ -134,16 +193,22 @@ async function translateBySegments(
         `引擎返回了 ${response.segments.length} 段译文，但请求了 ${pending.length} 段`,
       )
     }
+    const decoded = decodeFromProvider(encoded.placeholder, response.segments)
+    const repaired = await repairMarkup(provider, engineId, pending, decoded, input)
+    let intact = true
     for (let offset = 0; offset < missing.length; offset += 1) {
       const index = missing[offset] ?? 0
-      const text = response.segments[offset] ?? ''
+      const source = input.segments[index] ?? ''
+      const text = repaired[offset] ?? ''
       translated[index] = text
-      if (canonicalSegment(input.segments[index] ?? '')) {
-        await setCachedSegment(keys[index] ?? '', text, response.engineLabel)
+      if (!inlineMarkupIntact(source, text)) {
+        intact = false
+        continue
       }
+      if (canonicalSegment(source)) await setCachedSegment(keys[index] ?? '', text, response.engineLabel)
     }
     const joined = translated.join('\u0000')
-    if (joined) await setCached(batchKey, joined, response.engineLabel)
+    if (joined && intact) await setCached(batchKey, joined, response.engineLabel)
     return {
       segments: translated,
       engineLabel: response.engineLabel,
@@ -178,15 +243,20 @@ export async function translateText(
   const cached = await getCached(batchKey)
   if (cached) {
     const segments = cached.text.split('\u0000')
-    if (options?.cacheSegments && segments.length === input.segments.length) {
-      await storeSegments(input, engineId, revision, segments, cached.engineLabel)
+    const usable =
+      segments.length === input.segments.length &&
+      (!options?.cacheSegments ||
+        segments.every((text, index) => inlineMarkupIntact(input.segments[index] ?? '', text)))
+    if (usable) {
+      if (options?.cacheSegments) await storeSegments(input, engineId, revision, segments, cached.engineLabel)
+      return {
+        segments,
+        engineLabel: cached.engineLabel,
+        cached: true,
+        elapsedMs: Date.now() - started,
+      }
     }
-    return {
-      segments,
-      engineLabel: cached.engineLabel,
-      cached: true,
-      elapsedMs: Date.now() - started,
-    }
+    await dropCached(batchKey)
   }
   if (options?.cacheSegments && !context && input.segments.length > 0) {
     return translateBySegments(input, settings, engineId, revision, batchKey, started, onDelta)

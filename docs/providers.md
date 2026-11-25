@@ -22,7 +22,7 @@ interface TranslateProvider {
 - `request.signal`：取消。
 - 网页翻译在协议层用 `TranslateJobRequest.silent` 标记「不要写历史」，服务商层无感知。
 
-引擎层（`src/core/engine.ts`）只做三件事：查缓存 → 取指定引擎 → 写缓存。**没有失败降级**。翻译面板勾了多个引擎时，`src/background/jobs.ts` 按 `engineIds` 逐个并发调用它，每个引擎各走一遍这套流程，互不共享缓存判断结果。
+引擎层（`src/core/engine.ts`）负责：查缓存 → 取指定引擎 → 写缓存；网页翻译的段如果带内联标记，还要在发往 `mt:` 引擎时换占位符、回包还原并校验（坏段单独重发，见 6.3）。**没有失败降级**。翻译面板勾了多个引擎时，`src/background/jobs.ts` 按 `engineIds` 逐个并发调用它，每个引擎各走一遍这套流程，互不共享缓存判断结果。
 
 词典是另一套契约（`src/core/dictionary/types.ts` 的 `DictionaryProvider`：`lookup(word, signal)` 返回 `DictionaryEntry | null`，`null` = 词典未收录），不参与引擎路由、不带凭证字段；见第 10 节。
 
@@ -88,7 +88,7 @@ interface TranslateProvider {
 - **浏览器没有 MD5**（`crypto.subtle` 只有 SHA 系），所以自带一份纯 TS 实现 `src/core/providers/mt/md5.ts`，用已知向量与 Node `crypto` 对拍（`tests/services.test.ts`）。
 - 语言码要转换（`src/core/providers/lang-map.ts`）：`zh-CN→zh`、`zh-TW→cht`、`ja→jp`、`ko→kor`、`fr→fra`、`es→spa`、`ar→ara`；`auto` 直传。
 - 限制：单次 `q ≤ 6000` 字节（适配器按 5500 字节切分）；标准版 QPS = 1，适配器用 1 秒间隔串行排队，网页翻译一批 8 段会明显变慢。
-- 多段：先把多段用换行拼成一条 `q`，按 `trans_result` 数组还原（待实测：官方是否稳定按行返回）；条数不符自动退回逐段请求。
+- 多段：先把多段用换行拼成一条 `q`，按 `trans_result` 数组还原（官方按行返回正常；条数不符自动退回逐段请求）。**但百度会把行内的 `<yN>` 当 HTML 标签跨行重排/补全/泄漏**，所以网页翻译的标记在引擎层先换成 `【N】` 占位符再发（见 6.3）。
 - 单段内含换行（划词多行选区、弹窗粘贴多行）：百度会把它当多条 query 返回，不能按 1 段校验，走 `parseBaiduLines()` 把 `dst` 按行拼回 `\n`。
 - 错误码映射见第 4 节；返回体是 200 + `error_code`，不是 HTTP 错误，适配器解析后抛 `AppError`。
 - 免费额度以开放平台定价为准（个人认证约 5 万字符/月）。
@@ -102,6 +102,15 @@ interface TranslateProvider {
 - 体：`[{ "text": "..." }]`，单次 ≤ 100 条 / 5 万字符；响应 `[{ translations: [{ text, to }], detectedLanguage }]`。
 - 语言码用 BCP-47：`zh-CN→zh-Hans`、`zh-TW→zh-Hant`；源语言为 `auto` 时不传 `from`。
 - 免费层 F0 约 200 万字符/月（以官网为准）。
+
+### 6.3 内联标记（网页翻译）
+
+- canonical 形态是 `<yN>…</yN>`：`src/content/page/inline.ts` 打标，AI 提示词要求原样保留（`PROMPT_VERSION` 3）。
+- `mt:` 引擎统一走占位符：`src/core/engine.ts` 的 `toPlaceholderMarkup()` 先把 `<yN>` / `</yN>` 换成 `【N】` / `【/N】`（U+3010 / U+3011 中日韩方括号）再发，回包用 `fromPlaceholderMarkup()` 还原成 canonical；只转换含 canonical 标记的段，原文本身含占位符语法的段落由采集层直接退纯文本，避免撞车。
+- 百度标准版实测（2026-11-25）：`<y0>` 在多段拼行批量里会被当 HTML 标签跨段重排、补全、泄漏（jwt.io 一段里混进别段编号、重复开合），单段请求有时保留、行为不一致；`【0】` / `【/0】` 在 3 行与 5 行批量里都原样保留、位置正确，单段也保留。
+- 其他写法不可用（同次实测）：`{{0}}` 在中文目标下变全角 `｛｛0｝｝`；`[[0]]` 与 `<0>` 在批量里被整体剥掉；`&lt;y0&gt;` 被转成 `&lt；y0&gt；`（分号变全角）。
+- 其他引擎（待验证）：MyMemory 单段保留 `【0】`；谷歌免费通道此前实测保留原始 `<y0>`；微软 / Azure 按纯文本处理，预期会剥标签，未复测。
+- 工程兜底：回包逐段校验（每个编号恰好成对一次、可重排不可嵌套、编号连续），校验失败就把该段单独重发一次，仍失败保留原译文、由页面侧降级纯文本；坏译文不写缓存，网页翻译读到坏缓存条目直接丢弃重译。`<yN>` 规则改动必须升 `PROMPT_VERSION`。
 
 ## 7. 免费通道实测记录（2026 年实测，环境：本机 Edge 157；Chrome 158 同属 Chromium 内核，可复用同一结论）
 

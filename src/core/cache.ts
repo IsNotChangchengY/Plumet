@@ -188,6 +188,20 @@ export async function setCachedSegment(key: string, text: string, engineLabel: s
   return writeEntry(segmentStore, key, text, engineLabel)
 }
 
+async function dropEntry(store: CacheStore, key: string): Promise<void> {
+  const map = await ensureLoaded(store)
+  if (!map.delete(key)) return
+  scheduleFlush(store)
+}
+
+export async function dropCached(key: string): Promise<void> {
+  return dropEntry(mainStore, key)
+}
+
+export async function dropCachedSegment(key: string): Promise<void> {
+  return dropEntry(segmentStore, key)
+}
+
 export async function clearCache(): Promise<void> {
   mainStore.memory = new Map()
   segmentStore.memory = new Map()

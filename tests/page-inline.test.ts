@@ -89,6 +89,10 @@ describe('buildInlineTemplate', () => {
     expect(build('<p>Use &lt;y0&gt; as a marker.</p>')).toBeNull()
   })
 
+  it('原文里已经有占位符语法时不生成模板，避免与引擎占位符混淆', () => {
+    expect(build('<p>Keep 【0】 and 【/1】 as placeholders.</p>')).toBeNull()
+  })
+
   it('与预期文本不一致或标记过多时不生成模板', () => {
     const target = element('<p>Hello <b>world</b></p>')
     expect(buildInlineTemplate(target, 'Hello there')).toBeNull()
