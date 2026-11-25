@@ -274,7 +274,7 @@ function runBatch(batch: PageUnit[]): Promise<void> {
     }
     const cancel = requestTextTranslation(
       {
-        segments: batch.map((unit) => unit.text),
+        segments: batch.map((unit) => unit.inline?.marked ?? unit.text),
         sourceLang: settings?.sourceLang ?? 'auto',
         targetLang,
         engineId: settings?.pageEngine,

@@ -23,7 +23,7 @@ pnpm install        安装依赖
 pnpm build          构建到 dist/（三次 Vite 构建：页面 / background / content）
 pnpm dev            监听构建（改完仍需在扩展页点刷新）
 pnpm typecheck      tsc --noEmit
-pnpm test           vitest 单元测试（378 个）
+pnpm test           vitest 单元测试（402 个）
 pnpm verify         检查 dist/manifest 与页面资源引用是否完整
 pnpm package        把 dist/ 打成 release/yuyi-<版本>.zip（解压后可直接加载）
 pnpm docs:check     检查 AGENTS.md / CONTRIBUTING.md / docs 里提到的路径与链接是否还存在
@@ -54,7 +54,7 @@ $env:NODE_OPTIONS='--use-system-ca'; $env:YUYI_LIVE='1'; pnpm vitest run tests/l
 
 ```
 src/background/    Service Worker：唯一联网的地方；右键菜单、快捷键、端口任务；page.ts 把弹窗的网页翻译命令转给标签页
-src/content/       Content Script：划词气泡与网页翻译；page/ 下是网页翻译（text/collect/render/translate/pill），selection-hit.ts 统一读取选区（普通 Range / Shadow DOM / 输入框三种来源），scanSelectionText() 按 DOM 结构扫出选区文字并标出夹带的脚本/隐藏节点（划词守卫态用它），structure.ts 把选区周围结构（标题链 / 相邻段（评论区与聊天列表按对话顺序取上下各最多 2 条评论/消息） / 列表 / 表格；跳过站点框架）装配成有预算的上下文（读取文字时穿透 open shadowRoot，B 站评论卡这类 Web Components 也能取到相邻评论），ui-mark.ts 统一识别自己的 UI，theme.ts 是页面内 Shadow DOM 的主题变量镜像
+src/content/       Content Script：划词气泡与网页翻译；page/ 下是网页翻译（text/collect/inline/render/translate/pill），selection-hit.ts 统一读取选区（普通 Range / Shadow DOM / 输入框三种来源），scanSelectionText() 按 DOM 结构扫出选区文字并标出夹带的脚本/隐藏节点（划词守卫态用它），structure.ts 把选区周围结构（标题链 / 相邻段（评论区与聊天列表按对话顺序取上下各最多 2 条评论/消息） / 列表 / 表格；跳过站点框架）装配成有预算的上下文（读取文字时穿透 open shadowRoot，B 站评论卡这类 Web Components 也能取到相邻评论），ui-mark.ts 统一识别自己的 UI，theme.ts 是页面内 Shadow DOM 的主题变量镜像
 src/popup/         工具栏弹窗（唯一界面，340×600）：翻译/历史 tab 在头部、设置条（含润色方向）、输入框内动作（检查/润色/翻译）与右上角 × 清空、翻译本页与页面显示切换菜单
 src/options/       设置页（新标签页，顶栏 6 分类）：App.tsx 外壳与通用/翻译/词典/其它分区、DictSection 词典开关与展示项、EnginesSection 引擎槽位（翻译面板多选 + 拖动/键盘排序）、ServicesSection 服务列表与详情、ShortcutSection 快捷键录制与冲突校验、test.ts 连接测试与授权
 src/learning/      生词本页面：App 统筹统计/列表/导入导出，ReviewSession 是复习台，CardList 是卡片列表，CardDictionary 是卡片内的富词条块，learning.css 是页面专用样式
@@ -80,7 +80,7 @@ docs/              README.md 文档索引与维护规则、design.md 设计大�
 - **缓存**：`src/core/cache.ts` 有主缓存 `cache.v1`（最多 1000 条）与段缓存 `cache.segments.v1`（最多 3000 条）两份，都落盘 `chrome.storage.local`、SW 内再放内存 Map 加速；TTL 7 天且**滑动过期**（命中会把 `at` 刷新到现在，7 天没有被用过才失效）。主缓存键 = 引擎 + 修订（AI 引擎为 `PROMPT_VERSION` + 模型，MT 引擎固定值 2）+ 语言 + 上下文（只有 AI 引擎计入；MT 不读上下文，同一句跨页面复用）+ 原文；段缓存键 = 引擎 + 修订 + 语言 + 单段原文（不含上下文与批内顺序）。原文与上下文进键前都会归一空白、零宽字符、宽空格与换行符写法（段落结构保留）。网页翻译的请求带 `cacheSegments: true`：批次命中直接回；否则逐段查 `cache.segments.v1`，只把没命中的段发给引擎（部分命中时整批回包、不推流），拼好后回写段缓存与批次缓存，所以不同批次里重复出现的句子（改版页面没变的段落、站内同一句话）也能复用。改 prompt 或换模型后旧译文自动失效，不需要手动清缓存。设置页「清空译文与词典缓存」会同时清掉主缓存、段缓存与 `dict.v1`。
 - **词典链路**：输入/选区是**单个词**——1–40 个拉丁字母（可带撇号/连字符）或 1–4 个汉字，两端标点会先裁掉；`parseDictionaryQuery()` 给出 `en-zh` / `zh-en` 方向，`dictionaryQueryFor(settings, text)` 再叠加开关与服务能力（Free Dictionary 不能查中文词，遇到中文直接走翻译），弹窗与气泡据此改发 `{kind:'dict'}` 任务（`messaging.ts`），由 `jobs.ts` 调 `core/dictionary/lookup.ts` 查 `src/core/providers/dict/` 的服务：有道 `jsonapi`（`ec` 英→中：音标 + 英美发音、中文释义、英英释义、词形变化、双语例句、词组；`ce` 中→英：拼音 + 发音、英文对应词、中文例句的英文译文）或 Free Dictionary API（英英释义、音标、例句，仅英→中）。结果以 `dictDone` 事件回界面，`src/app/DictCard.tsx`（弹窗）与 `bubble.ts` 的 `buildDictionaryCard()`（气泡）按 `settings.dictionary.sections` 的六项开关裁剪（词典卡固定用默认宽度 340，不跟短选区一起收窄）。词典未收录（`entry === null`）或请求失败时**刻意回退**到翻译：`DictJobRequest` 带 `engineIds` 时跑全部已勾选引擎（顺序即结果卡顺序），没带时退回主引擎（`primaryTranslateEngine()`）；弹窗 `useJob` 与气泡 `requestWordLookup` 都消费 `engineDone` / `done` 的多引擎结果，`JobResult.notice` 里说明「词典未收录/查询失败，已改用翻译」；命中词典仍只回 `dictDone` 一张卡——这是唯一允许的降级，只作用于查词；查词缓存落盘在 `chrome.storage.local` 的 `dict.v1`（键 `服务:小写词`，TTL 24 小时滑动：命中刷新时间、上限 200 条；过期与坏条目在读入时丢弃，SW 被回收后照样命中）。发音用 `dictvoice?audio=<词>&type=1|2`，失败退回 `speechSynthesis`。
 - **划词链路**：`selection-hit.ts` 统一读取选区，三种来源按顺序尝试——① 输入框/文本域的 `selectionStart/End`（截 `value`，`password` 与数字/日期类不参与）② `window.getSelection()` 的 Range ③ 拖动过程中从 `pointerdown / pointermove / mouseup` 的 `composedPath` 里累计到的 open `ShadowRoot`（不是只看 mouseup 那一个事件），用 `getComposedRanges()` 重建 Range，重建不出文字时用 `selection.toString()` 兜底 + 鼠标点定位。触发端也汇合到一处：`mouseup`（立即）、`selectionchange`（140ms 防抖，键盘/触摸选区靠它）、`pointerdown` 收尾（指针按住期间不响应）；拿到文字与语境（页面标题 + 网站 + 所在块前后 N 字符 + 按「上下文范围」装配的章节标题链 / 相邻段 / 列表 / 表格，整页范围再加页面大纲与首段，总预算 2000 字；所在块取选区最近的块级祖先（`pickBlock`），跨块选区取起点块到终点块之间的窗口；邻段跳过 nav / aside / footer / pre / code 等标签噪音、无 ARIA 的站点框架（`isChrome`：header/menu 类标签、landmark role、id/class 黑名单）与链接/按钮文本占比 ≥0.5 的导航块，评论区与聊天界面因此按对话顺序取上下各最多 2 条相邻评论/消息（上文远→近、下文近→远），与源语言不同的段落同样跳过；选区在块里定位不到时不带段落窗口；超过 2000 字的选区照常翻译，但只带标题与网站）。输入框的语境按 `aria-labelledby` → `aria-label` → `label[for]` → 包裹 `<label>` → `placeholder` → `fieldset legend` 的顺序取；iframe 里 `pageContext()` 在同源时改用顶层窗口的标题与域名。随后光标右下角（无光标时用选区末端）出现 28px 的插件图标（`assets/icon-master.svg` 以 `?raw` 内联进 Shadow DOM），点它经同一条 Port 协议发翻译任务 → 气泡（Shadow DOM）贴在选区下方显示，宽度取选区矩形宽加卡片内边距（`BUBBLE_WIDTH_EXTRA = 56`，正文比选区宽约 8px；下限 240、上限视口宽的二分之一且不超过 `视口 - 24`，视口窄到半宽不足 240 时保留下限；拿不到宽度时 340；词典卡固定 340），按住头部可拖动（拖动后固定位置，不再跟随滚动）。打开气泡前先按 DOM 结构扫一遍选区（`scanSelectionText()`）：文本里夹到 `<script>` / `<style>` / `<noscript>` / `<template>`，或元素被 `display:none` / `visibility:hidden|collapse` / `content-visibility:hidden` 隐藏时进入 guard 态——正文只放这次原文的模糊预览（最多 240 字），盖一层黄色提示「选中了隐藏内容，请重新选择或继续翻译」、一句后果说明（继续翻译会跳过隐藏内容，整段都不可见时按原文发送、译文可能是一段代码）与「继续翻译」按钮，不发请求、底栏收起；点「继续翻译」只把扫出来的可见文本发出去（可见文本为空才退回原文），关气泡或换选区即清空。请求带 `engineIds`（整个 `translateEngines`）。**所有句子翻译（单引擎也一样）都渲染成 `.engine-result` 结果卡**：卡头是服务名、状态点与右侧四枚 22px 纯图标动作（朗读 / 复制 / 收藏，AI 卡在完成态多一枚「扩上下文」，用途只靠 `title` / `aria-label`），下面是译文；每张卡的复制、收藏、朗读只作用于自己那份译文，失败的卡只红自己。单词/词典卡的底栏是朗读 / 复制 / 收藏，词典卡最左另有「引擎翻译」：点它跳过词典、把这次划词改发 `translate`（`selection.ts` 的 `engineMode`，等同临时关掉词典、不改设置），按钮收起、重试仍走引擎、引擎结果底栏最左换成「词典翻译」（`onDictionaryTranslate` 复位 `engineMode` 并重新查词典，命中 `dict.v1` 秒回），错误态也保留这枚按钮；整句完成时不再有底部动作组，底栏只留「上下文预览」（有语境时点开显示本次实际发出的上下文，没有语境就整条收起）；加载态文案是「正在用 N 个引擎翻译」（单引擎为「正在翻译」）。「扩上下文」只在范围不是整页、有块元素且选区不超过 2000 字时出现，点了用整页结构重译一次。图标与气泡挂载点会避开全屏：`document.fullscreenElement` 存在时挂进全屏元素。素材：选区文本保留换行（行内空白压成单空格，最多留一个空行），译文因此与原文分段对齐；气泡里的译文能直接拖选复制，选中高亮是气泡自带的一条（不依赖宿主页）。流式渲染只往下追加文本节点，不重建 `<pre>`，所以边生成边选也不会被打断。`Esc` 或右上角 `×` 关闭。
-- **网页翻译链路**：弹窗底部「翻译本页」/右键/`Alt+P` → SW `page.ts` 用 `tabs.sendMessage` 转给 content script → `page/collect.ts` 从 `document.body` 挑「不含块级子元素的块级元素」当单元（跳过代码/输入框/隐藏/已译/已是目标语言）→ `page/text.ts` 按 8 段 / 1200 字符分批 → 每批走同一条 Port（`silent:true` 不写历史，`cacheSegments:true` 让批次只发没命中过的段）→ `page/render.ts` 把译文写成 `span[data-yuyi="trans"]` 追加在原文块末尾；仅译文模式把原有子节点搬进 `span[data-yuyi="orig"]` 隐藏 → `page/pill.ts` 在页面右下角显示进度/取消/重试/还原 → `MutationObserver`（500ms 防抖）只扫新增节点，过滤 `[data-yuyi]` 自己的节点；`location.href` 变化触发整页重扫。呈现方式实时切换走 `PageCommandName 'mode'`（`PageCommand.mode`）→ `translate.ts` 的 `applyPageMode()` → `render.ts` 的 `switchPageMode()`：在已译单元上就地搬移 `[data-yuyi="orig"]`，不重发请求，同时把 `settings.pageMode` 写回。
+- **网页翻译链路**：弹窗底部「翻译本页」/右键/`Alt+P` → SW `page.ts` 用 `tabs.sendMessage` 转给 content script → `page/collect.ts` 从 `document.body` 挑「不含块级子元素的块级元素」当单元（跳过代码/输入框/隐藏/已译/已是目标语言），同时由 `page/inline.ts` 把带格式的内联片段（`a` 与 `b/strong/i/em/u/ins/s/del/mark/code/kbd/samp/var/sub/sup/small/q/cite/abbr`，以及按 computed style 对比父节点识别出的加粗/斜体/下划线/删除线/背景高亮）包成 `<yN>…</yN>` 编号标记，`translate.ts` 发的是标记文本（没有内联格式的段落仍是纯文本）→ `page/text.ts` 按 8 段 / 1200 字符分批 → 每批走同一条 Port（`silent:true` 不写历史，`cacheSegments:true` 让批次只发没命中过的段）→ `page/render.ts` 把译文写回 `span[data-yuyi="trans"]`（双语追加在原文块末尾；仅译文模式把原有子节点搬进 `span[data-yuyi="orig"]` 隐藏）；带模板的单元由 `page/inline.ts` 解析标记、按本地 descriptor 用 `createElement` 重建链接与格式（`a` 的 `href` 只放行 http/https/mailto/tel 与相对/`#`，绝不 `innerHTML` 引擎输出），标记丢失/重复/嵌套错乱/片段超过 48 个时整段降级纯文本 → `page/pill.ts` 在页面右下角显示进度/取消/重试/还原 → `MutationObserver`（500ms 防抖）只扫新增节点，过滤 `[data-yuyi]` 自己的节点；`location.href` 变化触发整页重扫。呈现方式实时切换走 `PageCommandName 'mode'`（`PageCommand.mode`）→ `translate.ts` 的 `applyPageMode()` → `render.ts` 的 `switchPageMode()`：在已译单元上就地搬移 `[data-yuyi="orig"]`，不重发请求，同时把 `settings.pageMode` 写回。AI 引擎的系统提示词要求原样保留编号标记（`PROMPT_VERSION` 3；改标记规则要跟着升版本，让旧缓存失效）。
 - **快捷键（可编辑）**：`settings.shortcuts` 存 `selection` / `page` 两个绑定（`{code, alt, ctrl, shift, meta}`）或 `null`（未设置）。`src/core/shortcuts.ts` 负责事件→绑定、校验与文案：组合里必须带 Ctrl 或 Alt，Win / Command 键和浏览器保留组合直接拒绝，`normalizeShortcuts()` 读入时把非法值回退默认、两个动作撞键时优先保 `selection`。**MV3 的 `chrome.commands` 只有 `getAll()`，没有 `update()`**（update 仅 Firefox），所以 manifest 里的原生命令固定是 Alt+T / Alt+P：SW 收到 `onCommand` 后先 `loadSettings()`，只有该动作的绑定仍等于默认值才转发给标签页；用户改过的动作由 content script 在页面里监听 `keydown`（capture）执行。两条路径可能同时触发，content 用 200ms 的 `lastAction` / `lastActionAt` 去重；自定义键只在网页有焦点时生效，`page` 只认顶层帧，站内脚本的 `preventDefault` 或更早的 capture 监听可能抢走按键。设置页的 `ShortcutSection` 负责录制：按 `Backspace` / `Delete` 清除、`Esc` 取消、非法与重复组合就地报错。
 - **服务商契约**：实现 `TranslateProvider`（`id` / `label` / `kind` / `translate()`），单段可流式、多段走批量 JSON。新增 MT 服务三步：写 `src/core/providers/mt/*.ts` → 在 `services.ts` 加服务定义（凭证字段 / 就绪判定 / 工厂）→ `registry.ts` 与设置页自动出现。新增 AI 服务只需在 `ai/presets.ts` 加一条预设（OpenAI 兼容协议）。
 - **检查链路**：`splitForCheck()` 按 1400 字符切段（保留原文 offset）→ 每段一次 AI 调用 → `parseIssues()`（zod 宽松枚举 + JSON 抽取）→ `locateIssues()` 用 quote 三级定位（精确 → 忽略大小写 → 忽略空白）→ `mergeIssues()` 按位置去重 → `applyIssues()` 得终稿。定位失败的条数计入 `dropped`，UI 会明说，不假装定位成功。
@@ -105,18 +105,18 @@ docs/              README.md 文档索引与维护规则、design.md 设计大�
 
 **改代码的同时改文档，不允许「先写代码，下次补文档」。** 完整规则、文档地图和检查清单见 `docs/README.md`。
 
-| 本次改了什么 | 必须同步更新 |
-|---|---|
-| 新增 / 删除 / 重命名源文件 | 本文档的目录结构；`docs/guide/02-代码地图与数据流.md` |
-| 新增命令、脚本、依赖 | 本文档的常用命令；用户可见的能力变化写进 `README.md` |
-| 新踩到的坑、新的实测结论 | 本文档的已知陷阱；服务商相关的同时进 `docs/providers.md` |
-| 接入新服务商、改错误码 | `docs/providers.md` |
-| 设计取舍变化（数据流、呈现方式、交互语义） | `docs/design.md` 对应章节 |
-| 改样式、设计变量、界面结构、新增 UI 组件 | `docs/ui-design.md` 对应章节；同时改 `src/ui/theme.css` 与 `src/content/theme.ts` 两处变量 |
-| 用户可见功能变化 | `README.md` 功能章节（只写现在能做什么） |
-| 里程碑推进 | `docs/design.md` 里程碑表（本文档 §11 只留摘要） |
-| 测试数量变化 | 本文档常用命令里的数量 |
-| 新增文档 | `docs/README.md` 的文档地图 |
+| 本次改了什么                               | 必须同步更新                                                                               |
+| ------------------------------------------ | ------------------------------------------------------------------------------------------ |
+| 新增 / 删除 / 重命名源文件                 | 本文档的目录结构；`docs/guide/02-代码地图与数据流.md`                                      |
+| 新增命令、脚本、依赖                       | 本文档的常用命令；用户可见的能力变化写进 `README.md`                                       |
+| 新踩到的坑、新的实测结论                   | 本文档的已知陷阱；服务商相关的同时进 `docs/providers.md`                                   |
+| 接入新服务商、改错误码                     | `docs/providers.md`                                                                        |
+| 设计取舍变化（数据流、呈现方式、交互语义） | `docs/design.md` 对应章节                                                                  |
+| 改样式、设计变量、界面结构、新增 UI 组件   | `docs/ui-design.md` 对应章节；同时改 `src/ui/theme.css` 与 `src/content/theme.ts` 两处变量 |
+| 用户可见功能变化                           | `README.md` 功能章节（只写现在能做什么）                                                   |
+| 里程碑推进                                 | `docs/design.md` 里程碑表（本文档 §11 只留摘要）                                           |
+| 测试数量变化                               | 本文档常用命令里的数量                                                                     |
+| 新增文档                                   | `docs/README.md` 的文档地图                                                                |
 
 约定：
 
@@ -153,7 +153,7 @@ docs/              README.md 文档索引与维护规则、design.md 设计大�
 - **设置页深链**：`openOptions('services:baidu')` → `options.html#services:baidu`；`chrome.runtime.openOptionsPage()` 不能带 hash，所以改用 `chrome.tabs.create`。设置页按 hash 决定分类与详情。
 - **设置页本地截图夹具**：`AGENTS/ui-design/_verify/make-verify-pages.mjs` 生成注入了假 `chrome.storage` 的验证页，配合 `serve-dist.mjs` 起静态服务（127.0.0.1:4399）再用无头 Chromium 截图（本机是 Edge）；`pnpm build` 会清空 `dist/`，每次重建后先跑一遍生成脚本。
 - **可选主机权限不支持端口**：`originPattern()` 只拼协议+主机名，端口不写进模式。
-- **划词 UI 全在 Shadow DOM 里**：气泡与图标挂在 `document.documentElement` 下、样式用字符串注入；content script 不引 React。加入页面内 UI 的样式后 `content.js` 约 97 KB（gzip 32 KB），其中大半是三套 Shadow DOM 的样式字符串（含词典卡）；界面侧只许 import `core/dictionary/{word,query,format,audio}.ts` 这类轻模块，`lookup.ts` / `providers/dict/*` 会通过 `registry.ts` 把解析器与 http 层一起拖进 content bundle（实测 +8 KB）。
+- **划词 UI 全在 Shadow DOM 里**：气泡与图标挂在 `document.documentElement` 下、样式用字符串注入；content script 不引 React。加入页面内 UI 的样式后 `content.js` 约 104 KB（gzip 35 KB），其中大半是三套 Shadow DOM 的样式字符串（含词典卡）；界面侧只许 import `core/dictionary/{word,query,format,audio}.ts` 这类轻模块，`lookup.ts` / `providers/dict/*` 会通过 `registry.ts` 把解析器与 http 层一起拖进 content bundle（实测 +8 KB）。
 - **自己的 UI 不能触发划词**：监听里要用 `event.composedPath()` 判断是否含自己的宿主，否则点气泡按钮会被当成新的选择。
 - **Shadow DOM 里的选区用 `window.getSelection()` 读不到**：Chromium 把 shadow root 内的选区端点顶到宿主上，`getRangeAt(0).toString()` 为空（[issue 41112024](https://issues.chromium.org/issues/41112024)，官方视为预期）。B 站新版评论区（`bili-comment-thread-renderer` 等 Web Components）就是这种。做法：把 `composedPath` 里出现的 open `ShadowRoot` 都收起来传给 `selection.getComposedRanges({ shadowRoots })`，拿静态范围后再 `document.createRange()` 重建（跨根边界会抛，退到 `shadowRoot.getSelection()`）。
 - **划过最后一个字后 mouseup 的 `composedPath` 里没有内层 shadow root**：拖到文字外（评论卡片的 padding / 按钮区）松手时，事件目标落在外层 shadow 或文档上，path 里只剩外层 root，于是「内层 root 缺失 → `getComposedRanges` 只拿到被夹到宿主上的空范围 → 不出图标」。实测（Edge 157 无头 + 真实鼠标事件）：`shadow-inside` 出图标、`shadow-past-end` 不出。修法是把 `pointerdown / pointermove / mouseup` 里出现过（去重、上限 32、剔掉自己的 UI 与 `isConnected === false` 的）root 都记住，检查时整组传进去。
@@ -172,6 +172,7 @@ docs/              README.md 文档索引与维护规则、design.md 设计大�
 - **网页翻译写入的节点会触发自己的观察器**：译文 span 也带 `data-yuyi`，`pickScanRoots()` 必须先过滤它们，否则「写入 → 观察到变化 → 再采集」会无限循环。
 - **读单元文本不能用 `textContent`**：`Hello<br>world` 会被粘成 `Helloworld`，`readUnitText()` 按节点遍历并把 `<br>` 补成空格。
 - **只译文模式不能改 `innerHTML`**：把原有子节点整体搬进 `span[data-yuyi="orig"]` 隐藏、还原时再搬回原位，页面节点引用才不会断；还原逻辑要跳过已被页面删除（`isConnected === false`）的节点。
+- **网页翻译的内联标记可能被引擎改写或吃掉**：`<yN>` 编号标记交给引擎后不保证原样返回——每个编号必须恰好成对出现一次，允许跨位置重排、不允许嵌套；标记缺失、重复、嵌套错乱或片段超过 `MAX_INLINE_MARKERS`（48）时整段降级成纯文本，绝不把标记漏到页面上。重建只用本地 descriptor 的 `createElement` 与 `textContent`，**不要用 `innerHTML` 塞引擎输出**（译文是不可信文本）；`a` 的 `href` 只放行 http/https/mailto/tel 与相对/`#`，`target` 只放行 `_blank` / `_self` / `_parent` / `_top`。改标记规则必须同步升 `PROMPT_VERSION`，否则旧缓存里的译文会按新规则解析失败、整段退化成纯文本。
 - **隔离世界里给 `history.pushState` 打补丁看不到页面的调用**：SPA 换页只能靠 `location.href` 比对来触发整页重扫。
 - **Shadow DOM 宿主的 `display` 别写成内联样式**：内联 `display:none` 会压住 shadow 里的 `:host([data-open])`，状态条永远不显示（M4 实测踩到，改成只用 shadow `:host`）。
 - **`hidden` 属性压不住作者写的 `display`**：UA 的 `[hidden] { display: none }` 优先级低于任何作者规则，`.foot { display: flex }` 会让 `hidden` 完全失效；要显式补 `.foot[hidden] { display: none }`（气泡底栏「没有内容就收起」靠这条）。

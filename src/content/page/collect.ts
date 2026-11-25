@@ -1,5 +1,7 @@
 import { isBlockElement } from '../context'
 import { isYuyiNode } from '../ui-mark'
+import type { InlineTemplate } from './inline'
+import { buildInlineTemplate } from './inline'
 import type { SkipKind } from './text'
 import { classifyText, readUnitText } from './text'
 
@@ -69,6 +71,7 @@ export type PageUnit = {
   id: string
   element: HTMLElement
   text: string
+  inline?: InlineTemplate
 }
 
 export type CollectOptions = {
@@ -188,7 +191,10 @@ export function collectUnits(root: ParentNode, options: CollectOptions): Collect
         bump(reason)
         return
       }
-      units.push({ id: nextUnitId(), element: element as HTMLElement, text })
+      const template = buildInlineTemplate(element, text)
+      const unit: PageUnit = { id: nextUnitId(), element: element as HTMLElement, text }
+      if (template) unit.inline = template
+      units.push(unit)
       return
     }
     for (const child of Array.from(element.children)) {

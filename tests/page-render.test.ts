@@ -179,4 +179,74 @@ describe('renderTranslation', () => {
     expect(hasPageTranslations()).toBe(false)
     expect(document.querySelector('style[data-yuyi="style"]')).toBeNull()
   })
+
+  it('双语模式按标记重建链接、加粗与高亮', () => {
+    setup('<p>Read the <a href="/docs" target="_blank">documentation</a> before <b>installing</b> <mark>now</mark>.</p>')
+    const unit = collect().units[0]
+    if (!unit) throw new Error('缺少单元')
+    expect(renderTranslation(unit, '请在<y1>安装</y1>之前阅读<y0>文档</y0>，<y2>现在</y2>。', 'bilingual', 'zh-CN')).toBe('done')
+    const translation = document.querySelector('[data-yuyi="trans"]')
+    const link = translation?.querySelector('a')
+    expect(link?.getAttribute('href')).toBe('/docs')
+    expect(link?.getAttribute('target')).toBe('_blank')
+    expect(link?.textContent).toBe('文档')
+    expect(translation?.querySelector('b')?.textContent).toBe('安装')
+    expect(translation?.querySelector('mark')?.textContent).toBe('现在')
+    expect(translation?.textContent).toBe('请在安装之前阅读文档，现在。')
+  })
+
+  it('样式高亮在译文里保留背景色', () => {
+    setup('<p>The <span style="background-color: rgb(255, 255, 0)">important</span> part.</p>')
+    const unit = collect().units[0]
+    if (!unit) throw new Error('缺少单元')
+    renderTranslation(unit, '那段<y0>重要</y0>的内容。', 'bilingual', 'zh-CN')
+    const marked = document.querySelector('[data-yuyi="trans"] span') as HTMLElement | null
+    expect(marked?.textContent).toBe('重要')
+    expect(marked?.style.backgroundColor).toBe('rgb(255, 255, 0)')
+  })
+
+  it('引擎丢失标记时降级为纯文本译文', () => {
+    setup('<p>Read the <a href="/docs">documentation</a> before <b>installing</b>.</p>')
+    const unit = collect().units[0]
+    if (!unit) throw new Error('缺少单元')
+    expect(renderTranslation(unit, '请在安装之前阅读文档。', 'bilingual', 'zh-CN')).toBe('done')
+    const translation = document.querySelector('[data-yuyi="trans"]')
+    expect(translation?.querySelector('a')).toBeNull()
+    expect(translation?.querySelector('b')).toBeNull()
+    expect(translation?.textContent).toBe('请在安装之前阅读文档。')
+  })
+
+  it('重复渲染富译文只保留一个译文节点并替换内容', () => {
+    setup('<p>Read the <a href="/docs">documentation</a> now.</p>')
+    const unit = collect().units[0]
+    if (!unit) throw new Error('缺少单元')
+    renderTranslation(unit, '现在阅读<y0>文档</y0>。', 'bilingual', 'zh-CN')
+    renderTranslation(unit, '立刻阅读<y0>文档</y0>。', 'bilingual', 'zh-CN')
+    expect(document.querySelectorAll('[data-yuyi="trans"]')).toHaveLength(1)
+    const translation = document.querySelector('[data-yuyi="trans"]')
+    expect(translation?.querySelector('a')?.getAttribute('href')).toBe('/docs')
+    expect(translation?.querySelector('a')?.textContent).toBe('文档')
+    expect(translation?.textContent).toBe('立刻阅读文档。')
+  })
+
+  it('仅译文模式保留内联格式，切回双语后译文不变', () => {
+    setup('<p>Hello <b>world</b></p>')
+    const unit = collect().units[0]
+    if (!unit) throw new Error('缺少单元')
+    renderTranslation(unit, '你好<y0>世界</y0>', 'replace', 'zh-CN')
+    const paragraph = document.querySelector('p')
+    expect(paragraph?.querySelector('[data-yuyi="orig"]')?.textContent).toBe('Hello world')
+    expect(paragraph?.querySelector('[data-yuyi="trans"] b')?.textContent).toBe('世界')
+    switchPageMode('bilingual')
+    expect(document.querySelector('[data-yuyi="orig"]')).toBeNull()
+    expect(paragraph?.querySelector('[data-yuyi="trans"] b')?.textContent).toBe('世界')
+  })
+
+  it('译文去掉标记后与原文相同时不插入段落', () => {
+    setup('<p>Hello <b>world</b></p>')
+    const unit = collect().units[0]
+    if (!unit) throw new Error('缺少单元')
+    expect(renderTranslation(unit, '<y0>Hello world</y0>', 'bilingual', 'zh-CN')).toBe('same')
+    expect(document.querySelector('[data-yuyi="trans"]')).toBeNull()
+  })
 })

@@ -1,5 +1,7 @@
 import type { PageMode } from '../../storage/settings'
 import type { PageUnit } from './collect'
+import type { InlineTemplate } from './inline'
+import { renderInlineTranslation, stripInlineMarkers } from './inline'
 import { normalizeUnitText } from './text'
 
 const PAGE_STYLE = `
@@ -63,6 +65,20 @@ function unwrapOriginal(element: HTMLElement, orig: HTMLElement): void {
   orig.remove()
 }
 
+function fillTranslation(target: HTMLElement, template: InlineTemplate | undefined, text: string): void {
+  while (target.firstChild) target.removeChild(target.firstChild)
+  if (!template) {
+    target.textContent = text
+    return
+  }
+  const fragment = renderInlineTranslation(template, text)
+  if (fragment) {
+    target.appendChild(fragment)
+    return
+  }
+  target.textContent = normalizeUnitText(stripInlineMarkers(text))
+}
+
 export function renderTranslation(
   unit: PageUnit,
   translated: string,
@@ -72,17 +88,18 @@ export function renderTranslation(
   ensurePageStyle()
   const text = translated.trim()
   const existing = records.get(unit.id)
-  if (!text) {
+  const plain = normalizeUnitText(unit.inline ? stripInlineMarkers(text) : text)
+  if (!plain) {
     markUnitFailed(unit)
     return 'same'
   }
-  if (normalizeUnitText(text) === unit.text) {
+  if (plain === unit.text) {
     markState(unit, 'same')
     records.set(unit.id, { unit, trans: null, orig: existing?.orig ?? null })
     return 'same'
   }
   if (existing?.trans && existing.trans.isConnected) {
-    existing.trans.textContent = text
+    fillTranslation(existing.trans, unit.inline, text)
     markState(unit, 'done')
     return 'done'
   }
@@ -93,7 +110,7 @@ export function renderTranslation(
   const trans = document.createElement('span')
   trans.setAttribute('data-yuyi', 'trans')
   trans.setAttribute('lang', targetLang)
-  trans.textContent = text
+  fillTranslation(trans, unit.inline, text)
   unit.element.appendChild(trans)
   markState(unit, 'done')
   records.set(unit.id, { unit, trans, orig })

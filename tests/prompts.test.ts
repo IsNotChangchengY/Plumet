@@ -30,6 +30,12 @@ describe('buildSingleMessages', () => {
     expect(system).toContain('只翻译【原文】')
     expect(system).toContain('不要把上下文里的标题、域名与句子写进译文')
   })
+
+  it('系统提示要求原样保留编号标记', () => {
+    const system = buildSingleMessages({ ...langs, text: 'Hello <y0>world</y0>' })[0].content
+    expect(system).toContain('形如 <y0>…</y0> 的编号标记必须原样保留')
+    expect(system).toContain('不要翻译、删除或改写标记本身')
+  })
 })
 
 describe('buildBatchMessages', () => {
@@ -44,5 +50,10 @@ describe('buildBatchMessages', () => {
   it('批次里保留原有 JSON 输入格式', () => {
     const user = buildBatchMessages({ ...langs, segments: ['one', 'two'] })[1].content
     expect(user).toContain('{"texts":["one","two"]}')
+  })
+
+  it('批量系统提示同样要求保留编号标记', () => {
+    const system = buildBatchMessages({ ...langs, segments: ['one'] })[0].content
+    expect(system).toContain('编号标记必须原样保留')
   })
 })
