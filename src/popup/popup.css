@@ -97,11 +97,13 @@ body {
 }
 
 .page-run:hover:not(:disabled),
+.page-restore:hover,
 .page-more:hover {
   background: color-mix(in srgb, var(--on-brand) 12%, transparent);
 }
 
 .page-run:active:not(:disabled),
+.page-restore:active,
 .page-more:active {
   background: color-mix(in srgb, var(--on-brand) 20%, transparent);
 }
@@ -112,9 +114,25 @@ body {
 }
 
 .page-run:focus-visible,
+.page-restore:focus-visible,
 .page-more:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--on-brand) 62%, transparent);
   outline-offset: -2px;
+}
+
+.page-restore {
+  flex: none;
+  padding: 0 10px;
+  border: 0;
+  border-left: 1px solid color-mix(in srgb, var(--on-brand) 24%, transparent);
+  background: transparent;
+  color: var(--on-brand);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease);
 }
 
 .page-more {
@@ -212,12 +230,6 @@ body {
   place-items: center;
   flex: none;
   width: 14px;
-}
-
-.page-menu-sep {
-  height: 1px;
-  margin: 4px 6px;
-  background: var(--border);
 }
 
 .setbar {

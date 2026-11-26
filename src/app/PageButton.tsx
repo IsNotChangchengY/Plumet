@@ -115,6 +115,18 @@ export function PageButton({ mode = 'bilingual', onModeChange, onStarted }: Prop
       >
         {label}
       </button>
+      {translated ? (
+        <button
+          type="button"
+          className="page-restore"
+          title="还原当前网页的原文"
+          onClick={() => {
+            void run('restore')
+          }}
+        >
+          还原本页
+        </button>
+      ) : null}
       <button
         type="button"
         className="page-more"
@@ -153,22 +165,6 @@ export function PageButton({ mode = 'bilingual', onModeChange, onStarted }: Prop
               </span>
             </button>
           ))}
-          {translated ? (
-            <span className="page-menu-sep" role="separator" />
-          ) : null}
-          {translated ? (
-            <button
-              type="button"
-              className="page-menu-item"
-              role="menuitem"
-              onClick={() => {
-                setMenuOpen(false)
-                void run('restore')
-              }}
-            >
-              <span>还原本页</span>
-            </button>
-          ) : null}
         </div>
       ) : null}
     </div>

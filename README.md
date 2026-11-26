@@ -54,7 +54,7 @@
 <p align="center">
   <img src="assets/store/screenshots/02-page-translate.png" width="720" alt="整页双语翻译" />
 </p>
-<p align="center"><sub>整页双语对照；右下角状态条可切换呈现、重试失败段落或还原本页</sub></p>
+<p align="center"><sub>整页双语对照；右下角状态条可切换呈现、重试失败段落或还原本页，弹窗页脚的「还原本页」分段可一键还原</sub></p>
 
 ### 多引擎并列对照
 

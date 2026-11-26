@@ -131,7 +131,7 @@
 
 态：hover 抬 1px（ghost 不抬）、active 缩到 .97、disabled 半透明且不响应。主按钮不做抬升以外的变形。
 
-页脚的「翻译本页」不算 `.btn.primary`，而是专用的分体按钮 `.page-ctl`（见 7.3）：32px 高、通栏、`--brand-grad` 底 + `--brand-glow`，左段 `.page-run` 与右段 `.page-more` 拼成一个整体；悬停叠 12% `--on-brand`、按下 20%，展开时右段 18%，聚焦用 62% `--on-brand` 内描边。它仍占「主操作」位，所以同一界面里不要再放第二个主按钮。
+页脚的「翻译本页」不算 `.btn.primary`，而是专用的分体按钮 `.page-ctl`（见 7.3）：32px 高、通栏、`--brand-grad` 底 + `--brand-glow`，左段 `.page-run`、已译页面才出现的中段 `.page-restore`（「还原本页」）与右段 `.page-more` 拼成一个整体；悬停叠 12% `--on-brand`、按下 20%，展开时右段 18%，聚焦用 62% `--on-brand` 内描边。它仍占「主操作」位，所以同一界面里不要再放第二个主按钮。
 
 ### 6.2 图标按钮 `.ibtn`
 
@@ -248,11 +248,11 @@
 |---|---|---|
 | 头部 `.popup-header` | 40 | 品牌字标「羽译」+ 胶囊 tab（翻译/历史，滑动指示器）+ 生词本/设置两个图标按钮 |
 | 主体 `.popup-body` | 508 | 内边距 `0 12px 12px`，纵向 stack，间距 8 |
-| 底部 `.popup-footer` | 52 | 1px 上边框 + 通栏分体按钮 `.page-ctl`：左段 `.page-run`「翻译本页 / 取消 N/M / 重译本页」，右段 30px `.page-more` 箭头向上弹出「网页翻译设置」菜单（页面显示两项 + 还原本页） |
+| 底部 `.popup-footer` | 52 | 1px 上边框 + 通栏分体按钮 `.page-ctl`：左段 `.page-run`「翻译本页 / 取消 N/M / 重译本页」+ 已译时的 `.page-restore`「还原本页」，右段 30px `.page-more` 箭头向上弹出「网页翻译设置」菜单（页面显示两项） |
 
 主体自上而下：设置条 `.setbar`（语言两枚胶囊 + 交换 + 引擎多选 →「润色方向」折叠条 `.polish-config`，两者同一张框内）→ 输入卡 `.composer`（输入区 + 右上角 × 清空 + 右下动作：检查 / 润色 / 翻译）→ 结果卡 `.result-card`（`flex: 1`、内部滚动）。弹窗打开时输入框自动聚焦（`TranslatePanel` 挂载时 focus，从「历史」tab 切回也会重新聚焦），点图标即可直接打字。
 
-- 页脚只放一枚 `.page-ctl` 分体按钮：左段 `.page-run` 是主动作（`--on-brand` 13px/550、超长省略），右段 `.page-more` 固定 30px、左侧 1px `color-mix(in srgb, var(--on-brand) 24%, transparent)` 分隔线、14px 向下箭头（`aria-haspopup="menu"`、`aria-expanded` 跟随开合）。菜单 `.page-menu-list` 宽 176px、向上 `calc(100% + 8px)` 弹出：`.page-menu-head` 是「页面显示」+ 当前进度（如「已译 12 段」），两个 `role="menuitemradio"` 的 `.page-menu-item`（选中项文字 `--brand-strong`、右侧 14px 对勾；hover 底 `--surface-2`、选中项 hover `--brand-soft`），有译文时一条 `.page-menu-sep` 分隔线后是「还原本页」；点菜单外关闭。原「还原」次级按钮与页脚进度 hint 已删，进度看页内状态条或菜单头。
+- 页脚只放一枚 `.page-ctl` 分体按钮：左段 `.page-run` 是主动作（`--on-brand` 13px/550、超长省略），已译页面在主动作与箭头之间插入 `.page-restore`（12.5px/500、左侧同样 1px `color-mix(in srgb, var(--on-brand) 24%, transparent)` 分隔线、一次点击发 `restore`）；右段 `.page-more` 固定 30px、左侧 1px 分隔线、14px 向下箭头（`aria-haspopup="menu"`、`aria-expanded` 跟随开合）。菜单 `.page-menu-list` 宽 176px、向上 `calc(100% + 8px)` 弹出：`.page-menu-head` 是「页面显示」+ 当前进度（如「已译 12 段」），两个 `role="menuitemradio"` 的 `.page-menu-item`（选中项文字 `--brand-strong`、右侧 14px 对勾；hover 底 `--surface-2`、选中项 hover `--brand-soft`）；点菜单外关闭。原「还原」次级按钮与页脚进度 hint 已删，进度看页内状态条或菜单头。
 - 结果卡状态行 `.result-meta` 只放状态与元信息；可用动作（收藏/复制）沉到卡片底部 `.result-actions`，用 1px 分隔线与正文分开；清空移到输入框右上角（22px 圆形 ×，输入框有内容或结果时才出现，点它清输入、结果与收藏态并回焦输入框）。查词结果在状态行里多一枚 `词典` 胶囊（`.tag.brand`）；回退翻译时多一枚说明胶囊（如「词典未收录，已改用翻译」）。点击「复制」后按钮短暂显示「已复制」，1.5 秒后恢复。
 - 多引擎对照（翻译面板勾了多个引擎时）：状态行显示「已用 N 个引擎」+ 成功/失败计数标签，正文变成 §6.7 的 `.engine-result` 小卡堆叠，每张卡单独复制、失败的卡只在自己的卡里报错；查词命中词典时仍只出词典卡，词典未收录而回退翻译时同样按勾选顺序堆叠每家的结果卡。
 - 检查结果：状态行（处数/保留/忽略/引擎/耗时 + 三视图切换）→ 高亮块（`.card.flat` + `.marks-view`）→ 问题卡列表（`.issue-item`）。列表可滚动，不压缩行高。
